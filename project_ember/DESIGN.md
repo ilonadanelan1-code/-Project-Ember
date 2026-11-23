@@ -74,3 +74,18 @@ Diplomacy will support relations, war, peace, alliances and trade. These systems
 5. Diplomacy and AI kingdoms.
 6. World generation and content.
 7. Art, UI polish, animation and sound.
+
+
+## Visual direction — v0.8.0
+
+The visual target is stylized low-poly fantasy: readable unit silhouettes, painterly terrain colors, dark bronze UI frames and restrained gold accents. The visual layer is deliberately separate from campaign records and tactical combat stats.
+
+- Strategic map hex coordinates, terrain IDs, movement validation and city ownership remain authoritative. The map renderer adds shadows, terrain motifs, settlement silhouettes and banner markers without changing cell interactions.
+- Tactical terrain is generated from lightweight meshes and MultiMesh batches. The ground collision body and camera are returned to the existing tactical controller unchanged.
+- BattleUnit retains all health, damage, pathing, selection, attack and order behavior. A dedicated visual builder supplies a multi-part infantry, archer, spearman, cavalry or commander model; the existing collision capsule remains on the gameplay root.
+- All props use built-in Godot meshes and runtime materials. No external asset downloads or heavy rendering features are required.
+- Rendering remains on Godot 4.3 GL Compatibility. Battlefield shadows are enabled, but the environment uses compact geometry and batched vegetation to stay appropriate for Android.
+
+## v0.8.0 implementation boundaries
+
+The visual overhaul must not alter campaign save keys, unit role identifiers, tactical damage calculations, movement speeds, formation slot calculations or input mapping. Visual smoke tests cover the new procedural environment and unit-model builders; the existing campaign, roster and hero progression tests remain required.
