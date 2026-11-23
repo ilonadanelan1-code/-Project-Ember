@@ -1,4 +1,4 @@
-name: Package Project Ember Android ZIP
+name: Validate and package Project Ember
 
 on:
   push:
@@ -12,20 +12,28 @@ permissions:
   contents: read
 
 jobs:
-  package:
+  validate-and-package:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-      - name: Validate Godot project
+      - name: Set up Godot 4.3
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.3.0
+      - name: Validate project structure
         run: |
           test -f project_ember/project.godot
           test -d project_ember/scenes
           test -d project_ember/scripts
+      - name: Import and parse all Godot scripts
+        run: godot --headless --editor --path project_ember --quit
+      - name: Smoke-test main scene startup
+        run: godot --headless --path project_ember --quit-after 10
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.5.1
+          name: Project-Ember-v0.5.2
           path: project_ember/
           if-no-files-found: error
           include-hidden-files: true
