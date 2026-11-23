@@ -16,11 +16,11 @@ static func build(team: int, role: int) -> Node3D:
 	var leather := _material(Palette.WOOD, 0.0, 0.9)
 	var cloth := _material(cloth_color, 0.0, 0.84)
 	var cloth_highlight := _material(cloth_light, 0.0, 0.78)
-	var skin := _material(Color("#b88b68"), 0.0, 0.9)
+	var skin := _material(Palette.SKIN, 0.0, 0.9)
 	var boots := _material(Palette.METAL_DARK, 0.0, 0.95)
 
 	if role == BattleUnit.UnitRole.CAVALRY:
-		_add_horse(root, team, forward, leather, _material(Color(0.34, 0.22, 0.14) if team == 0 else Color(0.22, 0.15, 0.12), 0.0, 0.95))
+		_add_horse(root, team, forward, leather, _material(Palette.HORSE_BROWN_PLAYER if team == 0 else Palette.HORSE_BROWN_ENEMY, 0.0, 0.95))
 		_add_rider(root, forward, cloth, cloth_highlight, metal, skin, boots)
 	else:
 		_add_infantry(root, forward, cloth, cloth_highlight, metal, gold, leather, skin, boots, role == BattleUnit.UnitRole.COMMANDER)

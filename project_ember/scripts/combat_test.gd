@@ -1,5 +1,7 @@
 extends Node3D
 
+const Palette = preload("res://scripts/art_palette.gd")
+
 const UiThemeScript = preload("res://scripts/ui_theme.gd")
 const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
 const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
@@ -231,12 +233,12 @@ func _create_ui() -> void:
 
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
-	_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
 	top_box.add_child(_status_label)
 
 	_help_label = Label.new()
 	_help_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
-	_help_label.add_theme_color_override("font_color", Color(0.85, 0.91, 0.96))
+	_help_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
 	top_box.add_child(_help_label)
 
 	var group_row := HBoxContainer.new()
@@ -332,13 +334,13 @@ func _create_result_panel(parent: Control) -> void:
 	_result_title = Label.new()
 	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_result_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(27))
-	_result_title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
+	_result_title.add_theme_color_override("font_color", Palette.UI_RESULT_GOLD)
 	content.add_child(_result_title)
 
 	_result_details = Label.new()
 	_result_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_result_details.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
-	_result_details.add_theme_color_override("font_color", Color(0.92, 0.95, 0.98))
+	_result_details.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
 	content.add_child(_result_details)
 
 	var return_button := _add_action_button(content, "НА СТРАТЕГИЧЕСКУЮ КАРТУ", _return_to_strategy_map)
@@ -364,8 +366,8 @@ func _create_selection_marquee(parent: Control) -> void:
 	_selection_marquee.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_selection_marquee.visible = false
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.18, 0.55, 0.96, 0.16)
-	style.border_color = Color(0.48, 0.78, 1.0, 0.95)
+	style.bg_color = Palette.UI_SELECTION_FILL
+	style.border_color = Palette.UI_SELECTION_BORDER
 	style.border_width_left = 2
 	style.border_width_top = 2
 	style.border_width_right = 2

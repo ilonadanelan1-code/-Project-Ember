@@ -198,7 +198,7 @@ func _add_cavalry_mount() -> void:
 	mount.rotation.x = PI / 2.0
 	mount.position = Vector3(0.0, 0.48, 0.0)
 	var mount_material := StandardMaterial3D.new()
-	mount_material.albedo_color = Color(0.36, 0.22, 0.13) if team == 0 else Color(0.27, 0.16, 0.12)
+	mount_material.albedo_color = Palette.HORSE_BROWN_PLAYER if team == 0 else Palette.HORSE_BROWN_ENEMY
 	mount_material.roughness = 0.9
 	mount.material_override = mount_material
 	add_child(mount)
@@ -209,14 +209,14 @@ func _add_cavalry_mount() -> void:
 	saddle.mesh = saddle_mesh
 	saddle.position = Vector3(0.0, 0.79, 0.0)
 	var saddle_material := StandardMaterial3D.new()
-	saddle_material.albedo_color = Color(0.72, 0.48, 0.17)
+	saddle_material.albedo_color = Palette.GOLD
 	saddle.material_override = saddle_material
 	add_child(saddle)
 
 
 func _add_commander_visuals() -> void:
 	var shoulder_material := StandardMaterial3D.new()
-	shoulder_material.albedo_color = Color(0.78, 0.58, 0.20)
+	shoulder_material.albedo_color = Palette.GOLD
 	shoulder_material.metallic = 0.72
 	for side in [-1.0, 1.0]:
 		var shoulder := MeshInstance3D.new()
@@ -236,7 +236,7 @@ func _add_commander_visuals() -> void:
 	crown.mesh = crown_mesh
 	crown.position = Vector3(0.0, 1.79, 0.0)
 	var crown_material := StandardMaterial3D.new()
-	crown_material.albedo_color = Color(0.95, 0.72, 0.22)
+	crown_material.albedo_color = Palette.GOLD_LIGHT
 	crown_material.metallic = 0.88
 	crown_material.roughness = 0.24
 	crown.material_override = crown_material
@@ -249,9 +249,9 @@ func _add_commander_visuals() -> void:
 	jewel.mesh = jewel_mesh
 	jewel.position = Vector3(0.0, 1.90, -0.02)
 	var jewel_material := StandardMaterial3D.new()
-	jewel_material.albedo_color = Color(0.25, 0.85, 0.78)
+	jewel_material.albedo_color = Palette.WATER_LIGHT
 	jewel_material.emission_enabled = true
-	jewel_material.emission = Color(0.08, 0.35, 0.30)
+	jewel_material.emission = Palette.WATER.darkened(0.3)
 	jewel.material_override = jewel_material
 	add_child(jewel)
 
@@ -266,7 +266,7 @@ func _add_spear_visual() -> void:
 	spear.position = Vector3(0.34, 1.0, -0.02)
 	spear.rotation.z = -0.24
 	var shaft_material := StandardMaterial3D.new()
-	shaft_material.albedo_color = Color(0.42, 0.29, 0.16)
+	shaft_material.albedo_color = Palette.WOOD.lightened(0.2)
 	spear.material_override = shaft_material
 	add_child(spear)
 
@@ -280,7 +280,7 @@ func _add_spear_visual() -> void:
 	spear_tip.position = Vector3(0.53, 1.80, -0.02)
 	spear_tip.rotation.z = -0.24
 	var tip_material := StandardMaterial3D.new()
-	tip_material.albedo_color = Color(0.76, 0.81, 0.87)
+	tip_material.albedo_color = Palette.METAL.lightened(0.15)
 	spear_tip.material_override = tip_material
 	add_child(spear_tip)
 
@@ -296,17 +296,17 @@ func _create_role_marker() -> void:
 	var marker_material := StandardMaterial3D.new()
 	match role:
 		UnitRole.RANGED:
-			marker_material.albedo_color = Color(1.0, 0.76, 0.20)
+			marker_material.albedo_color = Palette.GOLD_LIGHT
 			marker_material.emission_enabled = true
-			marker_material.emission = Color(0.65, 0.30, 0.04)
+			marker_material.emission = Palette.GOLD.darkened(0.45)
 		UnitRole.SPEAR:
-			marker_material.albedo_color = Color(0.34, 0.88, 0.58)
+			marker_material.albedo_color = Palette.REWARD
 		UnitRole.CAVALRY:
-			marker_material.albedo_color = Color(0.92, 0.67, 0.28)
+			marker_material.albedo_color = Palette.GOLD
 			marker_material.emission_enabled = true
-			marker_material.emission = Color(0.35, 0.18, 0.04)
+			marker_material.emission = Palette.GOLD.darkened(0.55)
 		_:
-			marker_material.albedo_color = Color(0.78, 0.84, 0.92)
+			marker_material.albedo_color = Palette.METAL.lightened(0.2)
 	marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	marker.material_override = marker_material
 	add_child(marker)
@@ -323,7 +323,7 @@ func _create_health_bar() -> void:
 	background.mesh = VisualCacheScript.cache_mesh_resource(background_mesh)
 	var background_material := VisualCacheScript.get_material("unit:health:background", func() -> Material:
 		var material := StandardMaterial3D.new()
-		material.albedo_color = Color(0.025, 0.03, 0.035, 1.0)
+		material.albedo_color = Palette.UI_BRONZE_DARK
 		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		return material
 	)

@@ -19,7 +19,7 @@ static func create(parent: Node3D, field_size: Vector2, quality: int = QUALITY_M
 	var ground_material := VisualCacheScript.get_material("battlefield:ground", func() -> Material:
 		var material := StandardMaterial3D.new()
 		material.albedo_texture = _make_ground_texture()
-		material.albedo_color = Color(0.82, 0.91, 0.73)
+		material.albedo_color = Palette.GROUND_TEXTURE_TINT
 		material.roughness = 1.0
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 		return material
@@ -41,9 +41,9 @@ static func create(parent: Node3D, field_size: Vector2, quality: int = QUALITY_M
 	var world := WorldEnvironment.new()
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#252d28")
+	environment.background_color = Palette.SKY_BACKGROUND
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#b5c1ad")
+	environment.ambient_light_color = Palette.AMBIENT_COOL
 	environment.ambient_light_energy = 0.62
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	world.environment = environment
@@ -84,9 +84,8 @@ static func _build_ground_texture() -> Texture2D:
 		for x in range(128):
 			var grain := float(posmod(x * 37 + y * 71 + x * y * 13, 97)) / 96.0
 			var wave := sin(float(x + y) * 0.11) * 0.018
-			var shade := (grain - 0.5) * 0.075 + wave
-			var green := clampf(0.30 + shade, 0.0, 1.0)
-			image.set_pixel(x, y, Color(0.19 + shade * 0.62, green, 0.15 + shade * 0.48, 1.0))
+			var blend := clampf(0.22 + grain * 0.22 + wave, 0.08, 0.62)
+			image.set_pixel(x, y, Palette.GRASS.lerp(Palette.GRASS_LIGHT, blend))
 	return ImageTexture.create_from_image(image)
 
 
