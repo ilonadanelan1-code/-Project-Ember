@@ -64,7 +64,7 @@
 
 - [ ] Add recruitable lords and allow heroes to be assigned to multiple armies.
 - [ ] Add equipment slots and loot rewards for heroes.
-- [ ] Add battlefield terrain modifiers and map-to-battlefield terrain transfer.
+- [ ] Add gameplay terrain modifiers for elevation, water, cover and movement; current biome dressing is visual-only.
 - [ ] Add an auto-battle estimator using the same unit catalog and role matchups.
 - [ ] Add neutral camps and resource sites to the strategic map.
 - [ ] Add city list and quick switching between founded cities.
