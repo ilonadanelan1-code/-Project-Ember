@@ -538,7 +538,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		return
 
 	if _settler_selected and CampaignState.settler_active:
-		if _hex_distance(CampaignState.settler_cell, cell) == 1 and _is_traversable(cell) and CampaignState.get_city_index_at(cell) < 0 and CampaignState.settler_moves_left > 0:
+		if _hex_distance(CampaignState.settler_cell, cell) == 1 and _is_traversable(cell) and CampaignState.get_city_index_at(cell) < 0 and cell != CampaignState.player_cell and (not CampaignState.enemy_present or cell != CampaignState.enemy_cell) and CampaignState.settler_moves_left > 0:
 			CampaignState.settler_cell = cell
 			CampaignState.settler_moves_left -= 1
 			CampaignState.save_campaign()
