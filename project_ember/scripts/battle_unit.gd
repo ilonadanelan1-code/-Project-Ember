@@ -1,7 +1,7 @@
-const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
-
 class_name BattleUnit
 extends CharacterBody3D
+
+const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 
 signal eliminated(unit: BattleUnit, killer: BattleUnit)
 
