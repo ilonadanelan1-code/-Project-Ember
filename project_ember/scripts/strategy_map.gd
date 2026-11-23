@@ -68,7 +68,7 @@ func _draw() -> void:
 	# Claimed borders, settlements, and travelling forces are drawn over the terrain.
 	for cell in _cells:
 		if CampaignState.get_city_owner_at(cell) >= 0:
-			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Color(0.91, 0.72, 0.34, 0.72), 2.0, true)
+			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Palette.MAP_CLAIM_BORDER, 2.0, true)
 
 	for city_data in CampaignState.cities:
 		var xy: Array = city_data.get("cell", [])
@@ -87,8 +87,8 @@ func _draw() -> void:
 		for offset in NEIGHBOR_OFFSETS:
 			var neighbor: Vector2i = CampaignState.player_cell + offset
 			if _is_traversable(neighbor) and neighbor != CampaignState.enemy_cell:
-				draw_colored_polygon(_hex_points(_hex_center(neighbor)), Color(0.40, 0.73, 0.91, 0.11))
-				draw_polyline(_closed_polygon(_hex_points(_hex_center(neighbor))), Color(0.77, 0.91, 1.0, 0.92), 2.3, true)
+				draw_colored_polygon(_hex_points(_hex_center(neighbor)), Palette.MAP_MOVE_FILL)
+				draw_polyline(_closed_polygon(_hex_points(_hex_center(neighbor))), Palette.MAP_MOVE_BORDER, 2.3, true)
 
 
 func _draw_hex_tile(cell: Vector2i) -> void:
@@ -100,10 +100,10 @@ func _draw_hex_tile(cell: Vector2i) -> void:
 	for point in points:
 		shadow.append(point + Vector2(0.0, 4.0))
 		inner.append(center + (point - center) * 0.91)
-	draw_colored_polygon(shadow, Color(0.015, 0.025, 0.022, 0.62))
-	draw_colored_polygon(points, Color(0.10, 0.14, 0.12, 1.0))
+	draw_colored_polygon(shadow, Palette.MAP_HEX_SHADOW)
+	draw_colored_polygon(points, Palette.MAP_HEX_BASE)
 	draw_colored_polygon(inner, _terrain_color(kind))
-	draw_polyline(_closed_polygon(points), Color(0.28, 0.34, 0.27, 0.95), 1.4, true)
+	draw_polyline(_closed_polygon(points), Palette.MAP_HEX_OUTLINE, 1.4, true)
 
 	match kind:
 		"forest":
@@ -123,59 +123,59 @@ func _draw_map_grass(center: Vector2, cell: Vector2i) -> void:
 		var seed_value := cell.x * 37 + cell.y * 61 + index * 19
 		var offset := Vector2(float(posmod(seed_value, 17) - 8), float(posmod(seed_value * 3, 15) - 7))
 		var origin := center + offset
-		draw_line(origin, origin + Vector2(-2.0, -4.0), Color(0.68, 0.73, 0.43, 0.58), 1.3, true)
-		draw_line(origin, origin + Vector2(2.0, -5.0), Color(0.78, 0.79, 0.49, 0.52), 1.2, true)
+		draw_line(origin, origin + Vector2(-2.0, -4.0), Palette.MAP_GRASS_STROKE, 1.3, true)
+		draw_line(origin, origin + Vector2(2.0, -5.0), Palette.MAP_GRASS_STROKE_LIGHT, 1.2, true)
 
 
 func _draw_map_tree(position: Vector2, scale: float) -> void:
-	draw_line(position + Vector2(0.0, 2.0), position + Vector2(0.0, 9.0) * scale, Color(0.24, 0.15, 0.09), 2.2, true)
+	draw_line(position + Vector2(0.0, 2.0), position + Vector2(0.0, 9.0) * scale, Palette.MAP_TREE_TRUNK, 2.2, true)
 	var crown := PackedVector2Array([
 		position + Vector2(0.0, -13.0) * scale,
 		position + Vector2(-8.5, 3.0) * scale,
 		position + Vector2(8.5, 3.0) * scale,
 	])
-	draw_colored_polygon(crown, Color(0.12, 0.26, 0.15))
+	draw_colored_polygon(crown, Palette.MAP_TREE_CROWN)
 	var crown_light := PackedVector2Array([
 		position + Vector2(0.0, -12.0) * scale,
 		position + Vector2(-1.0, 1.0) * scale,
 		position + Vector2(7.0, 1.0) * scale,
 	])
-	draw_colored_polygon(crown_light, Color(0.27, 0.42, 0.22, 0.95))
+	draw_colored_polygon(crown_light, Palette.MAP_TREE_CROWN_LIGHT)
 
 
 func _draw_map_hills(center: Vector2, cell: Vector2i) -> void:
 	var shift := float(posmod(cell.x * 5 + cell.y * 7, 7)) - 3.0
 	var hill_back := PackedVector2Array([center + Vector2(-18.0, 6.0), center + Vector2(-3.0 + shift, -12.0), center + Vector2(12.0, 6.0)])
 	var hill_front := PackedVector2Array([center + Vector2(-10.0, 8.0), center + Vector2(5.0, -6.0), center + Vector2(19.0, 8.0)])
-	draw_colored_polygon(hill_back, Color(0.36, 0.34, 0.25))
-	draw_colored_polygon(hill_front, Color(0.54, 0.48, 0.32))
-	draw_line(center + Vector2(-3.0 + shift, -12.0), center + Vector2(2.0 + shift, -3.0), Color(0.79, 0.73, 0.55, 0.75), 1.5, true)
+	draw_colored_polygon(hill_back, Palette.MAP_HILL_BACK)
+	draw_colored_polygon(hill_front, Palette.MAP_HILL_FRONT)
+	draw_line(center + Vector2(-3.0 + shift, -12.0), center + Vector2(2.0 + shift, -3.0), Palette.MAP_HILL_EDGE, 1.5, true)
 
 
 func _draw_map_water(center: Vector2, cell: Vector2i) -> void:
 	for index in range(3):
 		var y := float(index * 8 - 7)
 		var offset := float(posmod(cell.x * 9 + cell.y * 13 + index * 5, 9)) - 4.0
-		draw_line(center + Vector2(-13.0 + offset, y), center + Vector2(-3.0, y - 2.0), Color(0.65, 0.82, 0.87, 0.65), 1.6, true)
-		draw_line(center + Vector2(1.0, y - 2.0), center + Vector2(13.0 - offset * 0.4, y), Color(0.80, 0.89, 0.89, 0.55), 1.4, true)
+		draw_line(center + Vector2(-13.0 + offset, y), center + Vector2(-3.0, y - 2.0), Palette.MAP_WATER_RIPPLE, 1.6, true)
+		draw_line(center + Vector2(1.0, y - 2.0), center + Vector2(13.0 - offset * 0.4, y), Palette.MAP_WATER_RIPPLE_LIGHT, 1.4, true)
 
 
 func _draw_city_marker(center: Vector2) -> void:
-	draw_circle(center + Vector2(0.0, 3.0), 17.0, Color(0.02, 0.025, 0.02, 0.55))
-	draw_rect(Rect2(center + Vector2(-11.0, -7.0), Vector2(22.0, 17.0)), Color(0.61, 0.54, 0.39))
-	draw_rect(Rect2(center + Vector2(-15.0, -12.0), Vector2(8.0, 18.0)), Color(0.72, 0.64, 0.45))
-	draw_rect(Rect2(center + Vector2(7.0, -12.0), Vector2(8.0, 18.0)), Color(0.72, 0.64, 0.45))
-	draw_colored_polygon(PackedVector2Array([center + Vector2(-17.0, -12.0), center + Vector2(-11.0, -20.0), center + Vector2(-5.0, -12.0)]), Color(0.45, 0.20, 0.15))
-	draw_colored_polygon(PackedVector2Array([center + Vector2(5.0, -12.0), center + Vector2(11.0, -20.0), center + Vector2(17.0, -12.0)]), Color(0.45, 0.20, 0.15))
-	draw_rect(Rect2(center + Vector2(-3.0, 1.0), Vector2(6.0, 9.0)), Color(0.21, 0.19, 0.15))
-	draw_line(center + Vector2(0.0, -19.0), center + Vector2(0.0, -29.0), Color(0.78, 0.66, 0.39), 2.0)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0), center + Vector2(12.0, -25.0), center + Vector2(1.0, -21.0)]), Color(0.72, 0.22, 0.16))
+	draw_circle(center + Vector2(0.0, 3.0), 17.0, Palette.MAP_OBJECT_SHADOW)
+	draw_rect(Rect2(center + Vector2(-11.0, -7.0), Vector2(22.0, 17.0)), Palette.MAP_CITY_WALL)
+	draw_rect(Rect2(center + Vector2(-15.0, -12.0), Vector2(8.0, 18.0)), Palette.MAP_CITY_TOWER)
+	draw_rect(Rect2(center + Vector2(7.0, -12.0), Vector2(8.0, 18.0)), Palette.MAP_CITY_TOWER)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-17.0, -12.0), center + Vector2(-11.0, -20.0), center + Vector2(-5.0, -12.0)]), Palette.MAP_CITY_ROOF)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(5.0, -12.0), center + Vector2(11.0, -20.0), center + Vector2(17.0, -12.0)]), Palette.MAP_CITY_ROOF)
+	draw_rect(Rect2(center + Vector2(-3.0, 1.0), Vector2(6.0, 9.0)), Palette.MAP_CITY_DOOR)
+	draw_line(center + Vector2(0.0, -19.0), center + Vector2(0.0, -29.0), Palette.MAP_CITY_FLAG_POLE, 2.0)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0), center + Vector2(12.0, -25.0), center + Vector2(1.0, -21.0)]), Palette.MAP_CITY_FLAG)
 
 
 func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> void:
 	var center := _hex_center(cell)
-	draw_circle(center + Vector2(0.0, 4.0), 18.0, Color(0.015, 0.02, 0.02, 0.66))
-	draw_circle(center, 16.0, Color(0.10, 0.11, 0.10))
+	draw_circle(center + Vector2(0.0, 4.0), 18.0, Palette.MAP_ARMY_SHADOW)
+	draw_circle(center, 16.0, Palette.MAP_ARMY_BASE)
 	var shield := PackedVector2Array([
 		center + Vector2(-10.0, -9.0),
 		center + Vector2(10.0, -9.0),
@@ -184,17 +184,17 @@ func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> v
 		center + Vector2(-9.0, 5.0),
 	])
 	draw_colored_polygon(shield, marker_color)
-	draw_polyline(_closed_polygon(shield), Color(0.88, 0.77, 0.49), 1.4, true)
-	draw_line(center + Vector2(0.0, -12.0), center + Vector2(0.0, -24.0), Color(0.72, 0.62, 0.40), 2.0)
+	draw_polyline(_closed_polygon(shield), Palette.MAP_SHIELD_OUTLINE, 1.4, true)
+	draw_line(center + Vector2(0.0, -12.0), center + Vector2(0.0, -24.0), Palette.MAP_ARMY_FLAG_POLE, 2.0)
 	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -23.0), center + Vector2(13.0, -20.0), center + Vector2(1.0, -16.0)]), marker_color.lightened(0.22))
-	draw_string(ThemeDB.fallback_font, center + Vector2(-5.0, 4.5), letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, Color(1.0, 0.94, 0.76))
+	draw_string(ThemeDB.fallback_font, center + Vector2(-5.0, 4.5), letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, Palette.MAP_ARMY_TEXT)
 
 
 func _draw_settler_marker(center: Vector2) -> void:
-	draw_circle(center + Vector2(0.0, 3.0), 13.0, Color(0.02, 0.02, 0.015, 0.5))
-	draw_colored_polygon(PackedVector2Array([center + Vector2(-10.0, 5.0), center + Vector2(0.0, -9.0), center + Vector2(10.0, 5.0)]), Color(0.65, 0.48, 0.27))
-	draw_line(center + Vector2(-10.0, 5.0), center + Vector2(10.0, 5.0), Color(0.90, 0.78, 0.54), 2.0)
-	draw_circle(center, 3.5, Color(0.96, 0.84, 0.43))
+	draw_circle(center + Vector2(0.0, 3.0), 13.0, Palette.MAP_SETTLER_SHADOW)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-10.0, 5.0), center + Vector2(0.0, -9.0), center + Vector2(10.0, 5.0)]), Palette.MAP_SETTLER_BODY)
+	draw_line(center + Vector2(-10.0, 5.0), center + Vector2(10.0, 5.0), Palette.MAP_SETTLER_BASE, 2.0)
+	draw_circle(center, 3.5, Palette.MAP_SETTLER_ACCENT)
 
 
 
@@ -237,13 +237,13 @@ func _generate_terrain(cell: Vector2i) -> String:
 func _terrain_color(kind: String) -> Color:
 	match kind:
 		"forest":
-			return Color(0.20, 0.39, 0.27)
+			return Palette.FOREST
 		"hills":
-			return Color(0.48, 0.43, 0.31)
+			return Palette.HILLS
 		"water":
-			return Color(0.18, 0.34, 0.49)
+			return Palette.WATER
 		_:
-			return Color(0.38, 0.49, 0.32)
+			return Palette.GRASS
 
 
 func _terrain_symbol(kind: String) -> String:
@@ -310,13 +310,13 @@ func _create_ui() -> void:
 
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
-	_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
 	top_box.add_child(_status_label)
 
 	_message_label = Label.new()
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_message_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
-	_message_label.add_theme_color_override("font_color", Color(0.84, 0.91, 0.96))
+	_message_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
 	top_box.add_child(_message_label)
 
 	var bottom_panel := PanelContainer.new()
@@ -385,7 +385,7 @@ func _create_city_panel(root: Control) -> void:
 	_city_title_label = Label.new()
 	_city_title_label.text = "ГОРОД — " + CampaignState.city_name
 	_city_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(23))
-	_city_title_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
+	_city_title_label.add_theme_color_override("font_color", Palette.UI_TEXT_CITY_TITLE)
 	_city_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_city_title_label)
 	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_city)
@@ -403,31 +403,31 @@ func _create_city_panel(root: Control) -> void:
 	_city_overview_label = Label.new()
 	_city_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_city_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
-	_city_overview_label.add_theme_color_override("font_color", Color(0.93, 0.95, 0.98))
+	_city_overview_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
 	details.add_child(_city_overview_label)
 
 	_city_income_label = Label.new()
 	_city_income_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_city_income_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
-	_city_income_label.add_theme_color_override("font_color", Color(0.65, 0.85, 0.72))
+	_city_income_label.add_theme_color_override("font_color", Palette.UI_TEXT_INCOME)
 	details.add_child(_city_income_label)
 
 	_city_queue_label = Label.new()
 	_city_queue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_city_queue_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
-	_city_queue_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.48))
+	_city_queue_label.add_theme_color_override("font_color", Palette.UI_TEXT_QUEUE)
 	details.add_child(_city_queue_label)
 
 	var hero_title := Label.new()
 	hero_title.text = "ПРАВИТЕЛЬ И КОМАНДИР"
 	hero_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(17))
-	hero_title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.38))
+	hero_title.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
 	details.add_child(hero_title)
 
 	_hero_overview_label = Label.new()
 	_hero_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hero_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
-	_hero_overview_label.add_theme_color_override("font_color", Color(0.93, 0.95, 0.98))
+	_hero_overview_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
 	details.add_child(_hero_overview_label)
 
 	var hero_skill_grid := GridContainer.new()
@@ -444,7 +444,7 @@ func _create_city_panel(root: Control) -> void:
 	var building_title := Label.new()
 	building_title.text = "СТРОИТЕЛЬСТВО"
 	building_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
-	building_title.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
+	building_title.add_theme_color_override("font_color", Palette.UI_TEXT_BUILDING)
 	details.add_child(building_title)
 
 	var building_grid := GridContainer.new()
@@ -463,7 +463,7 @@ func _create_city_panel(root: Control) -> void:
 	var recruit_title := Label.new()
 	recruit_title.text = "НАЙМ ВОЙСК"
 	recruit_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
-	recruit_title.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
+	recruit_title.add_theme_color_override("font_color", Palette.UI_TEXT_BUILDING)
 	details.add_child(recruit_title)
 
 	var recruit_grid := GridContainer.new()
@@ -487,7 +487,7 @@ func _create_city_panel(root: Control) -> void:
 	hint.text = "Заказы оплачиваются золотом сразу, производство накапливается каждый ход. Казармы открывают мечников и копейщиков; стрельбище — лучников; конюшня — кавалерию. Стрельбище и конюшня требуют казарм. Поселенец основывает город не ближе 3 гексов."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
-	hint.add_theme_color_override("font_color", Color(0.68, 0.75, 0.83))
+	hint.add_theme_color_override("font_color", Palette.UI_TEXT_HINT)
 	details.add_child(hint)
 	_refresh_city_panel()
 
