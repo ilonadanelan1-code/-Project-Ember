@@ -1,5 +1,18 @@
 # Project Ember — Tasks
 
+## v0.9.2 — Battlefield Biomes & Terrain
+
+- [x] Add grassland, woodland, highlands and marsh tactical biome profiles.
+- [x] Derive the battle biome from the six neighboring strategic hexes without changing the campaign save schema.
+- [x] Generate deterministic biome dressing from the battle's strategic origin cell.
+- [x] Add distinct ground palettes/textures, vegetation density, woodland logs, highland rock shelves and marsh pools/reeds.
+- [x] Display the selected terrain name in the tactical HUD.
+- [x] Keep the original flat battlefield collider and unit movement plane; biome props are visual-only.
+- [x] Add CI coverage for biome selection, deterministic seeds, profile variation, collision bounds and decoration budgets.
+- [ ] Import v0.9.2 in Godot Android Editor and compare all four biomes on the phone.
+- [ ] Verify marsh pool transparency and highland/woodland contrast at tactical camera zoom levels.
+- [ ] Measure Low/Medium FPS with 20–50 units in each biome.
+
 ## v0.9.1 — Units
 
 - [x] Merge each team/role static silhouette into one vertex-coloured ArrayMesh.
