@@ -68,14 +68,37 @@ var battle_origin_cell: Vector2i = Vector2i.ZERO
 var battle_enemy_cell: Vector2i = Vector2i.ZERO
 var last_battle_result: Dictionary = {}
 var last_battle_report_pending: bool = false
+var _prevent_save_overwrite: bool = false
 
 
 func _ready() -> void:
-	if not load_campaign():
-		new_campaign()
+	if load_campaign():
+		return
+	if FileAccess.file_exists(SAVE_PATH) and not _preserve_unreadable_save():
+		push_error("Project Ember: the existing save could not be backed up; automatic saving is disabled to protect it.")
+		new_campaign(false)
+		return
+	new_campaign()
 
 
-func new_campaign() -> void:
+func _preserve_unreadable_save() -> bool:
+	var backup_path := SAVE_PATH + ".corrupt"
+	var suffix := 1
+	while FileAccess.file_exists(backup_path):
+		backup_path = "%s.corrupt.%d" % [SAVE_PATH, suffix]
+		suffix += 1
+	var source_absolute := ProjectSettings.globalize_path(SAVE_PATH)
+	var backup_absolute := ProjectSettings.globalize_path(backup_path)
+	var copy_error: Error = DirAccess.copy_absolute(source_absolute, backup_absolute)
+	if copy_error != OK:
+		push_error("Project Ember: could not preserve unreadable save. Error code: %d" % int(copy_error))
+		return false
+	push_warning("Project Ember: unreadable save preserved as %s before starting a fresh campaign." % backup_path)
+	return true
+
+
+func new_campaign(persist: bool = true) -> void:
+	_prevent_save_overwrite = false
 	campaign_started = true
 	campaign_lost = false
 	turn_number = 1
@@ -104,7 +127,10 @@ func new_campaign() -> void:
 	battle_in_progress = false
 	last_battle_result.clear()
 	last_battle_report_pending = false
-	save_campaign()
+	if persist:
+		save_campaign()
+	else:
+		_prevent_save_overwrite = true
 
 
 func _make_starting_army() -> Array[Dictionary]:
@@ -343,7 +369,7 @@ func queue_building(building_id: String) -> bool:
 		"name": str(data["name"]),
 		"production_cost": int(data["production_cost"]),
 	})
-	city_last_event = "%s добавлена в очередь строительства." % str(data["name"])
+	city_last_event = "%s добавлен в очередь найма." % recruit_name
 	save_campaign()
 	return true
 
@@ -383,8 +409,8 @@ func get_city_queue_summary() -> String:
 		return "Очередь пуста"
 	var current: Dictionary = city_build_queue[0]
 	var item_name := str(current.get("name", "Заказ"))
-	var required := int(current.get("production_cost", 1))
-		return "Очередь пуста"
+	var required := maxi(1, int(current.get("production_cost", 1)))
+	return "В очереди: %s · производство %d/%d · заказов: %d" % [
 		item_name,
 		mini(city_production_bank, required),
 		required,
@@ -406,6 +432,28 @@ func advance_campaign_turn() -> void:
 		_save_active_city()
 	active_city_id = previous_city_id
 	_load_active_city()
+
+
+func _find_settler_spawn_cell(origin: Vector2i) -> Vector2i:
+	# Keep settlers on the playable 91-hex map, including when a new city is
+	# founded at the map edge. StrategyMap will make the selected tile passable.
+	var offsets: Array[Vector2i] = [
+		Vector2i(0, 1),
+		Vector2i(1, 0),
+		Vector2i(1, -1),
+		Vector2i(0, -1),
+		Vector2i(-1, 0),
+		Vector2i(-1, 1),
+	]
+	for offset in offsets:
+		var candidate: Vector2i = origin + offset
+		var radius_distance := int((absi(candidate.x) + absi(candidate.y) + absi(candidate.x + candidate.y)) / 2)
+		if radius_distance > 5 or get_city_index_at(candidate) >= 0:
+			continue
+		if candidate == player_cell or (enemy_present and candidate == enemy_cell):
+			continue
+		return candidate
+	return origin
 
 
 func _process_city_queue() -> void:
@@ -434,7 +482,7 @@ func _process_city_queue() -> void:
 				city_last_event += "%s прибыл в армию. " % order_name
 		elif order_kind == "settler" and not settler_active:
 			settler_active = true
-			settler_cell = city_cell + Vector2i(0, 1)
+			settler_cell = _find_settler_spawn_cell(city_cell)
 			city_last_event += "Поселенец готов к основанию нового города. "
 
 	if city_last_event.is_empty():
@@ -451,8 +499,9 @@ func _count_queued_recruits() -> int:
 
 
 func save_campaign() -> bool:
-	# Do not overwrite the last safe strategic state during an unfinished tactical battle.
-	if battle_in_progress:
+	# Do not overwrite the last safe strategic state during an unfinished tactical battle
+	# or when a damaged save could not be preserved during startup.
+	if battle_in_progress or _prevent_save_overwrite:
 		return false
 	_save_active_city()
 	var save_data := {
