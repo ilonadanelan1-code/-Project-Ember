@@ -329,7 +329,7 @@ func _create_city_panel(root: Control) -> void:
 	building_grid.add_theme_constant_override("v_separation", 6)
 	details.add_child(building_grid)
 	for building_id in ["farm", "market", "workshop", "barracks"]:
-		var data := CampaignState.get_city_building_data(building_id)
+		var data: Dictionary = CampaignState.get_city_building_data(building_id)
 		var button_text := "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Здание")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
 		var building_button := _add_button(building_grid, button_text, _queue_building.bind(building_id))
 		building_button.custom_minimum_size = Vector2(0.0, 66.0)
@@ -382,7 +382,7 @@ func _close_city() -> void:
 
 func _queue_building(building_id: String) -> void:
 	if CampaignState.queue_building(building_id):
-		var building_data := CampaignState.get_city_building_data(building_id)
+		var building_data: Dictionary = CampaignState.get_city_building_data(building_id)
 		_message_text = "%s добавлена в очередь. Производство завершится за несколько ходов." % str(building_data.get("name", "Постройка"))
 	else:
 		_message_text = "Не хватает золота или это здание уже построено/заказано."
@@ -410,6 +410,8 @@ func _queue_settler() -> void:
 
 func _found_city() -> void:
 	if CampaignState.found_city(CampaignState.settler_cell):
+		if _terrain.has(CampaignState.city_cell):
+			_terrain[CampaignState.city_cell] = "plain"
 		_settler_selected = false
 		_message_text = "Основан новый город: " + CampaignState.city_name
 		_close_city()
@@ -422,7 +424,7 @@ func _found_city() -> void:
 func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
 		return
-	var income := CampaignState.get_city_income()
+	var income: Dictionary = CampaignState.get_city_income()
 	if is_instance_valid(_city_title_label):
 		_city_title_label.text = "ГОРОД — " + CampaignState.city_name
 	_city_overview_label.text = "%s · население: %d · армия: %d/16\nЗолото: %d · Еда: %d · Производство в запасе: %d" % [
@@ -444,7 +446,7 @@ func _refresh_city_panel() -> void:
 		_settler_button.disabled = not CampaignState.can_queue_settler()
 	for building_id in _city_building_buttons:
 		var button: Button = _city_building_buttons[building_id]
-		var data := CampaignState.get_city_building_data(str(building_id))
+		var data: Dictionary = CampaignState.get_city_building_data(str(building_id))
 		if CampaignState.city_has_building(str(building_id)):
 			button.text = "%s\nПОСТРОЕНО" % str(data.get("name", "Здание"))
 			button.disabled = true
@@ -455,7 +457,7 @@ func _refresh_city_panel() -> void:
 			button.text = "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Здание")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
 			button.disabled = not CampaignState.can_queue_building(str(building_id))
 
-	var barracks_ready := CampaignState.city_has_building("barracks")
+	var barracks_ready: bool = CampaignState.city_has_building("barracks")
 	var melee_button: Button = _city_recruit_buttons[CampaignState.ROLE_MELEE]
 	var ranged_button: Button = _city_recruit_buttons[CampaignState.ROLE_RANGED]
 	melee_button.disabled = not CampaignState.can_queue_recruit(CampaignState.ROLE_MELEE)
@@ -636,6 +638,8 @@ func _advance_turn() -> void:
 		return
 	# A turn can be ended early; any unused movement point is simply forfeited.
 	CampaignState.advance_campaign_turn()
+	if CampaignState.settler_active and _terrain.has(CampaignState.settler_cell):
+		_terrain[CampaignState.settler_cell] = "plain"
 	_enemy_take_turn()
 	CampaignState.save_campaign()
 	if CampaignState.enemy_present and _hex_distance(CampaignState.player_cell, CampaignState.enemy_cell) <= 1:
@@ -656,8 +660,8 @@ func _enemy_take_turn() -> void:
 	if current_distance <= 1:
 		return
 
-	var best_cell := CampaignState.enemy_cell
-	var best_distance := current_distance
+	var best_cell: Vector2i = CampaignState.enemy_cell
+	var best_distance: int = current_distance
 	for offset in NEIGHBOR_OFFSETS:
 		var candidate: Vector2i = CampaignState.enemy_cell + offset
 		if not _is_traversable(candidate) or candidate == CampaignState.player_cell or CampaignState.get_city_index_at(candidate) >= 0:
@@ -696,7 +700,7 @@ func _show_last_battle_report() -> void:
 func _refresh_ui() -> void:
 	if not is_instance_valid(_status_label):
 		return
-	var enemy_count := CampaignState.enemy_units.size() if CampaignState.enemy_present else 0
+	var enemy_count: int = CampaignState.enemy_units.size() if CampaignState.enemy_present else 0
 	_status_label.text = "ХОД %d   ·   АРМИЯ %d   ·   ВРАГ %d   ·   ЗОЛОТО %d" % [
 		CampaignState.turn_number,
 		CampaignState.player_units.size(),

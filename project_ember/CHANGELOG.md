@@ -1,5 +1,17 @@
 # Changelog — Project Ember
 
+## v0.5.3 — Audit fixes and strict validation
+
+- Repaired the city production-queue summary parser error.
+- Fixed the undefined recruitment label in `queue_recruit()`.
+- Added explicit types where Godot 4.3 could not infer values from the campaign autoload.
+- Changed the tactical scene root to Node3D to match its 3D script.
+- Preserved unreadable campaign saves before starting a replacement campaign; disables automatic overwriting if preservation fails.
+- Ensured newly produced settlers spawn on an in-bounds, unoccupied map hex.
+- Made CI fail when Godot logs script, parse or engine errors, even if the process exits with code zero.
+- Added campaign smoke tests for queueing, recruitment, army capacity, multiple-city income and save/load.
+- Physical Android import, touch input and device runtime validation remain pending.
+
 ## v0.5.2 — Reliability and UI audit
 
 - Replaced unbounded city production `while` loop with a bounded queue pass (maximum 32 orders per city turn).

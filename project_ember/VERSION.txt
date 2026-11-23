@@ -1,6 +1,8 @@
-Project Ember v0.5.2
-- Bounded city production processing to prevent runaway loops.
-- Repaired corrupted Russian text in campaign UI messages.
-- Hardened strategy and tactical button input handling.
-- Added Godot headless import/runtime checks to release packaging.
-- Android runtime still needs device confirmation.
+Project Ember v0.5.3
+- Fixed production queue and recruitment logic parse/runtime errors.
+- Added explicit Godot 4.3 type annotations.
+- Fixed tactical scene root type.
+- Preserved damaged saves before replacement and added a save-overwrite safeguard.
+- Fixed settler spawn selection near map edges.
+- CI now fails on Godot log errors and runs campaign logic smoke tests.
+- Physical Android runtime validation is still pending.
