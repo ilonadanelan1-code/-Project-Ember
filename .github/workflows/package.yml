@@ -17,14 +17,16 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-      - name: Create project ZIP
+      - name: Validate Godot project
         run: |
-          zip -r Project_Ember_v0.5.0.zip project_ember
-          unzip -t Project_Ember_v0.5.0.zip
-      - name: Upload ZIP
+          test -f project_ember/project.godot
+          test -d project_ember/scenes
+          test -d project_ember/scripts
+      - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
           name: Project-Ember-v0.5.0
-          path: Project_Ember_v0.5.0.zip
+          path: project_ember/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
