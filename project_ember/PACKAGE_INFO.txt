@@ -1,1 +1,1 @@
-Project Ember v0.6.0 — Godot 4.3 source project. Extract and import project.godot in Godot Android Editor.
+Project Ember v0.7.0 — Godot 4.3 source project. Import project.godot in Godot Android Editor. Includes persistent ruler progression and battlefield commander abilities.

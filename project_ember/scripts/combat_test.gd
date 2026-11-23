@@ -48,6 +48,7 @@ var _control_groups: Dictionary = {}
 var _control_group_buttons: Dictionary = {}
 var _group_store_mode: bool = false
 var _group_store_button: Button
+var _rally_button: Button
 
 
 func _ready() -> void:
@@ -118,6 +119,8 @@ func _spawn_armies() -> void:
 			_spawn_unit(PLAYER_TEAM, Vector3(-12.5, 0.0, offset), BattleUnit.UnitRole.RANGED)
 			_spawn_unit(ENEMY_TEAM, Vector3(12.5, 0.0, offset), BattleUnit.UnitRole.RANGED)
 
+	_spawn_commander(PLAYER_TEAM, CampaignState.player_hero, Vector3(-10.0, 0.0, 0.0))
+	_spawn_commander(ENEMY_TEAM, CampaignState.enemy_hero, Vector3(10.0, 0.0, 0.0))
 	_initial_team_counts = [_count_team(PLAYER_TEAM), _count_team(ENEMY_TEAM)]
 
 
@@ -166,6 +169,46 @@ func _battle_role_from_id(role_name: String) -> int:
 		CampaignState.ROLE_CAVALRY:
 			return BattleUnit.UnitRole.CAVALRY
 	return BattleUnit.UnitRole.MELEE
+
+
+func _spawn_commander(team: int, hero_record: Dictionary, spawn_position: Vector3) -> void:
+	var unit := BattleUnit.new()
+	unit.team = team
+	unit.role = BattleUnit.UnitRole.COMMANDER
+	unit.commander_level = clampi(int(hero_record.get("level", 1)), 1, 30)
+	var skills_value: Variant = hero_record.get("skills", {})
+	var skills: Dictionary = skills_value if skills_value is Dictionary else {}
+	unit.commander_leadership = clampi(int(skills.get("leadership", 0)), 0, 5)
+	unit.commander_tactics = clampi(int(skills.get("tactics", 0)), 0, 5)
+	unit.commander_might = clampi(int(skills.get("might", 0)), 0, 5)
+	unit.starting_health = float(hero_record.get("health", -1.0))
+	unit.position = spawn_position
+	unit.eliminated.connect(_on_unit_eliminated)
+	add_child(unit)
+
+
+func _get_commander_health(team: int) -> float:
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if node is BattleUnit and not node.is_queued_for_deletion():
+			var unit := node as BattleUnit
+			if unit.team == team and unit.role == BattleUnit.UnitRole.COMMANDER:
+				return maxf(0.0, unit.health)
+	return 0.0
+
+
+func _activate_commander_rally() -> void:
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if node is BattleUnit:
+			var unit := node as BattleUnit
+			if unit.team == PLAYER_TEAM and unit.role == BattleUnit.UnitRole.COMMANDER:
+				var activated := unit.activate_rally()
+				_refresh_ui()
+				if activated:
+					_help_label.text = "БОЕВОЙ КЛИЧ! Ближайшие отряды восстановили силы и получили боевой бонус."
+				else:
+					_help_label.text = "Боевой клич пока недоступен или рядом нет союзных отрядов."
+				return
+	_help_label.text = "Командир не участвует в этом сражении."
 
 
 func _spawn_unit(team: int, spawn_position: Vector3, unit_role: int, unit_health: float = -1.0) -> void:
@@ -228,14 +271,14 @@ func _create_ui() -> void:
 		group_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_control_group_buttons[group_id] = group_button
 
-	# Three compact rows: selection/orders, formation/retreat, battle controls.
+	# Four compact rows: selection/orders, formation/retreat, battle controls and commander ability.
 	var bottom_panel := Panel.new()
 	bottom_panel.anchor_left = 0.0
 	bottom_panel.anchor_top = 1.0
 	bottom_panel.anchor_right = 1.0
 	bottom_panel.anchor_bottom = 1.0
 	bottom_panel.offset_left = 8.0
-	bottom_panel.offset_top = -214.0
+	bottom_panel.offset_top = -258.0
 	bottom_panel.offset_right = -8.0
 	bottom_panel.offset_bottom = -8.0
 	bottom_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.025, 0.035, 0.05, 0.96)))
@@ -269,6 +312,7 @@ func _create_ui() -> void:
 	_speed_button = _add_action_button(buttons, "СКОРОСТЬ: 1x", _cycle_speed)
 	_add_action_button(buttons, "ЗУМ +", _zoom_in)
 	_add_action_button(buttons, "ЗУМ -", _zoom_out)
+	_rally_button = _add_action_button(buttons, "БОЕВОЙ КЛИЧ", _activate_commander_rally)
 	for child in buttons.get_children():
 		if child is Button:
 			_combat_buttons.append(child as Button)
@@ -419,6 +463,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_toggle_order_mode()
 			KEY_H:
 				_hold_selected_units()
+			KEY_Q:
+				_activate_commander_rally()
 			KEY_S:
 				_stop_selected_units()
 			KEY_ESCAPE:
@@ -926,7 +972,9 @@ func _check_battle_result() -> void:
 				_collect_survivors(PLAYER_TEAM),
 				_collect_survivors(ENEMY_TEAM),
 				victory,
-				stats
+				stats,
+				_get_commander_health(PLAYER_TEAM),
+				_get_commander_health(ENEMY_TEAM)
 			)
 		_result_panel.visible = true
 		for button in _combat_buttons:
@@ -935,13 +983,13 @@ func _check_battle_result() -> void:
 
 
 func _get_team_composition(team: int) -> String:
-	var counts := [0, 0, 0, 0]
+	var counts := [0, 0, 0, 0, 0]
 	for node in get_tree().get_nodes_in_group("battle_units"):
 		if node is BattleUnit and not node.is_queued_for_deletion():
 			var unit := node as BattleUnit
 			if unit.team == team:
-				counts[clampi(unit.role, 0, 3)] += 1
-	return "М%d Л%d Кп%d Кв%d" % [counts[0], counts[1], counts[2], counts[3]]
+				counts[clampi(unit.role, 0, 4)] += 1
+	return "М%d Л%d Кп%d Кв%d Км%d" % [counts[0], counts[1], counts[2], counts[3], counts[4]]
 
 
 func _collect_survivors(team: int) -> Array[Dictionary]:
@@ -950,7 +998,7 @@ func _collect_survivors(team: int) -> Array[Dictionary]:
 		if not node is BattleUnit or node.is_queued_for_deletion():
 			continue
 		var unit := node as BattleUnit
-		if unit.team != team or unit.health <= 0.0:
+		if unit.team != team or unit.health <= 0.0 or unit.role == BattleUnit.UnitRole.COMMANDER:
 			continue
 		var role_name := CampaignState.ROLE_MELEE
 		match unit.role:
@@ -1031,7 +1079,9 @@ func _refresh_ui() -> void:
 			_format_battle_time(_battle_time),
 		]
 		var target_text := "ЦЕЛЬ: враг отмечен" if is_instance_valid(_focused_target) else "ЦЕЛЬ: не выбрана"
-		_help_label.text = "4 РОЛИ ВОЙСК · %s · %s · ЗУМ %.0f" % [
+		var commander_level := int(CampaignState.player_hero.get("level", 1))
+		_help_label.text = "КОМАНДИР УР.%d · 4 РОЛИ ВОЙСК · %s · %s · ЗУМ %.0f" % [
+			commander_level,
 			_get_formation_name(),
 			target_text,
 			_camera.size,
@@ -1042,3 +1092,13 @@ func _refresh_ui() -> void:
 		_add_button.text = "ДОБОР: ВКЛ" if _additive_selection else "ДОБОР: ВЫКЛ"
 	if is_instance_valid(_formation_button):
 		_formation_button.text = "СТРОЙ: %s" % _get_formation_name()
+	if is_instance_valid(_rally_button):
+		var commander_cooldown := 0.0
+		for node in get_tree().get_nodes_in_group("battle_units"):
+			if node is BattleUnit:
+				var commander := node as BattleUnit
+				if commander.team == PLAYER_TEAM and commander.role == BattleUnit.UnitRole.COMMANDER:
+					commander_cooldown = commander.rally_cooldown_timer
+					break
+		_rally_button.disabled = _game_over or commander_cooldown > 0.0
+		_rally_button.text = "КЛИЧ: %d с" % ceili(commander_cooldown) if commander_cooldown > 0.0 else "БОЕВОЙ КЛИЧ"

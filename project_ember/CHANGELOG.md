@@ -1,5 +1,19 @@
 # Changelog — Project Ember
 
+## v0.7.0 — Hero Commanders and Progression
+
+- Added a persistent ruler hero and enemy commander to every campaign.
+- Added commander combat units with their own health, level-scaled health/damage/armor, distinct 3D crown and armor visuals, and independent persistence outside the 24-troop recruitment cap.
+- Added a passive commander aura that improves nearby allied damage and movement.
+- Added the active **Battle Cry** ability: nearby allies receive healing and a temporary combat buff. It has a tactics-scaled cooldown and a touch-screen button plus the Q keyboard shortcut.
+- Added enemy commander AI that uses Battle Cry when its nearby force is wounded.
+- Added post-battle hero experience from kills, damage and victory; each level grants one skill point.
+- Added Leadership, Tactics and Might skill branches, with five ranks each.
+- Added commander health persistence, defeated-hero wounds and recovery over campaign turns.
+- Added hero profile and skill-upgrade UI to the city panel, plus commander level and ability status in the tactical interface.
+- Kept older saves compatible by supplying default hero records when hero data is absent.
+- Added automated hero progression, ability, aura, wound recovery and save/load smoke tests.
+
 ## v0.6.0 — Expanded roster and battlefield command update
 
 - Added a centralized unit catalog so economy, recruitment, campaign saves and tactical combat share one source of truth for unit data.
