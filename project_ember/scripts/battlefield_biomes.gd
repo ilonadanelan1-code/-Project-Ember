@@ -8,6 +8,7 @@ const MARSH := "marsh"
 
 const _PROFILES := {
 	GRASSLAND: {
+		"id": GRASSLAND,
 		"name": "Равнина",
 		"ground": Color("#607b43"),
 		"highlight": Color("#93a75b"),
@@ -27,6 +28,7 @@ const _PROFILES := {
 		"reed_density": 0.0,
 	},
 	WOODLAND: {
+		"id": WOODLAND,
 		"name": "Лесная чаща",
 		"ground": Color("#465f3f"),
 		"highlight": Color("#7d9360"),
@@ -46,6 +48,7 @@ const _PROFILES := {
 		"reed_density": 0.0,
 	},
 	HIGHLANDS: {
+		"id": HIGHLANDS,
 		"name": "Каменистые высоты",
 		"ground": Color("#746951"),
 		"highlight": Color("#a18e68"),
@@ -65,6 +68,7 @@ const _PROFILES := {
 		"reed_density": 0.0,
 	},
 	MARSH: {
+		"id": MARSH,
 		"name": "Топи",
 		"ground": Color("#52624b"),
 		"highlight": Color("#86916a"),
