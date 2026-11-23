@@ -108,7 +108,8 @@ func _run() -> void:
 	units[4].take_damage(1.0)
 	_check(is_equal_approx(units[4].attack_damage, original_damage), "visual hit reaction does not alter combat damage")
 
-	units[5].take_damage(units[5].health)
+	# The lethal probe must exceed the target's armor, not just its current health.
+	units[5].take_damage(units[5].health + units[5].armor + 1.0)
 	_check(not units[5].is_in_group("battle_units"), "defeated units leave the combat group immediately")
 	_check(units[5]._is_corpse and units[5].is_processing(), "defeated units remain as short-lived animated corpses")
 
