@@ -19,3 +19,10 @@
 - [ ] Neutral resource sites and camps.
 - [ ] Roads and trade routes.
 - [ ] AI settlement expansion.
+
+
+## v0.5.2 audit status
+- Godot 4.3 headless editor import passed.
+- Strategic map headless startup passed.
+- Tactical battle headless startup is now included in release validation.
+- Physical Android touch/UI test remains pending; investigate further if taps still freeze on-device.
