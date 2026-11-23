@@ -127,7 +127,7 @@ static func resolve_for_cell(cell: Vector2i) -> String:
 		return MARSH
 	if forest_count >= 2 and forest_count >= hills_count:
 		return WOODLAND
-	if hills_count >= 2:
+	if hills_count >= 1 and hills_count >= forest_count:
 		return HIGHLANDS
 	if forest_count > hills_count:
 		return WOODLAND
