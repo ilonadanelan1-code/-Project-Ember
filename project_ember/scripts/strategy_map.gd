@@ -4,7 +4,7 @@ extends Node2D
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
 
 const MAP_RADIUS := 5
-const HEX_SIZE := 44.0
+const HEX_SIZE := 26.0
 const PLAYER_TEAM_COLOR := Color(0.16, 0.52, 1.0)
 const ENEMY_TEAM_COLOR := Color(0.91, 0.23, 0.18)
 
