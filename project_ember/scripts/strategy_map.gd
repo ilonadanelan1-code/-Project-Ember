@@ -328,7 +328,7 @@ func _create_city_panel(root: Control) -> void:
 	building_grid.add_theme_constant_override("h_separation", 8)
 	building_grid.add_theme_constant_override("v_separation", 6)
 	details.add_child(building_grid)
-	for building_id in ["farm", "market", "workshop", "barracks"]:
+	for building_id in ["farm", "market", "workshop", "barracks", "archery_range", "stable"]:
 		var data: Dictionary = CampaignState.get_city_building_data(building_id)
 		var button_text := "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Здание")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
 		var building_button := _add_button(building_grid, button_text, _queue_building.bind(building_id))
@@ -337,7 +337,7 @@ func _create_city_panel(root: Control) -> void:
 		_city_building_buttons[building_id] = building_button
 
 	var recruit_title := Label.new()
-	recruit_title.text = "НАЙМ В КАЗАРМАХ"
+	recruit_title.text = "НАЙМ ВОЙСК"
 	recruit_title.add_theme_font_size_override("font_size", 16)
 	recruit_title.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
 	details.add_child(recruit_title)
@@ -345,22 +345,22 @@ func _create_city_panel(root: Control) -> void:
 	var recruit_grid := GridContainer.new()
 	recruit_grid.columns = 2
 	recruit_grid.add_theme_constant_override("h_separation", 8)
+	recruit_grid.add_theme_constant_override("v_separation", 6)
 	details.add_child(recruit_grid)
-	var melee_button := _add_button(recruit_grid, "МЕЧНИК\n20 зол. · 3 пр.", _queue_recruit.bind(CampaignState.ROLE_MELEE))
-	melee_button.custom_minimum_size = Vector2(0.0, 54.0)
-	melee_button.add_theme_font_size_override("font_size", 13)
-	_city_recruit_buttons[CampaignState.ROLE_MELEE] = melee_button
-	var ranged_button := _add_button(recruit_grid, "ЛУЧНИК\n24 зол. · 4 пр.", _queue_recruit.bind(CampaignState.ROLE_RANGED))
-	ranged_button.custom_minimum_size = Vector2(0.0, 54.0)
-	ranged_button.add_theme_font_size_override("font_size", 13)
-	_city_recruit_buttons[CampaignState.ROLE_RANGED] = ranged_button
+	for role_id in [CampaignState.ROLE_MELEE, CampaignState.ROLE_RANGED, CampaignState.ROLE_SPEAR, CampaignState.ROLE_CAVALRY]:
+		var recruit_data: Dictionary = CampaignState.get_recruit_data(role_id)
+		var button_text := "%s\n%d зол. · %d пр." % [str(recruit_data.get("name", "Отряд")), int(recruit_data.get("gold_cost", 0)), int(recruit_data.get("production_cost", 0))]
+		var recruit_button := _add_button(recruit_grid, button_text, _queue_recruit.bind(role_id))
+		recruit_button.custom_minimum_size = Vector2(0.0, 58.0)
+		recruit_button.add_theme_font_size_override("font_size", 13)
+		_city_recruit_buttons[role_id] = recruit_button
 
 	_settler_button = _add_button(details, "ПОСТРОИТЬ ПОСЕЛЕНЦА · 45 зол. · 10 пр.", _queue_settler)
 	_settler_button.custom_minimum_size = Vector2(0.0, 52.0)
 	_settler_button.add_theme_font_size_override("font_size", 13)
 
 	var hint := Label.new()
-	hint.text = "Заказы оплачиваются золотом сразу. Производство накапливается каждый ход. Казармы открывают найм войск. Поселенец может основать город не ближе 3 гексов от других городов."
+	hint.text = "Заказы оплачиваются золотом сразу, производство накапливается каждый ход. Казармы открывают мечников и копейщиков; стрельбище — лучников; конюшня — кавалерию. Стрельбище и конюшня требуют казарм. Поселенец основывает город не ближе 3 гексов."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(0.68, 0.75, 0.83))
@@ -427,13 +427,15 @@ func _refresh_city_panel() -> void:
 	var income: Dictionary = CampaignState.get_city_income()
 	if is_instance_valid(_city_title_label):
 		_city_title_label.text = "ГОРОД — " + CampaignState.city_name
-	_city_overview_label.text = "%s · население: %d · армия: %d/16\nЗолото: %d · Еда: %d · Производство в запасе: %d" % [
+	_city_overview_label.text = "%s · население: %d · армия: %d/%d\nЗолото: %d · Еда: %d · Производство в запасе: %d\nСостав: %s" % [
 		CampaignState.city_name,
 		CampaignState.city_population,
 		CampaignState.player_units.size(),
+		CampaignState.ARMY_CAPACITY,
 		CampaignState.city_gold,
 		CampaignState.city_food,
 		CampaignState.city_production_bank,
+		_get_army_composition_text(),
 	]
 	_city_income_label.text = "Доход за ход: +%d еды · +%d золота · +%d производства" % [
 		int(income["food"]),
@@ -457,17 +459,29 @@ func _refresh_city_panel() -> void:
 			button.text = "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Здание")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
 			button.disabled = not CampaignState.can_queue_building(str(building_id))
 
-	var barracks_ready: bool = CampaignState.city_has_building("barracks")
-	var melee_button: Button = _city_recruit_buttons[CampaignState.ROLE_MELEE]
-	var ranged_button: Button = _city_recruit_buttons[CampaignState.ROLE_RANGED]
-	melee_button.disabled = not CampaignState.can_queue_recruit(CampaignState.ROLE_MELEE)
-	ranged_button.disabled = not CampaignState.can_queue_recruit(CampaignState.ROLE_RANGED)
-	if not barracks_ready:
-		melee_button.text = "МЕЧНИК\nНУЖНЫ КАЗАРМЫ"
-		ranged_button.text = "ЛУЧНИК\nНУЖНЫ КАЗАРМЫ"
-	else:
-		melee_button.text = "МЕЧНИК\n20 зол. · 3 пр."
-		ranged_button.text = "ЛУЧНИК\n24 зол. · 4 пр."
+	for role_id in _city_recruit_buttons:
+		var role_name := str(role_id)
+		var recruit_button: Button = _city_recruit_buttons[role_name]
+		var recruit_data: Dictionary = CampaignState.get_recruit_data(role_name)
+		var unlock_building := str(recruit_data.get("unlock_building", "barracks"))
+		var building_data: Dictionary = CampaignState.get_city_building_data(unlock_building)
+		var unlocked := CampaignState.city_has_building(unlock_building)
+		recruit_button.disabled = not CampaignState.can_queue_recruit(role_name)
+		if not unlocked:
+			recruit_button.text = "%s\nНУЖНО: %s" % [str(recruit_data.get("name", "Отряд")).to_upper(), str(building_data.get("name", "Здание")).to_upper()]
+		else:
+			recruit_button.text = "%s\n%d зол. · %d пр." % [str(recruit_data.get("name", "Отряд")).to_upper(), int(recruit_data.get("gold_cost", 0)), int(recruit_data.get("production_cost", 0))]
+
+
+func _get_army_composition_text() -> String:
+	var counts := {"melee": 0, "ranged": 0, "spear": 0, "cavalry": 0}
+	for record in CampaignState.player_units:
+		var role_id := str(record.get("role", "melee"))
+		if counts.has(role_id):
+			counts[role_id] = int(counts[role_id]) + 1
+	return "мечники %d · лучники %d · копейщики %d · кавалерия %d" % [
+		counts["melee"], counts["ranged"], counts["spear"], counts["cavalry"],
+	]
 
 
 func _panel_style(background: Color) -> StyleBoxFlat:

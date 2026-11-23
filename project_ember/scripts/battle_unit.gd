@@ -16,10 +16,14 @@ enum OrderMode {
 enum UnitRole {
 	MELEE,
 	RANGED,
+	SPEAR,
+	CAVALRY,
 }
 
+const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
+
 @export var team: int = 0 # 0 = player, 1 = enemy
-@export_enum("Мечник", "Лучник") var role: int = UnitRole.MELEE
+@export_enum("Мечник", "Лучник", "Копейщик", "Кавалерист") var role: int = UnitRole.MELEE
 @export var move_speed: float = 3.8
 @export var max_health: float = 100.0
 @export var attack_damage: float = 16.0
@@ -28,12 +32,18 @@ enum UnitRole {
 @export var detection_range: float = 13.0
 @export var preferred_range: float = 1.4
 @export var projectile_speed: float = 12.0
+var armor: float = 0.0
+var anti_cavalry_multiplier: float = 1.0
+var charge_multiplier: float = 1.0
 
 var health: float
 var starting_health: float = -1.0
 var kills: int = 0
 var damage_dealt: float = 0.0
 var _attack_timer: float = 0.0
+var _charge_timer: float = 0.0
+var _moving_fast: bool = false
+var _charge_armed: bool = false
 var _destination: Vector3 = Vector3.ZERO
 var _order_mode: OrderMode = OrderMode.AUTO
 var _target: BattleUnit
@@ -54,23 +64,22 @@ func _ready() -> void:
 
 
 func _apply_role_stats() -> void:
-	if role == UnitRole.RANGED:
-		max_health = 72.0
-		move_speed = 3.35
-		attack_damage = 13.0
-		attack_range = 8.0
-		attack_cooldown = 1.45
-		detection_range = 16.0
-		preferred_range = 5.7
-		projectile_speed = 12.0
-	else:
-		max_health = 125.0
-		move_speed = 3.8
-		attack_damage = 19.0
-		attack_range = 1.65
-		attack_cooldown = 0.9
-		detection_range = 13.0
-		preferred_range = 1.4
+	var data: Dictionary = UNIT_CATALOG_SCRIPT.get_data(_get_role_id())
+	max_health = float(data.get("max_health", 125.0))
+	move_speed = float(data.get("move_speed", 3.8))
+	attack_damage = float(data.get("damage", 19.0))
+	attack_range = float(data.get("attack_range", 1.65))
+	attack_cooldown = float(data.get("attack_cooldown", 0.9))
+	detection_range = float(data.get("detection_range", 13.0))
+	preferred_range = float(data.get("preferred_range", 1.4))
+	projectile_speed = float(data.get("projectile_speed", 0.0))
+	armor = float(data.get("armor", 0.0))
+	anti_cavalry_multiplier = float(data.get("anti_cavalry_multiplier", 1.0))
+	charge_multiplier = float(data.get("charge_multiplier", 1.0))
+
+
+func _get_role_id() -> String:
+	return UNIT_CATALOG_SCRIPT.get_role_for_battle_index(role)
 
 
 func _build_visuals() -> void:
@@ -82,35 +91,42 @@ func _build_visuals() -> void:
 		body_material.albedo_color = Color(0.88, 0.20, 0.17)
 	body_material.roughness = 0.82
 
+	var body_radius := 0.38
+	var body_height := 1.45
+	var body_y := 0.76
 	if role == UnitRole.RANGED:
-		var ranged_body := CapsuleMesh.new()
-		ranged_body.radius = 0.29
-		ranged_body.height = 1.30
-		body_mesh.mesh = ranged_body
-		body_mesh.position.y = 0.68
-	else:
-		var melee_body := CapsuleMesh.new()
-		melee_body.radius = 0.38
-		melee_body.height = 1.45
-		body_mesh.mesh = melee_body
-		body_mesh.position.y = 0.76
+		body_radius = 0.29
+		body_height = 1.30
+		body_y = 0.68
+	elif role == UnitRole.SPEAR:
+		body_radius = 0.34
+		body_height = 1.42
+		body_y = 0.73
+	elif role == UnitRole.CAVALRY:
+		body_radius = 0.30
+		body_height = 1.20
+		body_y = 1.02
 
+	if role == UnitRole.CAVALRY:
+		_add_cavalry_mount()
+	var body_capsule := CapsuleMesh.new()
+	body_capsule.radius = body_radius
+	body_capsule.height = body_height
+	body_mesh.mesh = body_capsule
+	body_mesh.position.y = body_y
 	body_mesh.material_override = body_material
 	add_child(body_mesh)
 
 	var collision := CollisionShape3D.new()
 	var capsule_shape := CapsuleShape3D.new()
-	if role == UnitRole.RANGED:
-		capsule_shape.radius = 0.29
-		capsule_shape.height = 1.30
-		collision.position.y = 0.68
-	else:
-		capsule_shape.radius = 0.38
-		capsule_shape.height = 1.45
-		collision.position.y = 0.76
+	capsule_shape.radius = body_radius
+	capsule_shape.height = body_height
+	collision.position.y = body_y
 	collision.shape = capsule_shape
 	add_child(collision)
 
+	if role == UnitRole.SPEAR:
+		_add_spear_visual()
 	_create_role_marker()
 
 	_selection_ring = MeshInstance3D.new()
@@ -144,6 +160,58 @@ func _build_visuals() -> void:
 	_create_health_bar()
 
 
+func _add_cavalry_mount() -> void:
+	var mount := MeshInstance3D.new()
+	var mount_mesh := CapsuleMesh.new()
+	mount_mesh.radius = 0.46
+	mount_mesh.height = 1.75
+	mount.mesh = mount_mesh
+	mount.rotation.x = PI / 2.0
+	mount.position = Vector3(0.0, 0.48, 0.0)
+	var mount_material := StandardMaterial3D.new()
+	mount_material.albedo_color = Color(0.36, 0.22, 0.13) if team == 0 else Color(0.27, 0.16, 0.12)
+	mount_material.roughness = 0.9
+	mount.material_override = mount_material
+	add_child(mount)
+
+	var saddle := MeshInstance3D.new()
+	var saddle_mesh := BoxMesh.new()
+	saddle_mesh.size = Vector3(0.54, 0.18, 0.72)
+	saddle.mesh = saddle_mesh
+	saddle.position = Vector3(0.0, 0.79, 0.0)
+	var saddle_material := StandardMaterial3D.new()
+	saddle_material.albedo_color = Color(0.72, 0.48, 0.17)
+	saddle.material_override = saddle_material
+	add_child(saddle)
+
+
+func _add_spear_visual() -> void:
+	var spear := MeshInstance3D.new()
+	var shaft := CylinderMesh.new()
+	shaft.top_radius = 0.025
+	shaft.bottom_radius = 0.035
+	shaft.height = 1.65
+	spear.mesh = shaft
+	spear.position = Vector3(0.34, 1.0, -0.02)
+	spear.rotation.z = -0.24
+	var shaft_material := StandardMaterial3D.new()
+	shaft_material.albedo_color = Color(0.42, 0.29, 0.16)
+	spear.material_override = shaft_material
+	add_child(spear)
+
+	var spear_tip := MeshInstance3D.new()
+	var tip_mesh := ConeMesh.new()
+	tip_mesh.bottom_radius = 0.085
+	tip_mesh.height = 0.22
+	spear_tip.mesh = tip_mesh
+	spear_tip.position = Vector3(0.53, 1.80, -0.02)
+	spear_tip.rotation.z = -0.24
+	var tip_material := StandardMaterial3D.new()
+	tip_material.albedo_color = Color(0.76, 0.81, 0.87)
+	spear_tip.material_override = tip_material
+	add_child(spear_tip)
+
+
 func _create_role_marker() -> void:
 	var marker := MeshInstance3D.new()
 	var marker_mesh := SphereMesh.new()
@@ -153,12 +221,19 @@ func _create_role_marker() -> void:
 	marker.position = Vector3(0.0, 1.53, 0.0)
 
 	var marker_material := StandardMaterial3D.new()
-	if role == UnitRole.RANGED:
-		marker_material.albedo_color = Color(1.0, 0.76, 0.20)
-		marker_material.emission_enabled = true
-		marker_material.emission = Color(0.65, 0.30, 0.04)
-	else:
-		marker_material.albedo_color = Color(0.78, 0.84, 0.92)
+	match role:
+		UnitRole.RANGED:
+			marker_material.albedo_color = Color(1.0, 0.76, 0.20)
+			marker_material.emission_enabled = true
+			marker_material.emission = Color(0.65, 0.30, 0.04)
+		UnitRole.SPEAR:
+			marker_material.albedo_color = Color(0.34, 0.88, 0.58)
+		UnitRole.CAVALRY:
+			marker_material.albedo_color = Color(0.92, 0.67, 0.28)
+			marker_material.emission_enabled = true
+			marker_material.emission = Color(0.35, 0.18, 0.04)
+		_:
+			marker_material.albedo_color = Color(0.78, 0.84, 0.92)
 	marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	marker.material_override = marker_material
 	add_child(marker)
@@ -166,7 +241,7 @@ func _create_role_marker() -> void:
 
 func _create_health_bar() -> void:
 	var bar_root := Node3D.new()
-	bar_root.position = Vector3(0.0, 1.82, 0.0)
+	bar_root.position = Vector3(0.0, 2.02 if role == UnitRole.CAVALRY else 1.82, 0.0)
 	add_child(bar_root)
 
 	var background := MeshInstance3D.new()
@@ -255,7 +330,8 @@ func order_retreat() -> void:
 func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 	if health <= 0.0:
 		return
-	var applied_damage := minf(health, maxf(amount, 0.0))
+	var mitigated_damage := maxf(1.0, amount - armor)
+	var applied_damage := minf(health, maxf(mitigated_damage, 0.0))
 	health = maxf(0.0, health - applied_damage)
 	if is_instance_valid(attacker) and attacker != self:
 		attacker.damage_dealt += applied_damage
@@ -272,6 +348,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_attack_timer = maxf(0.0, _attack_timer - delta)
+	_charge_timer = maxf(0.0, _charge_timer - delta)
+	_moving_fast = false
 
 	# Enemy-controlled units withdraw when critically wounded instead of fighting to the last HP.
 	if team == 1 and _order_mode == OrderMode.AUTO and health <= max_health * 0.22:
@@ -333,7 +411,11 @@ func _attack_or_chase() -> void:
 	if distance <= attack_range:
 		velocity = Vector3.ZERO
 		if _attack_timer <= 0.0:
-			_target.take_damage(attack_damage, self)
+			var strike_damage := get_strike_damage_against(_target)
+			if role == UnitRole.CAVALRY and _charge_armed and _charge_timer <= 0.0:
+				_charge_timer = 4.5
+				_charge_armed = false
+			_target.take_damage(strike_damage, self)
 			_attack_timer = attack_cooldown
 	elif _order_mode == OrderMode.HOLD:
 		# Hold means defend this exact position, not chase a target.
@@ -341,6 +423,15 @@ func _attack_or_chase() -> void:
 		velocity = Vector3.ZERO
 	else:
 		_steer(offset.normalized())
+
+
+func get_strike_damage_against(target: BattleUnit) -> float:
+	var strike_damage := attack_damage
+	if role == UnitRole.SPEAR and is_instance_valid(target) and target.role == UnitRole.CAVALRY:
+		strike_damage *= anti_cavalry_multiplier
+	if role == UnitRole.CAVALRY and _charge_armed and _charge_timer <= 0.0:
+		strike_damage *= charge_multiplier
+	return strike_damage
 
 
 func _ranged_combat(offset: Vector3, distance: float) -> void:
@@ -385,6 +476,9 @@ func _steer(direction: Vector3) -> void:
 	if separation.length_squared() > 0.001:
 		desired_direction = (desired_direction + separation * 0.8).normalized()
 	velocity = desired_direction * move_speed
+	_moving_fast = role == UnitRole.CAVALRY and velocity.length() >= move_speed * 0.75
+	if _moving_fast and _charge_timer <= 0.0:
+		_charge_armed = true
 
 
 func _move_to_destination() -> void:

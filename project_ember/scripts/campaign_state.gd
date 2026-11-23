@@ -3,8 +3,12 @@ extends Node
 ## Shared campaign state for the strategy map, city economy and tactical battles.
 ## Only persistent data is stored here; scene nodes and UI remain in their own scenes.
 
+const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
+const ROLE_SPEAR := "spear"
+const ROLE_CAVALRY := "cavalry"
+const ARMY_CAPACITY := 24
 const SAVE_PATH := "user://project_ember_campaign.json"
 const SAVE_VERSION := 1
 
@@ -31,7 +35,19 @@ const CITY_BUILDINGS := {
 		"name": "Казармы",
 		"gold_cost": 50,
 		"production_cost": 8,
-		"description": "Открывает найм мечников и лучников",
+		"description": "Открывают найм мечников и копейщиков",
+	},
+	"archery_range": {
+		"name": "Стрельбище",
+		"gold_cost": 40,
+		"production_cost": 8,
+		"description": "Открывает найм лучников · нужны казармы",
+	},
+	"stable": {
+		"name": "Конюшня",
+		"gold_cost": 60,
+		"production_cost": 10,
+		"description": "Открывает найм кавалерии · нужны казармы",
 	},
 }
 
@@ -354,6 +370,8 @@ func can_queue_building(building_id: String) -> bool:
 		return false
 	if city_has_building(building_id) or city_is_building_queued(building_id):
 		return false
+	if (building_id == "archery_range" or building_id == "stable") and not city_has_building("barracks"):
+		return false
 	var data: Dictionary = CITY_BUILDINGS[building_id]
 	return city_gold >= int(data["gold_cost"])
 
@@ -374,30 +392,35 @@ func queue_building(building_id: String) -> bool:
 	return true
 
 
+func get_recruit_data(role_name: String) -> Dictionary:
+	return UNIT_CATALOG_SCRIPT.get_data(role_name)
+
+
 func can_queue_recruit(role_name: String) -> bool:
-	if campaign_lost or not city_founded or not city_has_building("barracks"):
+	if campaign_lost or not city_founded:
 		return false
-	if role_name != ROLE_MELEE and role_name != ROLE_RANGED:
+	var data: Dictionary = get_recruit_data(role_name)
+	if data.is_empty():
 		return false
-	if _count_queued_recruits() + player_units.size() >= 16:
+	var unlock_building := str(data.get("unlock_building", "barracks"))
+	if not city_has_building(unlock_building):
 		return false
-	var gold_cost := 20 if role_name == ROLE_MELEE else 24
-	return city_gold >= gold_cost
+	if _count_queued_recruits() + player_units.size() >= ARMY_CAPACITY:
+		return false
+	return city_gold >= int(data.get("gold_cost", 0))
 
 
 func queue_recruit(role_name: String) -> bool:
 	if not can_queue_recruit(role_name):
 		return false
-	var is_ranged := role_name == ROLE_RANGED
-	var gold_cost := 24 if is_ranged else 20
-	var production_cost := 4 if is_ranged else 3
-	var recruit_name := "Лучник" if is_ranged else "Мечник"
-	city_gold -= gold_cost
+	var data: Dictionary = get_recruit_data(role_name)
+	var recruit_name := str(data.get("name", "Отряд"))
+	city_gold -= int(data.get("gold_cost", 0))
 	city_build_queue.append({
 		"kind": "recruit",
 		"id": role_name,
 		"name": recruit_name,
-		"production_cost": production_cost,
+		"production_cost": int(data.get("production_cost", 1)),
 	})
 	city_last_event = "%s добавлен в очередь найма." % recruit_name
 	save_campaign()
@@ -476,8 +499,8 @@ func _process_city_queue() -> void:
 				city_buildings.append(order_id)
 				city_last_event += "%s построена. " % order_name
 		elif order_kind == "recruit":
-			if (order_id == ROLE_MELEE or order_id == ROLE_RANGED) and player_units.size() < 16:
-				var max_health := 72.0 if order_id == ROLE_RANGED else 125.0
+			if UNIT_CATALOG_SCRIPT.is_valid_role(order_id) and player_units.size() < ARMY_CAPACITY:
+				var max_health: float = UNIT_CATALOG_SCRIPT.get_max_health(order_id)
 				player_units.append({"role": order_id, "health": max_health})
 				city_last_event += "%s прибыл в армию. " % order_name
 		elif order_kind == "settler" and not settler_active:
@@ -640,7 +663,7 @@ func _read_city_queue(value: Variant) -> Array[Dictionary]:
 		var kind := str(item.get("kind", ""))
 		var item_id := str(item.get("id", ""))
 		var valid_building := kind == "building" and CITY_BUILDINGS.has(item_id)
-		var valid_recruit := kind == "recruit" and (item_id == ROLE_MELEE or item_id == ROLE_RANGED)
+		var valid_recruit := kind == "recruit" and UNIT_CATALOG_SCRIPT.is_valid_role(item_id)
 		var valid_settler := kind == "settler" and item_id == "settler"
 		if not valid_building and not valid_recruit and not valid_settler:
 			continue
@@ -661,10 +684,10 @@ func _read_unit_records(value: Variant) -> Array[Dictionary]:
 		if not item is Dictionary:
 			continue
 		var role_name := str(item.get("role", ROLE_MELEE))
-		if role_name != ROLE_MELEE and role_name != ROLE_RANGED:
+		if not UNIT_CATALOG_SCRIPT.is_valid_role(role_name):
 			continue
-		var default_health := 125.0 if role_name == ROLE_MELEE else 72.0
-		var max_health := default_health
+		var max_health: float = UNIT_CATALOG_SCRIPT.get_max_health(role_name)
+		var default_health := max_health
 		var health_value := clampf(float(item.get("health", default_health)), 0.0, max_health)
 		if health_value > 0.0:
 			result.append({"role": role_name, "health": health_value})
