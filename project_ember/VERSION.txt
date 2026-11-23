@@ -1,3 +1,6 @@
-Project Ember v0.5.1
-Fix tactical battle timer formatting and integer division warning.
-Runtime validation: pending Godot Android Editor test.
+Project Ember v0.5.2
+- Bounded city production processing to prevent runaway loops.
+- Repaired corrupted Russian text in campaign UI messages.
+- Hardened strategy and tactical button input handling.
+- Added Godot headless import/runtime checks to release packaging.
+- Android runtime still needs device confirmation.
