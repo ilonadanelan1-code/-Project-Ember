@@ -447,7 +447,7 @@ func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 			attacker.kills += 1
 		eliminated.emit(self, attacker)
 		_begin_death()
-	else:
+	elif is_instance_valid(_body_mesh) or is_instance_valid(_action_mesh):
 		_trigger_hit_flash()
 
 
