@@ -165,6 +165,24 @@ func _draw_city_marker(center: Vector2) -> void:
 	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0), center + Vector2(12.0, -25.0), center + Vector2(1.0, -21.0)]), Color(0.72, 0.22, 0.16))
 
 
+func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> void:
+	var center := _hex_center(cell)
+	draw_circle(center + Vector2(0.0, 4.0), 18.0, Color(0.015, 0.02, 0.02, 0.66))
+	draw_circle(center, 16.0, Color(0.10, 0.11, 0.10))
+	var shield := PackedVector2Array([
+		center + Vector2(-10.0, -9.0),
+		center + Vector2(10.0, -9.0),
+		center + Vector2(9.0, 5.0),
+		center + Vector2(0.0, 13.0),
+		center + Vector2(-9.0, 5.0),
+	])
+	draw_colored_polygon(shield, marker_color)
+	draw_polyline(_closed_polygon(shield), Color(0.88, 0.77, 0.49), 1.4, true)
+	draw_line(center + Vector2(0.0, -12.0), center + Vector2(0.0, -24.0), Color(0.72, 0.62, 0.40), 2.0)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -23.0), center + Vector2(13.0, -20.0), center + Vector2(1.0, -16.0)]), marker_color.lightened(0.22))
+	draw_string(ThemeDB.fallback_font, center + Vector2(-5.0, 4.5), letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, Color(1.0, 0.94, 0.76))
+
+
 func _draw_settler_marker(center: Vector2) -> void:
 	draw_circle(center + Vector2(0.0, 3.0), 13.0, Color(0.02, 0.02, 0.015, 0.5))
 	draw_colored_polygon(PackedVector2Array([center + Vector2(-10.0, 5.0), center + Vector2(0.0, -9.0), center + Vector2(10.0, 5.0)]), Color(0.65, 0.48, 0.27))
