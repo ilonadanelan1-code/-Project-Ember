@@ -23,6 +23,7 @@ enum FormationMode {
 
 var _camera: Camera3D
 var _ground_body: StaticBody3D
+var _battlefield_biome_name: String = "Равнина"
 var _selected_units: Array[BattleUnit] = []
 var _attack_move_enabled: bool = false
 var _additive_selection: bool = false
@@ -81,9 +82,18 @@ func _process(delta: float) -> void:
 
 
 func _create_environment() -> void:
-	var visual_data: Dictionary = BattlefieldVisualsScript.create(self, FIELD_SIZE, GameSettings.graphics_quality)
+	var biome_id := CampaignState.battlefield_biome_id if CampaignState.battle_in_progress else "grassland"
+	var biome_seed := CampaignState.battlefield_seed if CampaignState.battle_in_progress else 841207
+	var visual_data: Dictionary = BattlefieldVisualsScript.create(
+		self,
+		FIELD_SIZE,
+		GameSettings.graphics_quality,
+		biome_id,
+		biome_seed
+	)
 	_ground_body = visual_data.get("ground_body") as StaticBody3D
 	_camera = visual_data.get("camera") as Camera3D
+	_battlefield_biome_name = str(visual_data.get("biome_name", "Равнина"))
 
 
 
@@ -1034,7 +1044,8 @@ func _refresh_ui() -> void:
 		]
 		var target_text := "ЦЕЛЬ: враг отмечен" if is_instance_valid(_focused_target) else "ЦЕЛЬ: не выбрана"
 		var commander_level := int(CampaignState.player_hero.get("level", 1))
-		_help_label.text = "КОМАНДИР УР.%d · 4 РОЛИ ВОЙСК · %s · %s · ЗУМ %.0f" % [
+		_help_label.text = "МЕСТНОСТЬ: %s · КОМАНДИР УР.%d · %s · %s · ЗУМ %.0f" % [
+			_battlefield_biome_name,
 			commander_level,
 			_get_formation_name(),
 			target_text,
