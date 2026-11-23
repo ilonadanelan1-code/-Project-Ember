@@ -1,8 +1,7 @@
-Project Ember v0.7.0
-- Added persistent player and enemy commanders with dedicated tactical units and visuals.
-- Added commander aura, Battle Cry, enemy commander ability AI and cooldown controls.
-- Added commander experience, levels, skill points and Leadership/Tactics/Might progression.
-- Added commander health persistence, wounds and recovery across campaign turns.
-- Added city-panel hero profile and skill-upgrade interface.
-- Added automated hero progression, tactical ability and save/load smoke tests.
-- Godot 4.3 CI validation required before release; v0.7.0 Android touch/UI/balance testing remains pending.
+Project Ember v0.8.0 — Visual Overhaul
+- Illustrated 91-cell strategic map with layered terrain, forests, hills, water details, settlement silhouettes and army banners.
+- Procedural low-poly 3D battlefield with ground texture, grass, stones, trees, ruins, ambient lighting and directional shadows.
+- Distinct procedural models for swordsmen, archers, spearmen, cavalry horse-and-rider, and commanders.
+- Subtle unit animation and unified dark bronze / aged-gold UI styling.
+- Godot 4.3 GL Compatibility renderer retained; campaign, saves, combat systems and touch controls preserved.
+- Android device validation is still required for performance, touch feel and UI scaling.
