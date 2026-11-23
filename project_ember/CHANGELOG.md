@@ -1,5 +1,20 @@
 # Changelog — Project Ember
 
+## v0.6.0 — Expanded roster and battlefield command update
+
+- Added a centralized unit catalog so economy, recruitment, campaign saves and tactical combat share one source of truth for unit data.
+- Added spearmen with extra armor, longer melee reach and a damage bonus against cavalry.
+- Added cavalry with higher health and movement speed plus a reusable charge strike after a fast approach.
+- Added an archery range and stable as city buildings; both require completed barracks.
+- Expanded army capacity from 16 to 24 units.
+- Added persistent recruitment and save validation for all four unit roles while keeping old melee/ranged saves compatible.
+- Updated city recruitment UI to show all roles and their specific building unlocks.
+- Added cavalry wing placement and spear / sword / archer rank behavior to line, column and wedge movement orders.
+- Added drag-box selection, additive selection support, four touch-screen and keyboard control groups, battlefield panning and gesture zoom.
+- Added selected-army composition readout and surviving-unit composition to battle results.
+- Added automated roster, unlock, recruitment, stat and save-normalization smoke tests.
+- Android device testing is still required for touch gestures, UI fit and in-game balance.
+
 ## v0.5.3 — Audit fixes and strict validation
 
 - Repaired the city production-queue summary parser error.
@@ -20,8 +35,6 @@
 - Explicitly set button focus and mouse-filter behavior in both strategic and tactical interfaces.
 - Added Godot 4.3 headless import and startup checks to the packaging workflow.
 - Android touch/runtime behavior still requires validation on a physical device.
-
-# Changelog — Project Ember
 
 ## v0.5.1 — Tactical timer fix
 

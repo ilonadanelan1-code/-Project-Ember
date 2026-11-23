@@ -37,9 +37,10 @@ func _run() -> void:
 	state._process_city_queue()
 	_check(state.player_units.size() == 6, "completed recruitment adds a unit to the army")
 
-	while state.player_units.size() < 16:
+	while state.player_units.size() < state.ARMY_CAPACITY:
 		state.player_units.append({"role": state.ROLE_MELEE, "health": 125.0})
 	_check(not state.can_queue_recruit(state.ROLE_MELEE), "recruitment respects the global army cap")
+	_check(state.player_units.size() == state.ARMY_CAPACITY, "army can grow to the expanded capacity")
 	state.player_units = state._make_starting_army()
 
 	state.settler_active = true

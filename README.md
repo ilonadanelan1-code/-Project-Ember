@@ -1,9 +1,9 @@
 # Project Ember
 
-Godot 4 fantasy 4X strategy with tactical real-time combat.
+Godot 4 fantasy 4X strategy with real-time tactical combat. The current source release is **v0.6.0**.
 
-Current source: `project_ember/`.
+- Read [`project_ember/DESIGN.md`](project_ember/DESIGN.md) for the design source of truth.
+- Read [`project_ember/ANDROID_START.md`](project_ember/ANDROID_START.md) to import and run on Android.
+- Read [`project_ember/TACTICAL_CONTROLS.md`](project_ember/TACTICAL_CONTROLS.md) for battlefield controls and unit roles.
 
-Current version: v0.5.3 — reliability fixes for campaign production, tactical-scene startup, save protection and strict Godot CI validation.
-
-The original v0.4.0 ZIP is retained as a backup. Godot 4.3 headless import, strategic/tactical scene startup and campaign logic smoke tests run in GitHub Actions. Runtime validation in Godot Android Editor and touch/UI behavior on a physical device are still pending.
+The Godot 4.3 CI checks validate script import, strategic and tactical scene startup, campaign logic and unit recruitment/combat profiles. Real-device Android testing is still pending.
