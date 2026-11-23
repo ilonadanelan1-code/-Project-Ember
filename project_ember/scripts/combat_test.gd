@@ -39,6 +39,15 @@ var _eliminated_kills: Array[int] = [0, 0]
 var _eliminated_damage: Array[float] = [0.0, 0.0]
 var _combat_buttons: Array[Button] = []
 var _initial_team_counts: Array[int] = [FALLBACK_UNITS_PER_TEAM, FALLBACK_UNITS_PER_TEAM]
+var _selection_dragging: bool = false
+var _selection_start: Vector2 = Vector2.ZERO
+var _selection_end: Vector2 = Vector2.ZERO
+var _selection_marquee: Panel
+var _camera_dragging: bool = false
+var _control_groups: Dictionary = {}
+var _control_group_buttons: Dictionary = {}
+var _group_store_mode: bool = false
+var _group_store_button: Button
 
 
 func _ready() -> void:
@@ -113,33 +122,50 @@ func _spawn_armies() -> void:
 
 
 func _spawn_army_from_records(team: int, records: Array[Dictionary]) -> void:
-	var melee_count := 0
-	var ranged_count := 0
+	var role_counts: Dictionary = {}
+	var role_indices: Dictionary = {}
+	for role_id in [CampaignState.ROLE_MELEE, CampaignState.ROLE_RANGED, CampaignState.ROLE_SPEAR, CampaignState.ROLE_CAVALRY]:
+		role_counts[role_id] = 0
+		role_indices[role_id] = 0
 	for record in records:
-		if str(record.get("role", CampaignState.ROLE_MELEE)) == CampaignState.ROLE_RANGED:
-			ranged_count += 1
-		else:
-			melee_count += 1
+		var role_id := str(record.get("role", CampaignState.ROLE_MELEE))
+		if role_counts.has(role_id):
+			role_counts[role_id] = int(role_counts[role_id]) + 1
 
-	var melee_index := 0
-	var ranged_index := 0
 	var side_x := -8.0 if team == PLAYER_TEAM else 8.0
 	for record in records:
 		var role_name := str(record.get("role", CampaignState.ROLE_MELEE))
-		var role := BattleUnit.UnitRole.RANGED if role_name == CampaignState.ROLE_RANGED else BattleUnit.UnitRole.MELEE
-		var spawn_position := Vector3.ZERO
-		if role == BattleUnit.UnitRole.RANGED:
-			# Keep even a fully ranged 16-unit army inside the tactical field.
-			var ranged_spacing := minf(3.2, 16.0 / float(maxi(ranged_count - 1, 1)))
-			var ranged_offset := (float(ranged_index) - float(ranged_count - 1) * 0.5) * ranged_spacing
-			spawn_position = Vector3(side_x * 1.55, 0.0, ranged_offset)
-			ranged_index += 1
-		else:
-			var melee_spacing := minf(2.2, 14.0 / float(maxi(melee_count - 1, 1)))
-			var melee_offset := (float(melee_index) - float(melee_count - 1) * 0.5) * melee_spacing
-			spawn_position = Vector3(side_x, 0.0, melee_offset)
-			melee_index += 1
+		var role := _battle_role_from_id(role_name)
+		var count := maxi(1, int(role_counts.get(role_name, 1)))
+		var index := int(role_indices.get(role_name, 0))
+		role_indices[role_name] = index + 1
+		var spacing := 2.2
+		var row_x := side_x
+		match role:
+			BattleUnit.UnitRole.RANGED:
+				spacing = 3.0
+				row_x = side_x * 1.52
+			BattleUnit.UnitRole.SPEAR:
+				spacing = 2.1
+				row_x = side_x * 0.78
+			BattleUnit.UnitRole.CAVALRY:
+				spacing = 3.2
+				row_x = side_x * 1.22
+		var safe_spacing := minf(spacing, 18.0 / float(maxi(count - 1, 1)))
+		var lateral_offset := (float(index) - float(count - 1) * 0.5) * safe_spacing
+		var spawn_position := Vector3(row_x, 0.0, lateral_offset)
 		_spawn_unit(team, spawn_position, role, float(record.get("health", -1.0)))
+
+
+func _battle_role_from_id(role_name: String) -> int:
+	match role_name:
+		CampaignState.ROLE_RANGED:
+			return BattleUnit.UnitRole.RANGED
+		CampaignState.ROLE_SPEAR:
+			return BattleUnit.UnitRole.SPEAR
+		CampaignState.ROLE_CAVALRY:
+			return BattleUnit.UnitRole.CAVALRY
+	return BattleUnit.UnitRole.MELEE
 
 
 func _spawn_unit(team: int, spawn_position: Vector3, unit_role: int, unit_health: float = -1.0) -> void:
@@ -162,6 +188,7 @@ func _create_ui() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
+	_create_selection_marquee(root)
 
 	var top_panel := PanelContainer.new()
 	top_panel.anchor_left = 0.0
@@ -171,7 +198,7 @@ func _create_ui() -> void:
 	top_panel.offset_left = 10.0
 	top_panel.offset_top = 8.0
 	top_panel.offset_right = -10.0
-	top_panel.offset_bottom = 78.0
+	top_panel.offset_bottom = 128.0
 	top_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.035, 0.055, 0.075, 0.92)))
 	root.add_child(top_panel)
 
@@ -188,6 +215,18 @@ func _create_ui() -> void:
 	_help_label.add_theme_font_size_override("font_size", 13)
 	_help_label.add_theme_color_override("font_color", Color(0.85, 0.91, 0.96))
 	top_box.add_child(_help_label)
+
+	var group_row := HBoxContainer.new()
+	group_row.add_theme_constant_override("separation", 5)
+	top_box.add_child(group_row)
+	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ: ВЫКЛ", _toggle_group_store_mode)
+	_group_store_button.custom_minimum_size = Vector2(0.0, 40.0)
+	_group_store_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for group_id in range(1, 5):
+		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
+		group_button.custom_minimum_size = Vector2(0.0, 40.0)
+		group_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_control_group_buttons[group_id] = group_button
 
 	# Three compact rows: selection/orders, formation/retreat, battle controls.
 	var bottom_panel := Panel.new()
@@ -243,11 +282,11 @@ func _create_result_panel(parent: Control) -> void:
 	_result_panel.anchor_top = 0.5
 	_result_panel.anchor_right = 0.5
 	_result_panel.anchor_bottom = 0.5
-	_result_panel.offset_left = -230.0
-	_result_panel.offset_top = -118.0
-	_result_panel.offset_right = 230.0
-	_result_panel.offset_bottom = 118.0
-	_result_panel.custom_minimum_size = Vector2(460.0, 236.0)
+	_result_panel.offset_left = -270.0
+	_result_panel.offset_top = -158.0
+	_result_panel.offset_right = 270.0
+	_result_panel.offset_bottom = 158.0
+	_result_panel.custom_minimum_size = Vector2(540.0, 316.0)
 	_result_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.035, 0.055, 0.075, 0.98)))
 	_result_panel.visible = false
 	parent.add_child(_result_panel)
@@ -271,7 +310,7 @@ func _create_result_panel(parent: Control) -> void:
 
 	_result_details = Label.new()
 	_result_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_details.add_theme_font_size_override("font_size", 16)
+	_result_details.add_theme_font_size_override("font_size", 14)
 	_result_details.add_theme_color_override("font_color", Color(0.92, 0.95, 0.98))
 	content.add_child(_result_details)
 
@@ -330,15 +369,50 @@ func _make_button_style(background: Color) -> StyleBoxFlat:
 	return style
 
 
+func _create_selection_marquee(parent: Control) -> void:
+	_selection_marquee = Panel.new()
+	_selection_marquee.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_selection_marquee.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.18, 0.55, 0.96, 0.16)
+	style.border_color = Color(0.48, 0.78, 1.0, 0.95)
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	_selection_marquee.add_theme_stylebox_override("panel", style)
+	parent.add_child(_selection_marquee)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over or _paused:
 		return
 
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			_handle_primary_tap(event.position, _additive_selection or Input.is_key_pressed(KEY_SHIFT))
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			if event.pressed:
+				_begin_selection_drag(event.position)
+			else:
+				_finish_selection_drag(event.position, _additive_selection or Input.is_key_pressed(KEY_SHIFT))
+		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_issue_command(event.position)
+		elif event.button_index == MOUSE_BUTTON_MIDDLE:
+			_camera_dragging = event.pressed
+	elif event is InputEventMouseMotion:
+		if _selection_dragging:
+			_update_selection_drag(event.position)
+			get_viewport().set_input_as_handled()
+		elif _camera_dragging:
+			_pan_camera(event.relative)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag:
+		# The second finger pans the battlefield on touch screens. The first finger
+		# remains available for taps and drag-box selection via mouse emulation.
+		if event.index > 0:
+			_pan_camera(event.relative)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMagnifyGesture:
+		_set_camera_zoom(_camera.size / maxf(event.factor, 0.1))
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_A:
@@ -351,6 +425,127 @@ func _unhandled_input(event: InputEvent) -> void:
 				_clear_selection_from_button()
 			KEY_R:
 				_restart_battle()
+			KEY_LEFT:
+				_pan_camera(Vector2(-42.0, 0.0))
+			KEY_RIGHT:
+				_pan_camera(Vector2(42.0, 0.0))
+			KEY_UP:
+				_pan_camera(Vector2(0.0, -42.0))
+			KEY_DOWN:
+				_pan_camera(Vector2(0.0, 42.0))
+			KEY_1, KEY_2, KEY_3, KEY_4:
+				_handle_control_group_key(event)
+
+
+func _begin_selection_drag(screen_position: Vector2) -> void:
+	_selection_dragging = true
+	_selection_start = screen_position
+	_selection_end = screen_position
+	_selection_marquee.visible = false
+
+
+func _update_selection_drag(screen_position: Vector2) -> void:
+	_selection_end = screen_position
+	var rectangle := _get_drag_rectangle()
+	_selection_marquee.position = rectangle.position
+	_selection_marquee.size = rectangle.size
+	_selection_marquee.visible = rectangle.size.length() >= 8.0
+
+
+func _finish_selection_drag(screen_position: Vector2, add_to_selection: bool) -> void:
+	if not _selection_dragging:
+		return
+	_selection_dragging = false
+	_selection_end = screen_position
+	var rectangle := _get_drag_rectangle()
+	_selection_marquee.visible = false
+	if rectangle.size.length() >= 12.0:
+		_select_units_in_rectangle(rectangle, add_to_selection)
+	else:
+		_handle_primary_tap(screen_position, add_to_selection)
+
+
+func _get_drag_rectangle() -> Rect2:
+	var left := minf(_selection_start.x, _selection_end.x)
+	var top := minf(_selection_start.y, _selection_end.y)
+	var right := maxf(_selection_start.x, _selection_end.x)
+	var bottom := maxf(_selection_start.y, _selection_end.y)
+	return Rect2(Vector2(left, top), Vector2(right - left, bottom - top))
+
+
+func _select_units_in_rectangle(rectangle: Rect2, add_to_selection: bool) -> void:
+	if not add_to_selection:
+		_clear_selection()
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if not node is BattleUnit:
+			continue
+		var unit := node as BattleUnit
+		if unit.team != PLAYER_TEAM or unit.is_queued_for_deletion():
+			continue
+		if _camera.is_position_behind(unit.global_position):
+			continue
+		var screen_point := _camera.unproject_position(unit.global_position + Vector3(0.0, 0.75, 0.0))
+		if rectangle.has_point(screen_point) and unit not in _selected_units:
+			_selected_units.append(unit)
+			unit.set_selected(true)
+	_refresh_ui()
+
+
+func _pan_camera(screen_delta: Vector2) -> void:
+	if not is_instance_valid(_camera):
+		return
+	var scale := _camera.size / maxf(get_viewport().get_visible_rect().size.y, 1.0)
+	_camera.position.x = clampf(_camera.position.x - screen_delta.x * scale, -20.0, 20.0)
+	_camera.position.z = clampf(_camera.position.z + screen_delta.y * scale, 5.0, 30.0)
+
+
+func _set_camera_zoom(new_size: float) -> void:
+	_camera.size = clampf(new_size, 16.0, 42.0)
+	_refresh_ui()
+
+
+func _handle_control_group_key(event: InputEventKey) -> void:
+	var group_id := int(event.keycode - KEY_1) + 1
+	if event.ctrl_pressed:
+		_save_control_group(group_id)
+	else:
+		_select_control_group(group_id)
+
+
+func _toggle_group_store_mode() -> void:
+	_group_store_mode = not _group_store_mode
+	_refresh_ui()
+
+
+func _on_control_group_button(group_id: int) -> void:
+	if _group_store_mode:
+		_save_control_group(group_id)
+		_group_store_mode = false
+	else:
+		_select_control_group(group_id)
+	_refresh_ui()
+
+
+func _save_control_group(group_id: int) -> void:
+	if group_id < 1 or group_id > 4:
+		return
+	var saved: Array[BattleUnit] = []
+	for unit in _selected_units:
+		if is_instance_valid(unit) and not unit.is_queued_for_deletion():
+			saved.append(unit)
+	if saved.is_empty():
+		return
+	_control_groups[group_id] = saved
+
+
+func _select_control_group(group_id: int) -> void:
+	if not _control_groups.has(group_id):
+		return
+	_clear_selection()
+	for unit in _control_groups[group_id]:
+		if is_instance_valid(unit) and not unit.is_queued_for_deletion():
+			_selected_units.append(unit)
+			unit.set_selected(true)
 
 
 func _handle_primary_tap(screen_position: Vector2, add_to_selection: bool) -> void:
@@ -425,6 +620,8 @@ func _issue_command(screen_position: Vector2) -> void:
 func _issue_formation_order(destination: Vector3) -> void:
 	var melee_units: Array[BattleUnit] = []
 	var ranged_units: Array[BattleUnit] = []
+	var spear_units: Array[BattleUnit] = []
+	var cavalry_units: Array[BattleUnit] = []
 	var formation_center := Vector3.ZERO
 	var valid_count := 0
 
@@ -433,10 +630,15 @@ func _issue_formation_order(destination: Vector3) -> void:
 			continue
 		formation_center += unit.global_position
 		valid_count += 1
-		if unit.role == BattleUnit.UnitRole.RANGED:
-			ranged_units.append(unit)
-		else:
-			melee_units.append(unit)
+		match unit.role:
+			BattleUnit.UnitRole.RANGED:
+				ranged_units.append(unit)
+			BattleUnit.UnitRole.SPEAR:
+				spear_units.append(unit)
+			BattleUnit.UnitRole.CAVALRY:
+				cavalry_units.append(unit)
+			_:
+				melee_units.append(unit)
 
 	if valid_count == 0:
 		return
@@ -452,30 +654,52 @@ func _issue_formation_order(destination: Vector3) -> void:
 
 	match _formation_mode:
 		FormationMode.LINE:
-			_place_formation_row(melee_units, destination, side, forward, 0.0, 1.65)
-			var ranged_depth := 2.0 if not melee_units.is_empty() else 0.0
-			_place_formation_row(ranged_units, destination, side, forward, ranged_depth, 1.65)
+			# Spears form the first rank, swordsmen support them, archers stay behind.
+			_place_formation_row(spear_units, destination, side, forward, 0.0, 1.8)
+			_place_formation_row(melee_units, destination, side, forward, 1.45, 1.7)
+			_place_cavalry_wings(cavalry_units, destination, side, forward, 0.55)
+			var ranged_depth := 3.25 if not melee_units.is_empty() or not spear_units.is_empty() else 0.0
+			_place_formation_row(ranged_units, destination, side, forward, ranged_depth, 1.8)
 		FormationMode.COLUMN:
 			var ordered_units: Array[BattleUnit] = []
+			ordered_units.append_array(spear_units)
 			ordered_units.append_array(melee_units)
+			ordered_units.append_array(cavalry_units)
 			ordered_units.append_array(ranged_units)
 			for index in range(ordered_units.size()):
 				var slot := destination - forward * (float(index) * 1.5)
 				_issue_order_to_slot(ordered_units[index], slot)
 		FormationMode.WEDGE:
-			_place_wedge(melee_units, destination, side, forward)
-			var rear_depth := _get_wedge_rear_depth(melee_units.size()) + 2.0
-			if melee_units.is_empty():
+			var front_units: Array[BattleUnit] = []
+			front_units.append_array(spear_units)
+			front_units.append_array(melee_units)
+			_place_wedge(front_units, destination, side, forward)
+			_place_cavalry_wings(cavalry_units, destination, side, forward, 0.8)
+			var rear_depth := _get_wedge_rear_depth(front_units.size()) + 3.0
+			if front_units.is_empty():
 				rear_depth = 0.0
-			_place_formation_row(ranged_units, destination, side, forward, rear_depth, 1.65)
+			_place_formation_row(ranged_units, destination, side, forward, rear_depth, 1.8)
 
 	_refresh_ui()
 
 
+func _place_cavalry_wings(units: Array[BattleUnit], destination: Vector3, side: Vector3, forward: Vector3, depth: float) -> void:
+	for index in range(units.size()):
+		var rank := floori(float(index) / 2.0)
+		var side_sign := -1.0 if index % 2 == 0 else 1.0
+		var lateral_offset := side_sign * minf(2.6 + float(rank) * 1.25, 10.5)
+		var slot := destination - forward * (depth + float(rank) * 1.2) + side * lateral_offset
+		_issue_order_to_slot(units[index], slot)
+
+
 func _place_formation_row(units: Array[BattleUnit], destination: Vector3, side: Vector3, forward: Vector3, depth: float, spacing: float) -> void:
 	var count := units.size()
+	if count == 0:
+		return
+	# Keep even a large regiment inside the 18 m command envelope.
+	var safe_spacing := minf(spacing, 18.0 / float(maxi(count - 1, 1)))
 	for index in range(count):
-		var lateral_offset := (float(index) - float(count - 1) * 0.5) * spacing
+		var lateral_offset := (float(index) - float(count - 1) * 0.5) * safe_spacing
 		var slot := destination - forward * depth + side * lateral_offset
 		_issue_order_to_slot(units[index], slot)
 
@@ -487,8 +711,9 @@ func _place_wedge(units: Array[BattleUnit], destination: Vector3, side: Vector3,
 		if index > 0:
 			var row := ceili(float(index) / 2.0)
 			var is_left := index % 2 == 1
-			lateral_offset = float(row) * 1.55 * (-1.0 if is_left else 1.0)
-			depth = float(row) * 1.35
+			var wedge_spacing := minf(1.55, 18.0 / float(maxi(ceili(float(units.size() - 1) / 2.0), 1)))
+			lateral_offset = float(row) * wedge_spacing * (-1.0 if is_left else 1.0)
+			depth = float(row) * 1.25
 		var slot := destination - forward * depth + side * lateral_offset
 		_issue_order_to_slot(units[index], slot)
 
@@ -601,13 +826,11 @@ func _cycle_speed() -> void:
 
 
 func _zoom_in() -> void:
-	_camera.size = maxf(18.0, _camera.size - 2.0)
-	_refresh_ui()
+	_set_camera_zoom(_camera.size - 2.0)
 
 
 func _zoom_out() -> void:
-	_camera.size = minf(36.0, _camera.size + 2.0)
-	_refresh_ui()
+	_set_camera_zoom(_camera.size + 2.0)
 
 
 func _set_focused_target(target: BattleUnit) -> void:
@@ -675,13 +898,17 @@ func _check_battle_result() -> void:
 		var enemy_kills := _get_team_kills(ENEMY_TEAM)
 		var player_damage := _get_team_damage(PLAYER_TEAM)
 		var enemy_damage := _get_team_damage(ENEMY_TEAM)
-		_result_details.text = "Время боя: %s\nТвои потери: %d из %d\nПотери врага: %d из %d\nУничтожено врагов: %d\nУрон: твои %.0f · враг %.0f" % [
+		var player_composition := _get_team_composition(PLAYER_TEAM)
+		var enemy_composition := _get_team_composition(ENEMY_TEAM)
+		_result_details.text = "Время боя: %s\nТвои потери: %d из %d\nПотери врага: %d из %d\nУничтожено врагов: %d\nОсталось у тебя: %s\nОсталось у врага: %s\nУрон: твои %.0f · враг %.0f" % [
 			elapsed,
 			player_losses,
 			_initial_team_counts[PLAYER_TEAM],
 			enemy_losses,
 			_initial_team_counts[ENEMY_TEAM],
 			player_kills,
+			player_composition,
+			enemy_composition,
 			player_damage,
 			enemy_damage,
 		]
@@ -707,6 +934,16 @@ func _check_battle_result() -> void:
 		_refresh_ui()
 
 
+func _get_team_composition(team: int) -> String:
+	var counts := [0, 0, 0, 0]
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if node is BattleUnit and not node.is_queued_for_deletion():
+			var unit := node as BattleUnit
+			if unit.team == team:
+				counts[clampi(unit.role, 0, 3)] += 1
+	return "М%d Л%d Кп%d Кв%d" % [counts[0], counts[1], counts[2], counts[3]]
+
+
 func _collect_survivors(team: int) -> Array[Dictionary]:
 	var survivors: Array[Dictionary] = []
 	for node in get_tree().get_nodes_in_group("battle_units"):
@@ -715,7 +952,14 @@ func _collect_survivors(team: int) -> Array[Dictionary]:
 		var unit := node as BattleUnit
 		if unit.team != team or unit.health <= 0.0:
 			continue
-		var role_name: String = CampaignState.ROLE_RANGED if unit.role == BattleUnit.UnitRole.RANGED else CampaignState.ROLE_MELEE
+		var role_name := CampaignState.ROLE_MELEE
+		match unit.role:
+			BattleUnit.UnitRole.RANGED:
+				role_name = CampaignState.ROLE_RANGED
+			BattleUnit.UnitRole.SPEAR:
+				role_name = CampaignState.ROLE_SPEAR
+			BattleUnit.UnitRole.CAVALRY:
+				role_name = CampaignState.ROLE_CAVALRY
 		survivors.append({"role": role_name, "health": unit.health})
 	return survivors
 
@@ -754,6 +998,7 @@ func _get_team_damage(team: int) -> float:
 	return total
 
 
+
 func _count_team(team: int) -> int:
 	var count := 0
 	for node in get_tree().get_nodes_in_group("battle_units"):
@@ -786,7 +1031,7 @@ func _refresh_ui() -> void:
 			_format_battle_time(_battle_time),
 		]
 		var target_text := "ЦЕЛЬ: враг отмечен" if is_instance_valid(_focused_target) else "ЦЕЛЬ: не выбрана"
-		_help_label.text = "МЕЧНИКИ + ЛУЧНИКИ · %s · %s · ЗУМ %.0f" % [
+		_help_label.text = "4 РОЛИ ВОЙСК · %s · %s · ЗУМ %.0f" % [
 			_get_formation_name(),
 			target_text,
 			_camera.size,

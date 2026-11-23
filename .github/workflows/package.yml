@@ -33,6 +33,8 @@ jobs:
           test -d project_ember/scenes
           test -d project_ember/scripts
           test -f project_ember/tests/campaign_smoke_test.gd
+          test -f project_ember/tests/unit_roster_smoke_test.gd
+          test -f project_ember/scripts/unit_catalog.gd
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
         run: |
@@ -61,7 +63,7 @@ jobs:
           godot --headless --path project_ember res://scenes/combat_test.tscn --quit-after 10 2>&1 | tee "$log_file"
           # Godot 4.3 has a confirmed dummy-renderer shutdown bug that emits
           # "Parameter \"m\" is null" for MeshInstance3D in headless mode.
-          # Ignore only that exact engine signature; all project errors still fail CI.
+          # Ignore only that exact engine signature; all other errors still fail CI.
           reported_errors="$(grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:' "$log_file" | grep -Fv 'ERROR: Parameter "m" is null.' || true)"
           if [ -n "$reported_errors" ]; then
             printf '%s\n' "$reported_errors" >&2
@@ -78,10 +80,20 @@ jobs:
             echo "Campaign logic tests reported an error." >&2
             exit 1
           fi
+      - name: Test unit roster, unlocks and combat profiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/unit_roster_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Unit roster tests reported an error." >&2
+            exit 1
+          fi
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.5.3
+          name: Project-Ember-v0.6.0
           path: |
             project_ember/**
             !project_ember/.godot/**

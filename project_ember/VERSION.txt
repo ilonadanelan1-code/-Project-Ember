@@ -1,8 +1,7 @@
-Project Ember v0.5.3
-- Fixed production queue and recruitment logic parse/runtime errors.
-- Added explicit Godot 4.3 type annotations.
-- Fixed tactical scene root type.
-- Preserved damaged saves before replacement and added a save-overwrite safeguard.
-- Fixed settler spawn selection near map edges.
-- CI now fails on Godot log errors and runs campaign logic smoke tests.
-- Physical Android runtime validation is still pending.
+Project Ember v0.6.0
+- Added spearmen and cavalry with distinct combat profiles and battlefield visuals.
+- Added archery range and stable recruitment unlocks.
+- Expanded army capacity to 24 and preserved the two-role legacy save format.
+- Added role-aware formations, drag selection, control groups and tactical camera gestures.
+- Added roster and recruitment regression tests.
+- Godot 4.3 CI validation is required before release; physical Android testing remains pending.
