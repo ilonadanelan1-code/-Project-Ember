@@ -4,7 +4,7 @@ extends Node2D
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
 
 const MAP_RADIUS := 5
-const HEX_SIZE := 26.0
+const HEX_SIZE := 30.0
 const PLAYER_TEAM_COLOR := Color(0.16, 0.52, 1.0)
 const ENEMY_TEAM_COLOR := Color(0.91, 0.23, 0.18)
 
@@ -55,35 +55,21 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	var font: Font = ThemeDB.fallback_font
 	for cell in _cells:
-		var center := _hex_center(cell)
-		var points := _hex_points(center)
-		draw_colored_polygon(points, _terrain_color(str(_terrain.get(cell, "plain"))))
-		var outline_color := Color(0.16, 0.22, 0.25, 0.95)
-		if _army_selected and cell == CampaignState.player_cell:
-			outline_color = Color(1.0, 0.88, 0.25, 1.0)
-		draw_polyline(_closed_polygon(points), outline_color, 2.2, true)
+		_draw_hex_tile(cell)
 
-		var symbol := _terrain_symbol(str(_terrain.get(cell, "plain")))
-		if not symbol.is_empty():
-			draw_string(font, center + Vector2(-5.0, 5.0), symbol, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 15, Color(0.10, 0.15, 0.12, 0.9))
-
-	# Claimed territory and all founded cities.
+	# Claimed borders, settlements, and travelling forces are drawn over the terrain.
 	for cell in _cells:
 		if CampaignState.get_city_owner_at(cell) >= 0:
-			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Color(0.86, 0.73, 0.35, 0.55), 1.5, true)
+			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Color(0.91, 0.72, 0.34, 0.72), 2.0, true)
+
 	for city_data in CampaignState.cities:
 		var xy: Array = city_data.get("cell", [])
-		if xy.size() < 2:
-			continue
-		var city_center := _hex_center(Vector2i(int(xy[0]), int(xy[1])))
-		draw_rect(Rect2(city_center - Vector2(10.0, 10.0), Vector2(20.0, 20.0)), Color(0.91, 0.72, 0.25), true)
-		draw_string(font, city_center + Vector2(-5.0, 5.0), "C", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14, Color(0.12, 0.12, 0.10))
+		if xy.size() >= 2:
+			_draw_city_marker(_hex_center(Vector2i(int(xy[0]), int(xy[1]))))
+
 	if CampaignState.settler_active:
-		var settler_center := _hex_center(CampaignState.settler_cell)
-		draw_circle(settler_center, 13.0, Color(0.92, 0.82, 0.32))
-		draw_string(font, settler_center + Vector2(-5.0, 5.0), "S", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, Color(0.10, 0.12, 0.10))
+		_draw_settler_marker(_hex_center(CampaignState.settler_cell))
 
 	if CampaignState.enemy_present and not CampaignState.enemy_units.is_empty():
 		_draw_army_marker(CampaignState.enemy_cell, ENEMY_TEAM_COLOR, "!")
@@ -94,14 +80,99 @@ func _draw() -> void:
 		for offset in NEIGHBOR_OFFSETS:
 			var neighbor: Vector2i = CampaignState.player_cell + offset
 			if _is_traversable(neighbor) and neighbor != CampaignState.enemy_cell:
-				draw_arc(_hex_center(neighbor), 7.0, 0.0, TAU, 20, Color(0.65, 0.88, 1.0, 0.75), 2.0, true)
+				draw_colored_polygon(_hex_points(_hex_center(neighbor)), Color(0.40, 0.73, 0.91, 0.11))
+				draw_polyline(_closed_polygon(_hex_points(_hex_center(neighbor))), Color(0.77, 0.91, 1.0, 0.92), 2.3, true)
 
 
-func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> void:
+func _draw_hex_tile(cell: Vector2i) -> void:
 	var center := _hex_center(cell)
-	draw_circle(center, 17.0, Color(0.025, 0.035, 0.045, 0.95))
-	draw_circle(center, 13.5, marker_color)
-	draw_string(ThemeDB.fallback_font, center + Vector2(-6.0, 6.0), letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color.WHITE)
+	var kind := str(_terrain.get(cell, "plain"))
+	var points := _hex_points(center)
+	var shadow := PackedVector2Array()
+	var inner := PackedVector2Array()
+	for point in points:
+		shadow.append(point + Vector2(0.0, 4.0))
+		inner.append(center + (point - center) * 0.91)
+	draw_colored_polygon(shadow, Color(0.015, 0.025, 0.022, 0.62))
+	draw_colored_polygon(points, Color(0.10, 0.14, 0.12, 1.0))
+	draw_colored_polygon(inner, _terrain_color(kind))
+	draw_polyline(_closed_polygon(points), Color(0.28, 0.34, 0.27, 0.95), 1.4, true)
+
+	match kind:
+		"forest":
+			for index in range(3):
+				var offset := Vector2(float(posmod(cell.x * 13 + cell.y * 7 + index * 11, 17) - 8), float(posmod(cell.x * 5 - cell.y * 9 + index * 7, 15) - 7))
+				_draw_map_tree(center + offset * 0.72, 0.72 + float(index % 2) * 0.12)
+		"hills":
+			_draw_map_hills(center, cell)
+		"water":
+			_draw_map_water(center, cell)
+		_:
+			_draw_map_grass(center, cell)
+
+
+func _draw_map_grass(center: Vector2, cell: Vector2i) -> void:
+	for index in range(4):
+		var seed_value := cell.x * 37 + cell.y * 61 + index * 19
+		var offset := Vector2(float(posmod(seed_value, 17) - 8), float(posmod(seed_value * 3, 15) - 7))
+		var origin := center + offset
+		draw_line(origin, origin + Vector2(-2.0, -4.0), Color(0.68, 0.73, 0.43, 0.58), 1.3, true)
+		draw_line(origin, origin + Vector2(2.0, -5.0), Color(0.78, 0.79, 0.49, 0.52), 1.2, true)
+
+
+func _draw_map_tree(position: Vector2, scale: float) -> void:
+	draw_line(position + Vector2(0.0, 2.0), position + Vector2(0.0, 9.0) * scale, Color(0.24, 0.15, 0.09), 2.2, true)
+	var crown := PackedVector2Array([
+		position + Vector2(0.0, -13.0) * scale,
+		position + Vector2(-8.5, 3.0) * scale,
+		position + Vector2(8.5, 3.0) * scale,
+	])
+	draw_colored_polygon(crown, Color(0.12, 0.26, 0.15))
+	var crown_light := PackedVector2Array([
+		position + Vector2(0.0, -12.0) * scale,
+		position + Vector2(-1.0, 1.0) * scale,
+		position + Vector2(7.0, 1.0) * scale,
+	])
+	draw_colored_polygon(crown_light, Color(0.27, 0.42, 0.22, 0.95))
+
+
+func _draw_map_hills(center: Vector2, cell: Vector2i) -> void:
+	var shift := float(posmod(cell.x * 5 + cell.y * 7, 7)) - 3.0
+	var hill_back := PackedVector2Array([center + Vector2(-18.0, 6.0), center + Vector2(-3.0 + shift, -12.0), center + Vector2(12.0, 6.0)])
+	var hill_front := PackedVector2Array([center + Vector2(-10.0, 8.0), center + Vector2(5.0, -6.0), center + Vector2(19.0, 8.0)])
+	draw_colored_polygon(hill_back, Color(0.36, 0.34, 0.25))
+	draw_colored_polygon(hill_front, Color(0.54, 0.48, 0.32))
+	draw_line(center + Vector2(-3.0 + shift, -12.0), center + Vector2(2.0 + shift, -3.0), Color(0.79, 0.73, 0.55, 0.75), 1.5, true)
+
+
+func _draw_map_water(center: Vector2, cell: Vector2i) -> void:
+	for index in range(3):
+		var y := float(index * 8 - 7)
+		var offset := float(posmod(cell.x * 9 + cell.y * 13 + index * 5, 9)) - 4.0
+		draw_line(center + Vector2(-13.0 + offset, y), center + Vector2(-3.0, y - 2.0), Color(0.65, 0.82, 0.87, 0.65), 1.6, true)
+		draw_line(center + Vector2(1.0, y - 2.0), center + Vector2(13.0 - offset * 0.4, y), Color(0.80, 0.89, 0.89, 0.55), 1.4, true)
+
+
+func _draw_city_marker(center: Vector2) -> void:
+	draw_circle(center + Vector2(0.0, 3.0), 17.0, Color(0.02, 0.025, 0.02, 0.55))
+	draw_rect(Rect2(center + Vector2(-11.0, -7.0), Vector2(22.0, 17.0)), Color(0.61, 0.54, 0.39))
+	draw_rect(Rect2(center + Vector2(-15.0, -12.0), Vector2(8.0, 18.0)), Color(0.72, 0.64, 0.45))
+	draw_rect(Rect2(center + Vector2(7.0, -12.0), Vector2(8.0, 18.0)), Color(0.72, 0.64, 0.45))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-17.0, -12.0), center + Vector2(-11.0, -20.0), center + Vector2(-5.0, -12.0)]), Color(0.45, 0.20, 0.15))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(5.0, -12.0), center + Vector2(11.0, -20.0), center + Vector2(17.0, -12.0)]), Color(0.45, 0.20, 0.15))
+	draw_rect(Rect2(center + Vector2(-3.0, 1.0), Vector2(6.0, 9.0)), Color(0.21, 0.19, 0.15))
+	draw_line(center + Vector2(0.0, -19.0), center + Vector2(0.0, -29.0), Color(0.78, 0.66, 0.39), 2.0)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0), center + Vector2(12.0, -25.0), center + Vector2(1.0, -21.0)]), Color(0.72, 0.22, 0.16))
+
+
+func _draw_settler_marker(center: Vector2) -> void:
+	draw_circle(center + Vector2(0.0, 3.0), 13.0, Color(0.02, 0.02, 0.015, 0.5))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-10.0, 5.0), center + Vector2(0.0, -9.0), center + Vector2(10.0, 5.0)]), Color(0.65, 0.48, 0.27))
+	draw_line(center + Vector2(-10.0, 5.0), center + Vector2(10.0, 5.0), Color(0.90, 0.78, 0.54), 2.0)
+	draw_circle(center, 3.5, Color(0.96, 0.84, 0.43))
+
+
+
 
 
 func _build_map() -> void:
@@ -544,15 +615,21 @@ func _get_army_composition_text() -> String:
 func _panel_style(background: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.36, 0.48, 0.58, 0.75)
-	style.corner_radius_top_left = 9
-	style.corner_radius_top_right = 9
-	style.corner_radius_bottom_left = 9
-	style.corner_radius_bottom_right = 9
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.59, 0.45, 0.25, 0.96)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.38)
+	style.shadow_size = 5
+	style.content_margin_left = 10.0
+	style.content_margin_top = 8.0
+	style.content_margin_right = 10.0
+	style.content_margin_bottom = 8.0
 	return style
 
 
@@ -566,10 +643,10 @@ func _add_button(parent: Container, text_value: String, callback: Callable) -> B
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	button.add_theme_font_size_override("font_size", 15)
 	button.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0))
-	button.add_theme_stylebox_override("normal", _button_style(Color(0.12, 0.20, 0.29)))
-	button.add_theme_stylebox_override("hover", _button_style(Color(0.17, 0.29, 0.40)))
-	button.add_theme_stylebox_override("pressed", _button_style(Color(0.25, 0.35, 0.22)))
-	button.add_theme_stylebox_override("focus", _button_style(Color(0.16, 0.24, 0.32)))
+	button.add_theme_stylebox_override("normal", _button_style(Color(0.14, 0.12, 0.09)))
+	button.add_theme_stylebox_override("hover", _button_style(Color(0.24, 0.19, 0.12)))
+	button.add_theme_stylebox_override("pressed", _button_style(Color(0.25, 0.28, 0.15)))
+	button.add_theme_stylebox_override("focus", _button_style(Color(0.19, 0.16, 0.11)))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
@@ -582,11 +659,13 @@ func _button_style(background: Color) -> StyleBoxFlat:
 	style.border_width_top = 1
 	style.border_width_right = 1
 	style.border_width_bottom = 1
-	style.border_color = Color(0.48, 0.61, 0.72, 0.95)
+	style.border_color = Color(0.66, 0.54, 0.34, 0.96)
 	style.corner_radius_top_left = 7
 	style.corner_radius_top_right = 7
 	style.corner_radius_bottom_left = 7
 	style.corner_radius_bottom_right = 7
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.30)
+	style.shadow_size = 3
 	return style
 
 
