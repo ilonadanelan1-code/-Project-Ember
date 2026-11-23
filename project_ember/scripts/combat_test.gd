@@ -725,9 +725,9 @@ func _return_to_strategy_map() -> void:
 
 
 func _format_battle_time(seconds: float) -> String:
-	var total_seconds := int(floor(seconds))
-	var minutes := int(total_seconds / 60)
-	var remaining_seconds := total_seconds % 60
+	var total_seconds: int = maxi(0, floori(seconds))
+	var minutes: int = floori(float(total_seconds) / 60.0)
+	var remaining_seconds: int = total_seconds - minutes * 60
 	return "%02d:%02d" % [minutes, remaining_seconds]
 
 
