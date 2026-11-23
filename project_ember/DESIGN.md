@@ -103,3 +103,11 @@ Each troop uses two merged vertex-coloured mesh batches: a static body and a sin
 Animation is driven by the existing BattleUnit process without Skeletons or extra animation nodes. Attack damage, attack cadence, movement, target selection, collision and formation placement remain controlled by the original combat methods. Defeated units leave the combat group immediately; a limited number of visual corpses remain for 8–10 seconds based on quality settings.
 
 The core BattleUnit scene budget is eight nodes including its collision capsule, selection indicator and health-bar meshes. CI creates 50 units and verifies the node budget and mesh/material reuse.
+
+## Tactical biomes and terrain — v0.9.2
+
+Battlefield presentation now resolves one of four biomes — grassland, woodland, highlands or marsh — from the six neighboring strategic hexes around the player's battle-origin cell. A deterministic seed derived from that cell keeps the ground dressing repeatable between runs. The tactical biome ID and seed are runtime presentation state only and are not added to the campaign save format.
+
+Each biome uses a dedicated ground texture/palette and quality-scaled decoration profile. Woodland adds fallen logs and denser tree dressing; highlands add low rock shelves and more stones; marsh adds shallow decorative pools and reeds. The biome name is shown in the tactical HUD.
+
+Terrain geometry is currently visual-only. The existing flat ground collision body, collision bounds, unit movement plane, spawn positions and formation calculations remain authoritative and unchanged. This keeps decorative rocks, pools and vegetation from blocking unit control. Gameplay effects from elevation, water and cover remain a later balance feature.
