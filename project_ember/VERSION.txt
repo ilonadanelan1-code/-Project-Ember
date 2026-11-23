@@ -1,4 +1,12 @@
-Project Ember v0.9.1 — Units
+Project Ember v0.9.2 — Battlefield Biomes & Terrain
+- Adds grassland, woodland, highlands and marsh battlefield profiles selected from neighboring strategic hex terrain.
+- Biome-specific ground textures/palettes, vegetation density and low-poly props create repeatable battlefield variation.
+- Adds fallen logs, rock shelves, shallow marsh pools and reeds with quality-aware decoration counts.
+- Tactical HUD displays the terrain name.
+- The flat ground collision body and bounds are unchanged; biome decorations add no blocking colliders.
+- Campaign save schema, unit roles, combat formulas, formation slots and tactical input mapping remain compatible.
+- Godot 4.3 GL Compatibility remains the target; physical Android FPS/readability checks are still required.
+
 - Each unit now uses two merged vertex-coloured ArrayMesh batches: static body silhouette and an animated action part.
 - Ten cached team/role mesh combinations share a single vertex-colour material.
 - Distinct silhouettes and role details are retained for swordsmen, archers, spearmen, cavalry and commanders.
