@@ -58,7 +58,7 @@ func _run() -> void:
 	state.advance_campaign_turn()
 	_check(float(state.player_hero.get("health", 0.0)) > 0.0, "a wounded commander recovers after the campaign advances a turn")
 
-	var fallback := state._make_hero_record("Старый правитель", "Правитель")
+	var fallback: Dictionary = state._make_hero_record("Старый правитель", "Правитель")
 	var legacy_hero: Dictionary = state._read_hero_record({}, fallback)
 	_check(int(legacy_hero.get("level", 0)) == 1, "legacy campaigns can receive a default hero record")
 
