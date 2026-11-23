@@ -343,7 +343,7 @@ func queue_building(building_id: String) -> bool:
 		"name": str(data["name"]),
 		"production_cost": int(data["production_cost"]),
 	})
-	city_last_event = "%s Ð´Ð¾Ð±Ð°Ð²Ð»ÐµÐ½Ð° Ð² Ð¾ÑÐµÑÐµÐ´Ñ ÑÑÑÐ¾Ð¸ÑÐµÐ»ÑÑÑÐ²Ð°." % str(data["name"])
+	city_last_event = "%s добавлена в очередь строительства." % str(data["name"])
 	save_campaign()
 	return true
 
@@ -365,7 +365,7 @@ func queue_recruit(role_name: String) -> bool:
 	var is_ranged := role_name == ROLE_RANGED
 	var gold_cost := 24 if is_ranged else 20
 	var production_cost := 4 if is_ranged else 3
-	var recruit_name := "ÐÑÑÐ½Ð¸Ðº" if is_ranged else "ÐÐµÑÐ½Ð¸Ðº"
+	var recruit_name := "Лучник" if is_ranged else "Мечник"
 	city_gold -= gold_cost
 	city_build_queue.append({
 		"kind": "recruit",
@@ -373,18 +373,18 @@ func queue_recruit(role_name: String) -> bool:
 		"name": recruit_name,
 		"production_cost": production_cost,
 	})
-	city_last_event = "%s Ð´Ð¾Ð±Ð°Ð²Ð»ÐµÐ½ Ð² Ð¾ÑÐµÑÐµÐ´Ñ Ð½Ð°Ð¹Ð¼Ð°." % recruit_name
+	city_last_event = "%s добавлена в очередь строительства." % str(data["name"])
 	save_campaign()
 	return true
 
 
 func get_city_queue_summary() -> String:
 	if city_build_queue.is_empty():
-		return "ÐÑÐµÑÐµÐ´Ñ Ð¿ÑÑÑÐ°"
+		return "Очередь пуста"
 	var current: Dictionary = city_build_queue[0]
-	var item_name := str(current.get("name", "ÐÐ°ÐºÐ°Ð·"))
+	var item_name := str(current.get("name", "Заказ"))
 	var required := int(current.get("production_cost", 1))
-	return "Ð¡ÐµÐ¹ÑÐ°Ñ: %s Â· Ð¿ÑÐ¾Ð¸Ð·Ð²Ð¾Ð´ÑÑÐ²Ð¾ %d/%d Â· Ð² Ð¾ÑÐµÑÐµÐ´Ð¸: %d" % [
+		return "Очередь пуста"
 		item_name,
 		mini(city_production_bank, required),
 		required,
@@ -409,33 +409,36 @@ func advance_campaign_turn() -> void:
 
 
 func _process_city_queue() -> void:
-	while not city_build_queue.is_empty():
+	# Bound queue processing so malformed save data can never lock the main thread.
+	var orders_to_check: int = mini(city_build_queue.size(), 32)
+	for _index in range(orders_to_check):
+		if city_build_queue.is_empty():
+			break
 		var order: Dictionary = city_build_queue[0]
-		var required := int(order.get("production_cost", 1))
+		var required: int = maxi(1, int(order.get("production_cost", 1)))
 		if city_production_bank < required:
 			break
 		city_production_bank -= required
 		city_build_queue.pop_front()
 		var order_kind := str(order.get("kind", ""))
 		var order_id := str(order.get("id", ""))
-		var order_name := str(order.get("name", "ÐÐ°ÐºÐ°Ð·"))
+		var order_name := str(order.get("name", "Заказ"))
 		if order_kind == "building":
-			if order_id in CITY_BUILDINGS and not city_has_building(order_id):
+			if CITY_BUILDINGS.has(order_id) and not city_has_building(order_id):
 				city_buildings.append(order_id)
-				city_last_event += "%s Ð¿Ð¾ÑÑÑÐ¾ÐµÐ½Ð°. " % order_name
+				city_last_event += "%s построена. " % order_name
 		elif order_kind == "recruit":
-			if order_id == ROLE_MELEE or order_id == ROLE_RANGED:
+			if (order_id == ROLE_MELEE or order_id == ROLE_RANGED) and player_units.size() < 16:
 				var max_health := 72.0 if order_id == ROLE_RANGED else 125.0
 				player_units.append({"role": order_id, "health": max_health})
-				city_last_event += "%s Ð¿ÑÐ¸Ð±ÑÐ» Ð² Ð°ÑÐ¼Ð¸Ñ. " % order_name
+				city_last_event += "%s прибыл в армию. " % order_name
 		elif order_kind == "settler" and not settler_active:
 			settler_active = true
 			settler_cell = city_cell + Vector2i(0, 1)
 			city_last_event += "Поселенец готов к основанию нового города. "
 
 	if city_last_event.is_empty():
-		city_last_event = "ÐÐ¾ÑÐ¾Ð´ Ð¿Ð¾Ð»ÑÑÐ¸Ð» ÑÐµÑÑÑÑÑ Ð·Ð° ÑÐ¾Ð´."
-
+		city_last_event = "Город получил ресурсы за ход."
 
 func _count_queued_recruits() -> int:
 	var count := 0
