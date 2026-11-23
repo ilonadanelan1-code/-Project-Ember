@@ -1,3 +1,5 @@
+const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
+
 extends Node3D
 
 const FIELD_SIZE := Vector2(38.0, 26.0)
@@ -71,39 +73,10 @@ func _process(delta: float) -> void:
 
 
 func _create_environment() -> void:
-	var ground := MeshInstance3D.new()
-	var ground_mesh := PlaneMesh.new()
-	ground_mesh.size = FIELD_SIZE
-	ground.mesh = ground_mesh
-	var ground_material := StandardMaterial3D.new()
-	ground_material.albedo_color = Color(0.20, 0.29, 0.20)
-	ground_material.roughness = 1.0
-	ground.material_override = ground_material
-	add_child(ground)
+	var visual_data: Dictionary = BattlefieldVisualsScript.create(self, FIELD_SIZE)
+	_ground_body = visual_data.get("ground_body") as StaticBody3D
+	_camera = visual_data.get("camera") as Camera3D
 
-	_ground_body = StaticBody3D.new()
-	_ground_body.collision_layer = 1
-	_ground_body.collision_mask = 0
-	var ground_collision := CollisionShape3D.new()
-	var ground_shape := BoxShape3D.new()
-	ground_shape.size = Vector3(FIELD_SIZE.x, 0.2, FIELD_SIZE.y)
-	ground_collision.shape = ground_shape
-	ground_collision.position.y = -0.1
-	_ground_body.add_child(ground_collision)
-	add_child(_ground_body)
-
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-52.0, -25.0, 0.0)
-	light.shadow_enabled = false
-	add_child(light)
-
-	_camera = Camera3D.new()
-	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = 27.0
-	_camera.position = Vector3(0.0, 23.0, 16.0)
-	add_child(_camera)
-	_camera.look_at(Vector3.ZERO, Vector3.UP)
-	_camera.current = true
 
 
 func _spawn_armies() -> void:
@@ -365,15 +338,21 @@ func _create_result_panel(parent: Control) -> void:
 func _make_panel_style(background: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.36, 0.48, 0.58, 0.75)
-	style.corner_radius_top_left = 9
-	style.corner_radius_top_right = 9
-	style.corner_radius_bottom_left = 9
-	style.corner_radius_bottom_right = 9
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.59, 0.45, 0.25, 0.96)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.40)
+	style.shadow_size = 5
+	style.content_margin_left = 10.0
+	style.content_margin_top = 8.0
+	style.content_margin_right = 10.0
+	style.content_margin_bottom = 8.0
 	return style
 
 
@@ -389,10 +368,10 @@ func _add_action_button(parent: Container, title: String, callback: Callable) ->
 	button.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0))
 	button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.65))
-	button.add_theme_stylebox_override("normal", _make_button_style(Color(0.12, 0.20, 0.29)))
-	button.add_theme_stylebox_override("hover", _make_button_style(Color(0.17, 0.29, 0.40)))
-	button.add_theme_stylebox_override("pressed", _make_button_style(Color(0.25, 0.35, 0.22)))
-	button.add_theme_stylebox_override("focus", _make_button_style(Color(0.16, 0.24, 0.32)))
+	button.add_theme_stylebox_override("normal", _make_button_style(Color(0.14, 0.12, 0.09)))
+	button.add_theme_stylebox_override("hover", _make_button_style(Color(0.24, 0.19, 0.12)))
+	button.add_theme_stylebox_override("pressed", _make_button_style(Color(0.25, 0.28, 0.15)))
+	button.add_theme_stylebox_override("focus", _make_button_style(Color(0.19, 0.16, 0.11)))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
@@ -405,11 +384,13 @@ func _make_button_style(background: Color) -> StyleBoxFlat:
 	style.border_width_top = 1
 	style.border_width_right = 1
 	style.border_width_bottom = 1
-	style.border_color = Color(0.48, 0.61, 0.72, 0.95)
+	style.border_color = Color(0.66, 0.54, 0.34, 0.96)
 	style.corner_radius_top_left = 7
 	style.corner_radius_top_right = 7
 	style.corner_radius_bottom_left = 7
 	style.corner_radius_bottom_right = 7
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.30)
+	style.shadow_size = 3
 	return style
 
 
