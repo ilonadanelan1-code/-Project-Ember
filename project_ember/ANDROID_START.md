@@ -1,4 +1,4 @@
-# Android Start — Project Ember v0.5.2
+# Android Start — Project Ember v0.5.3
 
 1. Extract the `project_ember` folder on Android.
 2. Open Godot Android Editor and import `project_ember/project.godot`.
@@ -17,4 +17,4 @@
 
 ## Test status
 
-Source files were checked statically. Godot runtime validation on an Android device is still pending. Keep the original v0.4.0 ZIP backup until v0.5.2 has been tested.
+Godot 4.3 headless import, strategic/tactical scene startup and campaign logic smoke tests pass in GitHub Actions. Physical Android runtime, touch input and screen scaling have not yet been verified on a device. Keep the original v0.4.0 ZIP backup until v0.5.3 has been imported and tested in Godot Android Editor.

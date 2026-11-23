@@ -715,7 +715,7 @@ func _collect_survivors(team: int) -> Array[Dictionary]:
 		var unit := node as BattleUnit
 		if unit.team != team or unit.health <= 0.0:
 			continue
-		var role_name := CampaignState.ROLE_RANGED if unit.role == BattleUnit.UnitRole.RANGED else CampaignState.ROLE_MELEE
+		var role_name: String = CampaignState.ROLE_RANGED if unit.role == BattleUnit.UnitRole.RANGED else CampaignState.ROLE_MELEE
 		survivors.append({"role": role_name, "health": unit.health})
 	return survivors
 
