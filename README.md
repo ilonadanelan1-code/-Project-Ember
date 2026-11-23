@@ -2,7 +2,7 @@
 
 Godot 4 fantasy 4X strategy with real-time tactical combat.
 
-Current source release: **v0.9.1 — Units**.
+Current source release: **v0.9.2 — Battlefield Biomes & Terrain**.
 
 - [Design source of truth](project_ember/DESIGN.md)
 - [Android import and play guide](project_ember/ANDROID_START.md)
