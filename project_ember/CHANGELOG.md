@@ -1,3 +1,14 @@
+## v0.9.2 — Battlefield Biomes & Terrain
+
+- Added four tactical battlefield biomes: grassland, woodland, highlands and marsh.
+- The biome is resolved from neighboring strategic hex terrain at battle start; a cell-derived seed keeps each battlefield's decorative layout repeatable.
+- Added biome-specific ground textures and palettes, varied grass/stone/tree densities, fallen woodland logs, highland rock shelves, and marsh pools with reeds.
+- Added the localized biome name to the tactical HUD.
+- Kept the same flat ground collision bounds and unit movement plane. Terrain props remain visual-only and introduce no additional collision bodies.
+- Did not change campaign save keys, unit role IDs, combat formulas, formation placement or tactical input mapping.
+- Added biome smoke tests for all four profiles, deterministic resolution, resource variation, collision safety and scene-node budgets.
+- Physical Android performance and visual readability across all biomes still require device validation.
+
 ## v0.9.1 — Units
 
 - Replaced the multi-node procedural troop assembly with two merged, vertex-coloured ArrayMesh batches per team/role: a static silhouette and an animated action part.
