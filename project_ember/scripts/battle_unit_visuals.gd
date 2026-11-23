@@ -4,15 +4,19 @@ class_name BattleUnitVisuals
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 const Palette = preload("res://scripts/art_palette.gd")
 
+# Numeric role IDs mirror the battle unit enum. Keep this mapping local to
+# avoid a cyclic script preload between the unit and its visual builder.
+enum UnitRole { MELEE = 0, RANGED = 1, SPEAR = 2, CAVALRY = 3, COMMANDER = 4 }
+
 ## Two-batch low-poly unit models. All static geometry is merged into one vertex-coloured mesh;
 ## the weapon/arm/battle-standard is a second mesh that can be animated as one part.
 
 static func build(team: int, role: int) -> Node3D:
 	var forward := 1.0 if team == 0 else -1.0
 	var action_pivot := Vector3(forward * 0.40, 1.03, 0.0)
-	if role == BattleUnit.UnitRole.CAVALRY:
+	if role == UnitRole.CAVALRY:
 		action_pivot = Vector3(forward * 0.34, 1.53, 0.12)
-	elif role == BattleUnit.UnitRole.COMMANDER:
+	elif role == UnitRole.COMMANDER:
 		action_pivot = Vector3(-forward * 0.30, 2.08, -0.32)
 
 	var parts: Dictionary = {
@@ -21,21 +25,21 @@ static func build(team: int, role: int) -> Node3D:
 		"action_pivot": action_pivot,
 	}
 
-	if role == BattleUnit.UnitRole.CAVALRY:
+	if role == UnitRole.CAVALRY:
 		_build_cavalry(parts, team, forward)
 	else:
 		_build_infantry(parts, team, role, forward)
 
 	match role:
-		BattleUnit.UnitRole.MELEE:
+		UnitRole.MELEE:
 			_add_sword_and_shield(parts, forward)
-		BattleUnit.UnitRole.RANGED:
+		UnitRole.RANGED:
 			_add_archer_gear(parts, forward)
-		BattleUnit.UnitRole.SPEAR:
+		UnitRole.SPEAR:
 			_add_spear_gear(parts, forward)
-		BattleUnit.UnitRole.CAVALRY:
+		UnitRole.CAVALRY:
 			_add_cavalry_weapon(parts, forward)
-		BattleUnit.UnitRole.COMMANDER:
+		UnitRole.COMMANDER:
 			_add_commander_banner(parts, team, forward)
 
 	var root := Node3D.new()
@@ -89,7 +93,7 @@ static func _get_vertex_material() -> Material:
 
 
 static func _build_infantry(parts: Dictionary, team: int, role: int, forward: float) -> void:
-	var commander := role == BattleUnit.UnitRole.COMMANDER
+	var commander := role == UnitRole.COMMANDER
 	var scale := 1.10 if commander else 1.0
 	var cloth := Palette.PLAYER_CLOTH if team == 0 else Palette.ENEMY_CLOTH
 	var cloth_light := Palette.PLAYER_CLOTH_LIGHT if team == 0 else Palette.ENEMY_CLOTH_LIGHT
@@ -105,13 +109,13 @@ static func _build_infantry(parts: Dictionary, team: int, role: int, forward: fl
 	_add_part(parts, "body", _sphere(0.20 * scale, 0.40 * scale, 8, 4), skin, Vector3(0.0, 1.72 * scale, 0.0))
 
 	match role:
-		BattleUnit.UnitRole.RANGED:
+		UnitRole.RANGED:
 			_add_part(parts, "body", _sphere(0.22 * scale, 0.22 * scale, 7, 3), Palette.WOOD.lightened(0.12), Vector3(0.0, 1.87 * scale, 0.0))
 			_add_part(parts, "body", _box(Vector3(0.28, 0.055, 0.12) * scale), Palette.GOLD, Vector3(0.0, 1.91 * scale, 0.02))
-		BattleUnit.UnitRole.SPEAR:
+		UnitRole.SPEAR:
 			_add_part(parts, "body", _cylinder(0.13 * scale, 0.22 * scale, 0.18 * scale, 7), metal, Vector3(0.0, 1.91 * scale, 0.0))
 			_add_part(parts, "body", _cylinder(0.012, 0.045, 0.34, 5), Palette.REWARD, Vector3(0.0, 2.13 * scale, 0.0))
-		BattleUnit.UnitRole.COMMANDER:
+		UnitRole.COMMANDER:
 			_add_part(parts, "body", _cylinder(0.14 * scale, 0.23 * scale, 0.17 * scale, 8), Palette.GOLD, Vector3(0.0, 1.94 * scale, 0.0))
 			for side in [-1.0, 0.0, 1.0]:
 				_add_part(parts, "body", _cylinder(0.0, 0.045, 0.19, 5), Palette.GOLD_LIGHT, Vector3(side * 0.13, 2.10 * scale, 0.0))
@@ -130,7 +134,7 @@ static func _build_infantry(parts: Dictionary, team: int, role: int, forward: fl
 	_add_part(parts, "body", _cylinder(0.10 * scale, 0.12 * scale, 0.62 * scale, 6), cloth, Vector3(-forward * 0.40 * scale, 1.03 * scale, 0.0), Vector3(0.0, 0.0, forward * 0.18))
 	_add_part(parts, "action", _cylinder(0.10 * scale, 0.12 * scale, 0.62 * scale, 6), cloth, Vector3(forward * 0.40 * scale, 1.03 * scale, 0.0), Vector3(0.0, 0.0, -forward * 0.18))
 
-	if role == BattleUnit.UnitRole.COMMANDER:
+	if role == UnitRole.COMMANDER:
 		_add_part(parts, "body", _box(Vector3(0.58, 0.92, 0.09)), cloth.darkened(0.28), Vector3(-forward * 0.13, 1.03, -0.30))
 		_add_part(parts, "body", _sphere(0.11, 0.20, 7, 3), Palette.GOLD, Vector3(-forward * 0.39, 1.30, 0.0))
 	else:
