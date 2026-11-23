@@ -120,9 +120,31 @@ static func resolve_for_cell(cell: Vector2i) -> String:
 		var terrain := _terrain_for_cell(cell + offset)
 		counts[terrain] = int(counts.get(terrain, 0)) + 1
 
-	var forest_count := int(counts["forest"])
-	var hills_count := int(counts["hills"])
-	var water_count := int(counts["water"])
+	return _resolve_counts(counts)
+
+
+## Use the live strategic map dictionary when it is available; this avoids
+## re-deriving terrain that has been overridden for cities, armies or events.
+static func resolve_from_terrain_map(terrain_map: Dictionary, cell: Vector2i) -> String:
+	var offsets: Array[Vector2i] = [
+		Vector2i(1, 0),
+		Vector2i(-1, 0),
+		Vector2i(0, 1),
+		Vector2i(0, -1),
+		Vector2i(1, -1),
+		Vector2i(-1, 1),
+	]
+	var counts := {"forest": 0, "hills": 0, "water": 0}
+	for offset in offsets:
+		var terrain := str(terrain_map.get(cell + offset, "plain"))
+		counts[terrain] = int(counts.get(terrain, 0)) + 1
+	return _resolve_counts(counts)
+
+
+static func _resolve_counts(counts: Dictionary) -> String:
+	var forest_count := int(counts.get("forest", 0))
+	var hills_count := int(counts.get("hills", 0))
+	var water_count := int(counts.get("water", 0))
 	if water_count >= 2:
 		return MARSH
 	if forest_count >= 2 and forest_count >= hills_count:
