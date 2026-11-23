@@ -297,6 +297,8 @@ func _make_panel_style(background: Color) -> StyleBoxFlat:
 func _add_action_button(parent: Container, title: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = title
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
 	button.custom_minimum_size = Vector2(0.0, 52.0)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
