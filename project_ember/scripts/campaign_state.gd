@@ -276,14 +276,14 @@ func _recover_campaign_heroes() -> void:
 			hero["health"] = minf(max_health, current_health + max_health * 0.18)
 
 
-func begin_battle() -> bool:
+func begin_battle(biome_id: String = "") -> bool:
 	if battle_in_progress or campaign_lost or not enemy_present:
 		return false
 	if player_units.is_empty() or enemy_units.is_empty():
 		return false
 	battle_origin_cell = player_cell
 	battle_enemy_cell = enemy_cell
-	battlefield_biome_id = BattlefieldBiomesScript.resolve_for_cell(battle_origin_cell)
+	battlefield_biome_id = biome_id if BattlefieldBiomesScript.biome_ids().has(biome_id) else BattlefieldBiomesScript.resolve_for_cell(battle_origin_cell)
 	battlefield_seed = BattlefieldBiomesScript.seed_for_cell(battle_origin_cell)
 	battle_in_progress = true
 	return true
