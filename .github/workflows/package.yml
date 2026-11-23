@@ -25,7 +25,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.5.0
+          name: Project-Ember-v0.5.1
           path: project_ember/
           if-no-files-found: error
           include-hidden-files: true
