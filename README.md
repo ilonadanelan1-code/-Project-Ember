@@ -2,7 +2,7 @@
 
 Godot 4 fantasy 4X strategy with real-time tactical combat.
 
-Current source release: **v0.9.0 — Foundation**.
+Current source release: **v0.9.1 — Units**.
 
 - [Design source of truth](project_ember/DESIGN.md)
 - [Android import and play guide](project_ember/ANDROID_START.md)
@@ -11,6 +11,6 @@ Current source release: **v0.9.0 — Foundation**.
 - [Art Bible](project_ember/ART_BIBLE.md)
 - [Hero progression and commander abilities](project_ember/HERO_PROGRESSION.md)
 
-v0.9.0 adds a shared runtime UI theme, independent player settings, three graphics-quality presets, a performance overlay and cached visual resources on top of the v0.8.0 low-poly art pass. Campaign saves, unit role IDs, combat behavior, touch controls and save formats remain compatible with v0.8.0.
+v0.9.1 builds on Foundation with two merged vertex-coloured meshes per unit, cached team/role models, role-specific attack animations, hit reactions and capped death corpses. The 50-unit CI test enforces the eight-node budget. Campaign saves, role IDs, damage formulas, collision and tactical input remain compatible with v0.8.0 and v0.9.0.
 
 The archive is a Godot source project, not an APK. Import `project_ember/project.godot` in Godot 4.3 Android Editor.

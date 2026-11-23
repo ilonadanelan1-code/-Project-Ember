@@ -94,3 +94,12 @@ The visual overhaul must not alter campaign save keys, unit role identifiers, ta
 ## Art direction — v0.9.0
 
 The visual constraints, palette, faction identifiers and readability rules are documented in [ART_BIBLE.md](ART_BIBLE.md). Runtime color constants live in `scripts/art_palette.gd`. The project remains on Godot 4.3 GL Compatibility.
+
+
+## Unit visual architecture — v0.9.1
+
+Each troop uses two merged vertex-coloured mesh batches: a static body and a single action part. Team/role combinations are cached, and both batches share one material. The selection/target ring is one mesh that switches cached material; the health bar appears only when the unit is selected, targeted or wounded.
+
+Animation is driven by the existing BattleUnit process without Skeletons or extra animation nodes. Attack damage, attack cadence, movement, target selection, collision and formation placement remain controlled by the original combat methods. Defeated units leave the combat group immediately; a limited number of visual corpses remain for 8–10 seconds based on quality settings.
+
+The core BattleUnit scene budget is eight nodes including its collision capsule, selection indicator and health-bar meshes. CI creates 50 units and verifies the node budget and mesh/material reuse.

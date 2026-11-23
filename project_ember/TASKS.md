@@ -1,5 +1,21 @@
 # Project Ember — Tasks
 
+## v0.9.1 — Units
+
+- [x] Merge each team/role static silhouette into one vertex-coloured ArrayMesh.
+- [x] Merge each role's weapon/arm/banner into one animated ArrayMesh; keep a shared vertex-colour material.
+- [x] Cache the ten team/role static and action mesh combinations.
+- [x] Add larger readable headgear, shoulder armour, role-specific weapons, horse/rider details and commander banner.
+- [x] Add idle breathing and movement sway; add sword, spear, bow, cavalry and commander-ability motion.
+- [x] Add cached hit flash without a unique material per unit.
+- [x] Add death fall and capped 8–10 second corpses, with lower corpse limits on Low quality.
+- [x] Keep one selection/target ring and show the health bar only when selected, targeted or wounded.
+- [x] Add distance/zoom-based animation LOD.
+- [x] Add CI checks for two core mesh instances, shared resources and the eight-node limit with 50 units.
+- [ ] Import v0.9.1 in Godot Android Editor and verify each role's silhouette and attack animation.
+- [ ] Measure FPS, Draw Calls, objects, primitives and nodes with 20–50 units on Low and Medium.
+- [ ] Confirm selected/wounded health bars and death corpses remain readable on the phone.
+
 ## v0.9.0 — Foundation
 
 - [x] Add central `ArtPalette` and `ART_BIBLE.md`.

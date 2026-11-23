@@ -1,10 +1,10 @@
-Project Ember v0.9.0 — Foundation
-- Centralized visual palette and Stylized Low-Poly Fantasy art bible.
-- Shared runtime Theme for strategic and tactical UI, with readable base typography and minimum touch-target sizing.
-- Independent player settings in user://settings.cfg: graphics quality, audio levels, UI scale, performance overlay, vibration and camera speed.
-- Three graphics-quality tiers with a first-run mobile-aware quality heuristic.
-- Performance overlay for FPS, draw calls, rendered objects, primitives, scene node count and available memory metrics.
-- Cached runtime resources for procedural soldier/environment meshes and materials, plus the battlefield ground texture.
-- Low quality disables dynamic battlefield shadows and reduces decorative scenery; higher tiers restore detail.
-- Campaign save data, combat parameters, role IDs, formation slots, collision and input mappings remain unchanged.
-- Godot CI and physical Android validation are required; phone performance, safe areas and touch response remain unverified.
+Project Ember v0.9.1 — Units
+- Each unit now uses two merged vertex-coloured ArrayMesh batches: static body silhouette and an animated action part.
+- Ten cached team/role mesh combinations share a single vertex-colour material.
+- Distinct silhouettes and role details are retained for swordsmen, archers, spearmen, cavalry and commanders.
+- Added idle/movement animation, melee swings, spear thrusts, bow draw/release, cavalry charge motion and commander banner motion.
+- Added shared-material hit flash, falling death animation and quality-capped 8–10 second corpses.
+- Selection/target feedback uses one cached ring; health bars appear only when selected, targeted or wounded.
+- Core BattleUnit node count is capped at eight including collision, ring and health elements; CI tests 50 unit instances.
+- Campaign saves, unit role IDs, damage formulas, speeds, formation slots, collision and input mapping remain unchanged.
+- Godot 4.3 GL Compatibility is retained; real Android performance, touch rendering and combat readability still require device testing.

@@ -1,3 +1,15 @@
+## v0.9.1 — Units
+
+- Replaced the multi-node procedural troop assembly with two merged, vertex-coloured ArrayMesh batches per team/role: a static silhouette and an animated action part.
+- Added distinct low-poly headgear and role silhouettes for swordsmen, archers, spearmen, cavalry and commanders; cavalry now includes a larger horse/rider silhouette with caparison and bridle details.
+- All ten team/role combinations cache their body/action meshes and share one vertex-colour material.
+- Added manual idle breathing and movement sway; added role-specific sword swings, spear thrusts, bow draw/release, cavalry charge swings and commander banner raises.
+- Added a short shared-material hit flash, falling death animation and 8–10 second corpse cleanup with quality-based corpse caps.
+- Consolidated target/selection feedback into one cached ring. Health bars are shown only for selected, targeted or wounded units.
+- Added distance/zoom-based animation LOD and extended visual tests to spawn 50 units, enforce the eight-node budget and verify mesh/material reuse.
+- Existing campaign saves, unit role IDs, combat formulas, movement, formation slots, collision capsule and touch controls remain unchanged.
+- Physical Android FPS, touch visibility and the feel/readability of the new animation pass remain pending device validation.
+
 ## v0.9.0 — Foundation
 
 - Added a centralized `ArtPalette` and `ART_BIBLE.md` for the stylized low-poly fantasy direction.
