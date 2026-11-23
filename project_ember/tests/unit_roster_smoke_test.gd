@@ -79,8 +79,6 @@ func _run() -> void:
 	_check(is_equal_approx(spear.max_health, 108.0), "spearman receives its role-specific health")
 	_check(spear.attack_range > 2.0, "spearman has an extended melee reach")
 	_check(spear.armor > 0.0, "spearman receives armor")
-	spear.free()
-
 	var cavalry: Variant = BattleUnitScript.new()
 	cavalry.role = 3
 	cavalry._apply_role_stats()
@@ -90,6 +88,7 @@ func _run() -> void:
 	cavalry._charge_armed = true
 	_check(is_equal_approx(cavalry.get_strike_damage_against(spear), 35.2), "cavalry gets its charge multiplier after a running approach")
 	_check(is_equal_approx(spear.get_strike_damage_against(cavalry), 29.7), "spearmen deal bonus damage against cavalry")
+	spear.free()
 
 	var armored_target: Variant = BattleUnitScript.new()
 	armored_target.role = 2
