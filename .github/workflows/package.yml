@@ -34,6 +34,7 @@ jobs:
           test -d project_ember/scripts
           test -f project_ember/tests/campaign_smoke_test.gd
           test -f project_ember/tests/unit_roster_smoke_test.gd
+          test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/scripts/unit_catalog.gd
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
@@ -90,10 +91,20 @@ jobs:
             echo "Unit roster tests reported an error." >&2
             exit 1
           fi
+      - name: Test hero progression and commander abilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/hero_progression_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Hero progression tests reported an error." >&2
+            exit 1
+          fi
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.6.0
+          name: Project-Ember-v0.7.0
           path: |
             project_ember/**
             !project_ember/.godot/**

@@ -34,6 +34,8 @@ var _found_city_button: Button
 var _settler_selected: bool = false
 var _city_income_label: Label
 var _city_queue_label: Label
+var _hero_overview_label: Label
+var _hero_skill_buttons: Dictionary = {}
 var _city_building_buttons: Dictionary = {}
 var _city_recruit_buttons: Dictionary = {}
 var _message_text: String = "P — твоя армия, ! — враг. Выбери P и коснись соседнего гекса."
@@ -317,6 +319,29 @@ func _create_city_panel(root: Control) -> void:
 	_city_queue_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.48))
 	details.add_child(_city_queue_label)
 
+	var hero_title := Label.new()
+	hero_title.text = "ПРАВИТЕЛЬ И КОМАНДИР"
+	hero_title.add_theme_font_size_override("font_size", 17)
+	hero_title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.38))
+	details.add_child(hero_title)
+
+	_hero_overview_label = Label.new()
+	_hero_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hero_overview_label.add_theme_font_size_override("font_size", 14)
+	_hero_overview_label.add_theme_color_override("font_color", Color(0.93, 0.95, 0.98))
+	details.add_child(_hero_overview_label)
+
+	var hero_skill_grid := GridContainer.new()
+	hero_skill_grid.columns = 3
+	hero_skill_grid.add_theme_constant_override("h_separation", 7)
+	hero_skill_grid.add_theme_constant_override("v_separation", 5)
+	details.add_child(hero_skill_grid)
+	for skill_id in ["leadership", "tactics", "might"]:
+		var skill_button := _add_button(hero_skill_grid, "НАВЫК", _upgrade_hero_skill.bind(skill_id))
+		skill_button.custom_minimum_size = Vector2(0.0, 58.0)
+		skill_button.add_theme_font_size_override("font_size", 12)
+		_hero_skill_buttons[skill_id] = skill_button
+
 	var building_title := Label.new()
 	building_title.text = "СТРОИТЕЛЬСТВО"
 	building_title.add_theme_font_size_override("font_size", 16)
@@ -400,6 +425,16 @@ func _queue_recruit(role_name: String) -> void:
 	_refresh_ui()
 
 
+func _upgrade_hero_skill(skill_id: String) -> void:
+	if CampaignState.upgrade_hero_skill(skill_id):
+		var skill_names := {"leadership": "Лидерство", "tactics": "Тактика", "might": "Сила"}
+		_message_text = "Навык героя улучшен: %s. Изменения действуют со следующего сражения." % str(skill_names.get(skill_id, skill_id))
+	else:
+		_message_text = "Нет очков навыков или этот навык уже достиг максимального ранга."
+	_refresh_city_panel()
+	_refresh_ui()
+
+
 func _queue_settler() -> void:
 	if CampaignState.queue_settler():
 		_message_text = "Поселенец добавлен в очередь города."
@@ -443,6 +478,28 @@ func _refresh_city_panel() -> void:
 		int(income["production"]),
 	]
 	_city_queue_label.text = CampaignState.get_city_queue_summary()
+	var hero: Dictionary = CampaignState.player_hero
+	var hero_skills_value: Variant = hero.get("skills", {})
+	var hero_skills: Dictionary = hero_skills_value if hero_skills_value is Dictionary else {}
+	var hero_health := float(hero.get("health", CampaignState.get_hero_max_health(hero)))
+	var hero_max_health := CampaignState.get_hero_max_health(hero)
+	_hero_overview_label.text = "%s · %s\nУровень %d · Опыт %d/%d · Очки навыков: %d\nЗдоровье: %.0f/%.0f · Раны: %d" % [
+		str(hero.get("name", "Правитель")),
+		str(hero.get("title", "Командир")),
+		int(hero.get("level", 1)),
+		int(hero.get("experience", 0)),
+		CampaignState.get_hero_xp_to_next_level(),
+		int(hero.get("skill_points", 0)),
+		hero_health,
+		hero_max_health,
+		int(hero.get("wounded_turns", 0)),
+	]
+	var skill_names := {"leadership": "ЛИДЕРСТВО", "tactics": "ТАКТИКА", "might": "СИЛА"}
+	for skill_id in _hero_skill_buttons:
+		var skill_rank := clampi(int(hero_skills.get(skill_id, 0)), 0, 5)
+		var skill_button: Button = _hero_skill_buttons[skill_id]
+		skill_button.text = "%s\nРАНГ %d/5" % [str(skill_names.get(skill_id, skill_id)).to_upper(), skill_rank]
+		skill_button.disabled = int(hero.get("skill_points", 0)) <= 0 or skill_rank >= 5
 
 	if is_instance_valid(_settler_button):
 		_settler_button.disabled = not CampaignState.can_queue_settler()
@@ -703,8 +760,10 @@ func _show_last_battle_report() -> void:
 	var victory := bool(result.get("victory", false))
 	var losses := int(result.get("player_losses", 0))
 	var survivors := int(result.get("player_survivors", CampaignState.player_units.size()))
+	var hero_xp_gained := int(result.get("hero_xp_gained", 0))
+	var hero_level := int(result.get("hero_level", CampaignState.player_hero.get("level", 1)))
 	if victory:
-		_message_text = "Победа! Выживших: %d. Потери: %d. Вражеский лагерь захвачен." % [survivors, losses]
+		_message_text = "Победа! Выживших: %d. Потери: %d. Командир получил %d опыта (ур. %d). Вражеский лагерь захвачен." % [survivors, losses, hero_xp_gained, hero_level]
 	else:
 		_message_text = "Поражение. Твоя армия уничтожена. Можно начать новую кампанию."
 	CampaignState.last_battle_report_pending = false
@@ -715,11 +774,14 @@ func _refresh_ui() -> void:
 	if not is_instance_valid(_status_label):
 		return
 	var enemy_count: int = CampaignState.enemy_units.size() if CampaignState.enemy_present else 0
-	_status_label.text = "ХОД %d   ·   АРМИЯ %d   ·   ВРАГ %d   ·   ЗОЛОТО %d" % [
+	var hero_name := str(CampaignState.player_hero.get("name", "Правитель"))
+	_status_label.text = "ХОД %d · АРМИЯ %d · ВРАГ %d · ЗОЛОТО %d · %s УР.%d" % [
 		CampaignState.turn_number,
 		CampaignState.player_units.size(),
 		enemy_count,
 		CampaignState.city_gold,
+		hero_name,
+		int(CampaignState.player_hero.get("level", 1)),
 	]
 	_message_label.text = _message_text
 	if is_instance_valid(_attack_button):

@@ -18,12 +18,13 @@ enum UnitRole {
 	RANGED,
 	SPEAR,
 	CAVALRY,
+	COMMANDER,
 }
 
 const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
 
 @export var team: int = 0 # 0 = player, 1 = enemy
-@export_enum("Мечник", "Лучник", "Копейщик", "Кавалерист") var role: int = UnitRole.MELEE
+@export_enum("Мечник", "Лучник", "Копейщик", "Кавалерист", "Командир") var role: int = UnitRole.MELEE
 @export var move_speed: float = 3.8
 @export var max_health: float = 100.0
 @export var attack_damage: float = 16.0
@@ -35,6 +36,17 @@ const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
 var armor: float = 0.0
 var anti_cavalry_multiplier: float = 1.0
 var charge_multiplier: float = 1.0
+var commander_level: int = 1
+var commander_leadership: int = 0
+var commander_tactics: int = 0
+var commander_might: int = 0
+var command_damage_bonus: float = 0.0
+var command_speed_bonus: float = 0.0
+var command_aura_timer: float = 0.0
+var rally_damage_bonus: float = 0.0
+var rally_speed_bonus: float = 0.0
+var rally_timer: float = 0.0
+var rally_cooldown_timer: float = 0.0
 
 var health: float
 var starting_health: float = -1.0
@@ -64,6 +76,23 @@ func _ready() -> void:
 
 
 func _apply_role_stats() -> void:
+	if role == UnitRole.COMMANDER:
+		commander_level = clampi(commander_level, 1, 30)
+		commander_leadership = clampi(commander_leadership, 0, 5)
+		commander_tactics = clampi(commander_tactics, 0, 5)
+		commander_might = clampi(commander_might, 0, 5)
+		max_health = 210.0 + float(commander_level - 1) * 16.0 + float(commander_might) * 14.0
+		move_speed = 4.0 + float(commander_tactics) * 0.06
+		attack_damage = 24.0 + float(commander_level - 1) * 2.4 + float(commander_might) * 3.5
+		attack_range = 1.9
+		attack_cooldown = 0.88
+		detection_range = 16.0
+		preferred_range = 1.7
+		projectile_speed = 0.0
+		armor = 4.0 + float(commander_might) * 0.8
+		anti_cavalry_multiplier = 1.0
+		charge_multiplier = 1.0
+		return
 	var data: Dictionary = UNIT_CATALOG_SCRIPT.get_data(_get_role_id())
 	max_health = float(data.get("max_health", 125.0))
 	move_speed = float(data.get("move_speed", 3.8))
@@ -106,6 +135,10 @@ func _build_visuals() -> void:
 		body_radius = 0.30
 		body_height = 1.20
 		body_y = 1.02
+	elif role == UnitRole.COMMANDER:
+		body_radius = 0.43
+		body_height = 1.62
+		body_y = 0.86
 
 	if role == UnitRole.CAVALRY:
 		_add_cavalry_mount()
@@ -114,8 +147,13 @@ func _build_visuals() -> void:
 	body_capsule.height = body_height
 	body_mesh.mesh = body_capsule
 	body_mesh.position.y = body_y
+	if role == UnitRole.COMMANDER:
+		body_material.metallic = 0.52
+		body_material.roughness = 0.48
 	body_mesh.material_override = body_material
 	add_child(body_mesh)
+	if role == UnitRole.COMMANDER:
+		_add_commander_visuals()
 
 	var collision := CollisionShape3D.new()
 	var capsule_shape := CapsuleShape3D.new()
@@ -183,6 +221,48 @@ func _add_cavalry_mount() -> void:
 	saddle_material.albedo_color = Color(0.72, 0.48, 0.17)
 	saddle.material_override = saddle_material
 	add_child(saddle)
+
+
+func _add_commander_visuals() -> void:
+	var shoulder_material := StandardMaterial3D.new()
+	shoulder_material.albedo_color = Color(0.78, 0.58, 0.20)
+	shoulder_material.metallic = 0.72
+	for side in [-1.0, 1.0]:
+		var shoulder := MeshInstance3D.new()
+		var shoulder_mesh := SphereMesh.new()
+		shoulder_mesh.radius = 0.22
+		shoulder_mesh.height = 0.26
+		shoulder.mesh = shoulder_mesh
+		shoulder.position = Vector3(0.0, 1.24, side * 0.38)
+		shoulder.material_override = shoulder_material
+		add_child(shoulder)
+
+	var crown := MeshInstance3D.new()
+	var crown_mesh := CylinderMesh.new()
+	crown_mesh.top_radius = 0.17
+	crown_mesh.bottom_radius = 0.23
+	crown_mesh.height = 0.16
+	crown.mesh = crown_mesh
+	crown.position = Vector3(0.0, 1.79, 0.0)
+	var crown_material := StandardMaterial3D.new()
+	crown_material.albedo_color = Color(0.95, 0.72, 0.22)
+	crown_material.metallic = 0.88
+	crown_material.roughness = 0.24
+	crown.material_override = crown_material
+	add_child(crown)
+
+	var jewel := MeshInstance3D.new()
+	var jewel_mesh := SphereMesh.new()
+	jewel_mesh.radius = 0.075
+	jewel_mesh.height = 0.15
+	jewel.mesh = jewel_mesh
+	jewel.position = Vector3(0.0, 1.90, -0.02)
+	var jewel_material := StandardMaterial3D.new()
+	jewel_material.albedo_color = Color(0.25, 0.85, 0.78)
+	jewel_material.emission_enabled = true
+	jewel_material.emission = Color(0.08, 0.35, 0.30)
+	jewel.material_override = jewel_material
+	add_child(jewel)
 
 
 func _add_spear_visual() -> void:
@@ -329,6 +409,76 @@ func order_retreat() -> void:
 	_order_mode = OrderMode.RETREAT
 
 
+func apply_rally(duration: float, damage_bonus: float, speed_bonus: float) -> void:
+	rally_timer = maxf(rally_timer, duration)
+	rally_damage_bonus = maxf(rally_damage_bonus, damage_bonus)
+	rally_speed_bonus = maxf(rally_speed_bonus, speed_bonus)
+	if health > 0.0:
+		health = minf(max_health, health + max_health * 0.12)
+		_update_health_bar()
+
+
+func activate_rally() -> bool:
+	if role != UnitRole.COMMANDER or rally_cooldown_timer > 0.0 or health <= 0.0:
+		return false
+	var radius := 8.0 + float(commander_leadership) * 0.85
+	var duration := 6.0 + float(commander_tactics) * 1.5
+	var damage_bonus := 0.12 + float(commander_tactics) * 0.025
+	var speed_bonus := 0.08 + float(commander_tactics) * 0.015
+	var affected := 0
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if not node is BattleUnit or node.is_queued_for_deletion():
+			continue
+		var ally := node as BattleUnit
+		if ally.team != team or ally.health <= 0.0:
+			continue
+		if global_position.distance_to(ally.global_position) <= radius:
+			ally.apply_rally(duration, damage_bonus, speed_bonus)
+			affected += 1
+	if affected <= 0:
+		return false
+	rally_cooldown_timer = maxf(14.0, 28.0 - float(commander_tactics) * 2.5)
+	return true
+
+
+func _refresh_commander_aura() -> void:
+	if role != UnitRole.COMMANDER or health <= 0.0:
+		return
+	var radius := 7.0 + float(commander_leadership) * 0.85
+	var damage_bonus := 0.04 + float(commander_leadership) * 0.025
+	var speed_bonus := 0.035 + float(commander_leadership) * 0.018
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if not node is BattleUnit or node.is_queued_for_deletion():
+			continue
+		var ally := node as BattleUnit
+		if ally.team != team or ally.health <= 0.0:
+			continue
+		if global_position.distance_to(ally.global_position) <= radius:
+			ally.command_aura_timer = 0.35
+			ally.command_damage_bonus = maxf(ally.command_damage_bonus, damage_bonus)
+			ally.command_speed_bonus = maxf(ally.command_speed_bonus, speed_bonus)
+
+
+func _try_auto_rally() -> void:
+	if role != UnitRole.COMMANDER or team == 0 or rally_cooldown_timer > 0.0:
+		return
+	var radius := 8.0 + float(commander_leadership) * 0.85
+	var nearby_allies := 0
+	var wounded_allies := 0
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if not node is BattleUnit or node.is_queued_for_deletion():
+			continue
+		var ally := node as BattleUnit
+		if ally.team != team or ally.health <= 0.0:
+			continue
+		if global_position.distance_to(ally.global_position) <= radius:
+			nearby_allies += 1
+			if ally.health <= ally.max_health * 0.72:
+				wounded_allies += 1
+	if nearby_allies >= 3 and wounded_allies >= 2:
+		activate_rally()
+
+
 func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 	if health <= 0.0:
 		return
@@ -349,9 +499,22 @@ func _physics_process(delta: float) -> void:
 	if health <= 0.0:
 		return
 
-	_attack_timer = maxf(0.0, _attack_timer - delta)
+	_attack_timer = maxf(0.0, _attack_timer - delta * (1.0 + command_speed_bonus + rally_speed_bonus))
 	_charge_timer = maxf(0.0, _charge_timer - delta)
+	rally_cooldown_timer = maxf(0.0, rally_cooldown_timer - delta)
+	rally_timer = maxf(0.0, rally_timer - delta)
+	command_aura_timer = maxf(0.0, command_aura_timer - delta)
+	if command_aura_timer <= 0.0:
+		command_damage_bonus = 0.0
+		command_speed_bonus = 0.0
+	if rally_timer <= 0.0:
+		rally_damage_bonus = 0.0
+		rally_speed_bonus = 0.0
 	_moving_fast = false
+	if role == UnitRole.COMMANDER:
+		_refresh_commander_aura()
+		if team == 1:
+			_try_auto_rally()
 
 	# Enemy-controlled units withdraw when critically wounded instead of fighting to the last HP.
 	if team == 1 and _order_mode == OrderMode.AUTO and health <= max_health * 0.22:
@@ -413,7 +576,7 @@ func _attack_or_chase() -> void:
 	if distance <= attack_range:
 		velocity = Vector3.ZERO
 		if _attack_timer <= 0.0:
-			var strike_damage := get_strike_damage_against(_target)
+			var strike_damage := get_strike_damage_against(_target) * (1.0 + command_damage_bonus + rally_damage_bonus)
 			if role == UnitRole.CAVALRY and _charge_armed and _charge_timer <= 0.0:
 				_charge_timer = 4.5
 				_charge_armed = false
@@ -463,7 +626,7 @@ func _fire_projectile(enemy: BattleUnit) -> void:
 	var projectile := CombatProjectile.new()
 	projectile.target = enemy
 	projectile.source = self
-	projectile.damage = attack_damage
+	projectile.damage = attack_damage * (1.0 + command_damage_bonus + rally_damage_bonus)
 	projectile.speed = projectile_speed
 	get_parent().add_child(projectile)
 	projectile.global_position = global_position + Vector3(0.0, 1.05, 0.0)
@@ -477,7 +640,7 @@ func _steer(direction: Vector3) -> void:
 	var separation := _get_separation_vector(1.15)
 	if separation.length_squared() > 0.001:
 		desired_direction = (desired_direction + separation * 0.8).normalized()
-	velocity = desired_direction * move_speed
+	velocity = desired_direction * move_speed * (1.0 + command_speed_bonus + rally_speed_bonus)
 	_moving_fast = role == UnitRole.CAVALRY and velocity.length() >= move_speed * 0.75
 	if _moving_fast and _charge_timer <= 0.0:
 		_charge_armed = true
