@@ -20,6 +20,7 @@ permissions:
 jobs:
   validate-and-package:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -95,12 +96,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          log_file="$(mktemp)"
-          godot --headless --path project_ember --script res://tests/unit_roster_smoke_test.gd 2>&1 | tee "$log_file"
+          log_file="$RUNNER_TEMP/unit_roster_smoke_test.log"
+          godot --headless --path project_ember --script res://tests/unit_roster_smoke_test.gd --quit-after 300 2>&1 | tee "$log_file"
           if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
             echo "Unit roster tests reported an error." >&2
             exit 1
           fi
+          if ! grep -Fq "All unit roster smoke tests passed." "$log_file"; then
+            echo "Unit roster test did not reach its success marker." >&2
+            exit 1
+          fi
+      - name: Upload unit roster diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unit-Roster-Diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/unit_roster_smoke_test.log
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Test hero progression and commander abilities
         shell: bash
         run: |
