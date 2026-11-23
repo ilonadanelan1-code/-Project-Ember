@@ -200,7 +200,9 @@ func _add_spear_visual() -> void:
 	add_child(spear)
 
 	var spear_tip := MeshInstance3D.new()
-	var tip_mesh := ConeMesh.new()
+	var tip_mesh := CylinderMesh.new()
+	tip_mesh.top_radius = 0.0
+	tip_mesh.bottom_radius = 0.085
 	tip_mesh.bottom_radius = 0.085
 	tip_mesh.height = 0.22
 	spear_tip.mesh = tip_mesh

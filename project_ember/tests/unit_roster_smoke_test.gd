@@ -49,14 +49,14 @@ func _run() -> void:
 	_check(state.can_queue_recruit(state.ROLE_RANGED), "archery range unlocks archers")
 	_check(state.can_queue_recruit(state.ROLE_CAVALRY), "stable unlocks cavalry")
 
-	var starting_size := state.player_units.size()
+	var starting_size: int = state.player_units.size()
 	for role_id in UnitCatalogScript.role_ids():
 		_check(state.queue_recruit(role_id), "city accepts recruitment: " + role_id)
 	state.city_production_bank = 64
 	state._process_city_queue()
 	_check(state.player_units.size() == starting_size + 4, "all four new recruit orders create army records")
 
-	var normalized := state._read_unit_records(state.player_units)
+	var normalized: Array = state._read_unit_records(state.player_units)
 	var found_roles: Dictionary = {}
 	for record in normalized:
 		found_roles[str(record.get("role", ""))] = true

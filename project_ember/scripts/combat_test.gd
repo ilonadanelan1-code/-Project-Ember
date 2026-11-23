@@ -997,3 +997,48 @@ func _get_team_damage(team: int) -> float:
 				total += unit.damage_dealt
 	return total
 
+
+
+func _count_team(team: int) -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if node is BattleUnit and node.team == team and not node.is_queued_for_deletion():
+			count += 1
+	return count
+
+
+func _count_role(team: int, unit_role: int) -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if node is BattleUnit:
+			var unit := node as BattleUnit
+			if unit.team == team and unit.role == unit_role and not unit.is_queued_for_deletion():
+				count += 1
+	return count
+
+
+func _refresh_ui() -> void:
+	if not is_instance_valid(_status_label):
+		return
+	if _game_over:
+		_status_label.text = _result_title.text
+		_help_label.text = "Сражение завершено · выбери новое сражение"
+	else:
+		_status_label.text = "СИНИЕ %d    КРАСНЫЕ %d    ВЫБРАНО %d    ВРЕМЯ %s" % [
+			_count_team(PLAYER_TEAM),
+			_count_team(ENEMY_TEAM),
+			_selected_units.size(),
+			_format_battle_time(_battle_time),
+		]
+		var target_text := "ЦЕЛЬ: враг отмечен" if is_instance_valid(_focused_target) else "ЦЕЛЬ: не выбрана"
+		_help_label.text = "4 РОЛИ ВОЙСК · %s · %s · ЗУМ %.0f" % [
+			_get_formation_name(),
+			target_text,
+			_camera.size,
+		]
+	if is_instance_valid(_mode_button):
+		_mode_button.text = "МАРШ: ВКЛ" if _attack_move_enabled else "МАРШ: ВЫКЛ"
+	if is_instance_valid(_add_button):
+		_add_button.text = "ДОБОР: ВКЛ" if _additive_selection else "ДОБОР: ВЫКЛ"
+	if is_instance_valid(_formation_button):
+		_formation_button.text = "СТРОЙ: %s" % _get_formation_name()
