@@ -1,3 +1,12 @@
+## v0.8.0 — Visual Overhaul
+
+- Added an illustrated hex-map renderer with layered terrain, tree silhouettes, hills, water details, miniature castles and shield/banner army markers.
+- Added a procedural low-poly tactical environment with textured ground, MultiMesh vegetation and stones, forest edges, ruins, ambient lighting and directional shadows.
+- Replaced capsule-only troop visuals with distinct swordsman, archer, spearman, cavalry horse-and-rider, and commander models.
+- Added subtle unit idle/movement animation while keeping collision, movement, combat stats and selection on the existing BattleUnit controller.
+- Updated strategy and battle panels to a dark bronze and aged-gold interface.
+- Added visual-overhaul smoke tests; campaign saves, role IDs, tactical controls and campaign rules remain unchanged.
+
 # Changelog — Project Ember
 
 ## v0.7.0 — Hero Commanders and Progression
