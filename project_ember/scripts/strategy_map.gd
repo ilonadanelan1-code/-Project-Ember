@@ -4,6 +4,7 @@ const UiThemeScript = preload("res://scripts/ui_theme.gd")
 const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
 const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
 const Palette = preload("res://scripts/art_palette.gd")
+const BattlefieldBiomesScript = preload("res://scripts/battlefield_biomes.gd")
 
 ## First playable strategic-map slice: a compact axial-hex map, one player army,
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
@@ -769,7 +770,8 @@ func _attack_enemy() -> void:
 		_message_text = "Чтобы начать бой, подойди к вражеской армии вплотную."
 		_refresh_ui()
 		return
-	if CampaignState.begin_battle():
+	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(_terrain, CampaignState.player_cell)
+	if CampaignState.begin_battle(biome_id):
 		get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
 
 
