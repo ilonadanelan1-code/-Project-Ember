@@ -11,6 +11,6 @@ Current source release: **v0.9.2 — Battlefield Biomes & Terrain**.
 - [Art Bible](project_ember/ART_BIBLE.md)
 - [Hero progression and commander abilities](project_ember/HERO_PROGRESSION.md)
 
-v0.9.1 builds on Foundation with two merged vertex-coloured meshes per unit, cached team/role models, role-specific attack animations, hit reactions and capped death corpses. The 50-unit CI test enforces the eight-node budget. Campaign saves, role IDs, damage formulas, collision and tactical input remain compatible with v0.8.0 and v0.9.0.
+v0.9.2 adds four tactical battlefield biomes selected from the neighboring strategic hex terrain, with deterministic ground palettes/textures, woodland logs, highland rock shelves, and marsh pools/reeds. Biome props are visual-only; the original flat battlefield collision and unit movement remain unchanged. It also includes the v0.9.1 two-batch unit visuals, shared resources, role-specific animations and the 50-unit node-budget test. Campaign saves, role IDs, combat formulas, collision and tactical input remain compatible with earlier releases.
 
 The archive is a Godot source project, not an APK. Import `project_ember/project.godot` in Godot 4.3 Android Editor.
