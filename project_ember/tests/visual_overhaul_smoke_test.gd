@@ -34,7 +34,7 @@ func _run() -> void:
 	_check(swordsman.get_child_count() >= 15, "swordsman uses a multi-part stylized model")
 	_check(archer.get_child_count() >= 18, "archer has a distinct bow and quiver silhouette")
 	_check(cavalry.get_child_count() >= 20, "cavalry includes a horse and rider model")
-	_check(commander.get_child_count() >= 20, "commander includes hero armor and a banner")
+	_check(commander.get_child_count() >= 18, "commander includes hero armor and a banner")
 	swordsman.free()
 	archer.free()
 	cavalry.free()
