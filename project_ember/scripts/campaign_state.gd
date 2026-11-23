@@ -439,9 +439,11 @@ func _process_city_queue() -> void:
 
 func _count_queued_recruits() -> int:
 	var count := 0
-	for order in city_build_queue:
-		if str(order.get("kind", "")) == "recruit":
-			count += 1
+	for i in range(cities.size()):
+		var orders: Array = city_build_queue if i == active_city_id else cities[i].get("build_queue", [])
+		for order in orders:
+			if str(order.get("kind", "")) == "recruit":
+				count += 1
 	return count
 
 
