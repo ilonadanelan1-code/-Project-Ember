@@ -1,6 +1,6 @@
-const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
-
 extends Node3D
+
+const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 
 const FIELD_SIZE := Vector2(38.0, 26.0)
 const PLAYER_TEAM := 0
