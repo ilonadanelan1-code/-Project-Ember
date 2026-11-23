@@ -1,0 +1,30 @@
+name: Package Project Ember Android ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "project_ember/**"
+      - ".github/workflows/package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Create project ZIP
+        run: |
+          zip -r Project_Ember_v0.5.0.zip project_ember
+          unzip -t Project_Ember_v0.5.0.zip
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-Ember-v0.5.0
+          path: Project_Ember_v0.5.0.zip
+          if-no-files-found: error
+          retention-days: 30
