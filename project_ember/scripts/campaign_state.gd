@@ -396,6 +396,7 @@ func advance_campaign_turn() -> void:
 	turn_number += 1
 	player_moves_left = 1
 	settler_moves_left = 1
+	var previous_city_id := active_city_id
 	_save_active_city()
 	for i in range(cities.size()):
 		active_city_id = i
@@ -403,6 +404,7 @@ func advance_campaign_turn() -> void:
 		city_last_event = ""
 		_advance_one_city_turn()
 		_save_active_city()
+	active_city_id = previous_city_id
 	_load_active_city()
 
 
