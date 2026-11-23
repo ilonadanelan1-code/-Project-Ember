@@ -1,5 +1,16 @@
 # Changelog — Project Ember
 
+## v0.5.2 — Reliability and UI audit
+
+- Replaced unbounded city production `while` loop with a bounded queue pass (maximum 32 orders per city turn).
+- Added a defensive army-size check when completing recruitment orders.
+- Repaired mojibake in campaign messages and queue labels.
+- Explicitly set button focus and mouse-filter behavior in both strategic and tactical interfaces.
+- Added Godot 4.3 headless import and startup checks to the packaging workflow.
+- Android touch/runtime behavior still requires validation on a physical device.
+
+# Changelog — Project Ember
+
 ## v0.5.1 — Tactical timer fix
 
 - Fixed battle timer minute calculation to avoid integer-division warnings in GDScript.
