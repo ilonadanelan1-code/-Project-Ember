@@ -1,1 +1,1 @@
-Build package is generated automatically from this source tree.
+Project Ember v0.6.0 — Godot 4.3 source project. Extract and import project.godot in Godot Android Editor.
