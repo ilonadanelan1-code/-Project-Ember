@@ -369,7 +369,7 @@ func queue_building(building_id: String) -> bool:
 		"name": str(data["name"]),
 		"production_cost": int(data["production_cost"]),
 	})
-	city_last_event = "%s добавлен в очередь найма." % recruit_name
+	city_last_event = "%s добавлена в очередь строительства." % str(data["name"])
 	save_campaign()
 	return true
 
@@ -399,7 +399,7 @@ func queue_recruit(role_name: String) -> bool:
 		"name": recruit_name,
 		"production_cost": production_cost,
 	})
-	city_last_event = "%s добавлена в очередь строительства." % str(data["name"])
+	city_last_event = "%s добавлен в очередь найма." % recruit_name
 	save_campaign()
 	return true
 
