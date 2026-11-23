@@ -13,9 +13,9 @@ static func create_theme(ui_scale: float = 1.0) -> Theme:
 	theme.set_stylebox("panel", "PopupPanel", panel)
 	theme.set_stylebox("panel", "TooltipPanel", panel)
 	theme.set_stylebox("normal", "Button", _button_style(Palette.UI_BRONZE_LIGHT, Palette.UI_GOLD, scale))
-	theme.set_stylebox("hover", "Button", _button_style(Color("#4a3825"), Palette.GOLD_LIGHT, scale))
-	theme.set_stylebox("pressed", "Button", _button_style(Color("#31402b"), Palette.REWARD, scale))
-	theme.set_stylebox("disabled", "Button", _button_style(Color("#25221d"), Color("#635943"), scale, 0.55))
+	theme.set_stylebox("hover", "Button", _button_style(Palette.UI_BUTTON_HOVER, Palette.GOLD_LIGHT, scale))
+	theme.set_stylebox("pressed", "Button", _button_style(Palette.UI_BUTTON_PRESSED, Palette.REWARD, scale))
+	theme.set_stylebox("disabled", "Button", _button_style(Palette.UI_BUTTON_DISABLED, Palette.UI_BUTTON_DISABLED_BORDER, scale, 0.55))
 	theme.set_stylebox("focus", "Button", _focus_style(scale))
 	for color_name in ["font_color", "font_hover_color", "font_pressed_color"]:
 		theme.set_color(color_name, "Button", Palette.UI_TEXT)
@@ -23,7 +23,7 @@ static func create_theme(ui_scale: float = 1.0) -> Theme:
 	theme.set_font_size("font_size", "Button", maxi(16, roundi(16.0 * scale)))
 	theme.set_color("font_color", "Label", Palette.UI_TEXT)
 	theme.set_font_size("font_size", "Label", maxi(16, roundi(16.0 * scale)))
-	theme.set_stylebox("background", "ProgressBar", _flat_style(Color("#151713"), Color("#60523a"), scale))
+	theme.set_stylebox("background", "ProgressBar", _flat_style(Palette.UI_PROGRESS_BACKGROUND, Palette.UI_PROGRESS_BORDER, scale))
 	theme.set_stylebox("fill", "ProgressBar", _flat_style(Palette.REWARD, Palette.GOLD, scale))
 	theme.set_color("font_color", "ProgressBar", Palette.UI_TEXT)
 	theme.set_constant("separation", "VBoxContainer", roundi(8.0 * scale))
@@ -57,7 +57,7 @@ static func _panel_style(background: Color, scale: float) -> StyleBoxFlat:
 	style.border_color = Palette.UI_GOLD.darkened(0.12)
 	style.set_border_width_all(maxi(1, roundi(2.0 * scale)))
 	style.set_corner_radius_all(roundi(10.0 * scale))
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.38)
+	style.shadow_color = Palette.UI_SHADOW
 	style.shadow_size = roundi(5.0 * scale)
 	style.content_margin_left = 10.0 * scale
 	style.content_margin_top = 8.0 * scale
@@ -86,7 +86,7 @@ static func _flat_style(background: Color, border: Color, scale: float) -> Style
 	return style
 static func _focus_style(scale: float) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	style.bg_color = Palette.UI_TRANSPARENT
 	style.border_color = Palette.GOLD_LIGHT
 	style.set_border_width_all(maxi(2, roundi(2.0 * scale)))
 	style.set_corner_radius_all(roundi(7.0 * scale))

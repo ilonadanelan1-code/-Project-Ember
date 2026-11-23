@@ -1,6 +1,8 @@
 class_name CombatProjectile
 extends Node3D
 
+const Palette = preload("res://scripts/art_palette.gd")
+
 ## A lightweight visual projectile used by ranged units.
 ## Damage is applied only when the projectile reaches its living target.
 
@@ -19,9 +21,9 @@ func _ready() -> void:
 	visual.mesh = sphere
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(1.0, 0.72, 0.22)
+	material.albedo_color = Palette.PROJECTILE_CORE
 	material.emission_enabled = true
-	material.emission = Color(1.0, 0.42, 0.08)
+	material.emission = Palette.PROJECTILE_GLOW
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	visual.material_override = material
 	add_child(visual)

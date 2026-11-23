@@ -1,5 +1,7 @@
 extends PanelContainer
 class_name SettingsPanel
+
+const Palette = preload("res://scripts/art_palette.gd")
 var pause_game_on_open: bool = false
 var _paused_tree_here: bool = false
 var _quality_option: OptionButton
@@ -90,7 +92,7 @@ func _build_contents() -> void:
 func _add_section_label(parent: VBoxContainer, text_value: String) -> void:
 	var label := Label.new()
 	label.text = text_value
-	label.add_theme_color_override("font_color", Color("#c5a35a"))
+	label.add_theme_color_override("font_color", Palette.UI_GOLD)
 	label.add_theme_font_size_override("font_size", 16)
 	parent.add_child(label)
 func _add_slider(parent: VBoxContainer, title: String, minimum: float, maximum: float, initial: float, callback: Callable) -> HSlider:

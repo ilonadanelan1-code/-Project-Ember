@@ -1,6 +1,8 @@
 extends CanvasLayer
 class_name PerfOverlay
 const UiThemeScript = preload("res://scripts/ui_theme.gd")
+const Palette = preload("res://scripts/art_palette.gd")
+
 var _label: Label
 var _elapsed: float = 0.0
 func _ready() -> void:
@@ -20,7 +22,7 @@ func _ready() -> void:
 	add_child(panel)
 	_label = Label.new()
 	_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
-	_label.add_theme_color_override("font_color", Color("#f3ead6"))
+	_label.add_theme_color_override("font_color", Palette.UI_TEXT)
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	panel.add_child(_label)
 	visible = GameSettings.show_fps_overlay
