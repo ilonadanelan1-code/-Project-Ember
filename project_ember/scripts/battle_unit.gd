@@ -2,6 +2,8 @@ class_name BattleUnit
 extends CharacterBody3D
 
 const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
+const VisualCacheScript = preload("res://scripts/visual_cache.gd")
+const Palette = preload("res://scripts/art_palette.gd")
 
 signal eliminated(unit: BattleUnit, killer: BattleUnit)
 
@@ -151,13 +153,16 @@ func _build_visuals() -> void:
 	var ring_mesh := TorusMesh.new()
 	ring_mesh.inner_radius = 0.48
 	ring_mesh.outer_radius = 0.58
-	_selection_ring.mesh = ring_mesh
+	_selection_ring.mesh = VisualCacheScript.cache_mesh_resource(ring_mesh)
 	_selection_ring.position.y = 0.055
-	var ring_material := StandardMaterial3D.new()
-	ring_material.albedo_color = Color(1.0, 0.82, 0.30)
-	ring_material.emission_enabled = true
-	ring_material.emission = Color(0.34, 0.22, 0.04)
-	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var ring_material := VisualCacheScript.get_material("unit:ring:selection", func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Palette.GOLD_LIGHT
+		material.emission_enabled = true
+		material.emission = Palette.GOLD.darkened(0.55)
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	)
 	_selection_ring.material_override = ring_material
 	_selection_ring.visible = false
 	add_child(_selection_ring)
@@ -166,13 +171,16 @@ func _build_visuals() -> void:
 	var target_ring_mesh := TorusMesh.new()
 	target_ring_mesh.inner_radius = 0.64
 	target_ring_mesh.outer_radius = 0.76
-	_target_ring.mesh = target_ring_mesh
+	_target_ring.mesh = VisualCacheScript.cache_mesh_resource(target_ring_mesh)
 	_target_ring.position.y = 0.075
-	var target_ring_material := StandardMaterial3D.new()
-	target_ring_material.albedo_color = Color(1.0, 0.38, 0.12)
-	target_ring_material.emission_enabled = true
-	target_ring_material.emission = Color(0.8, 0.12, 0.025)
-	target_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var target_ring_material := VisualCacheScript.get_material("unit:ring:target", func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Palette.WARNING
+		material.emission_enabled = true
+		material.emission = Palette.WARNING.darkened(0.3)
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	)
 	_target_ring.material_override = target_ring_material
 	_target_ring.visible = false
 	add_child(_target_ring)
@@ -312,20 +320,21 @@ func _create_health_bar() -> void:
 	var background := MeshInstance3D.new()
 	var background_mesh := BoxMesh.new()
 	background_mesh.size = Vector3(1.02, 0.10, 0.08)
-	background.mesh = background_mesh
-	var background_material := StandardMaterial3D.new()
-	background_material.albedo_color = Color(0.025, 0.03, 0.035, 1.0)
-	background_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	background.mesh = VisualCacheScript.cache_mesh_resource(background_mesh)
+	var background_material := VisualCacheScript.get_material("unit:health:background", func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(0.025, 0.03, 0.035, 1.0)
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	)
 	background.material_override = background_material
 	bar_root.add_child(background)
 
 	_health_fill = MeshInstance3D.new()
 	var fill_mesh := BoxMesh.new()
 	fill_mesh.size = Vector3(0.92, 0.065, 0.09)
-	_health_fill.mesh = fill_mesh
-	_health_fill_material = StandardMaterial3D.new()
-	_health_fill_material.albedo_color = Color(0.20, 0.88, 0.32, 1.0)
-	_health_fill_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_health_fill.mesh = VisualCacheScript.cache_mesh_resource(fill_mesh)
+	_health_fill_material = _get_health_material("good")
 	_health_fill.material_override = _health_fill_material
 	bar_root.add_child(_health_fill)
 
@@ -336,12 +345,27 @@ func _update_health_bar() -> void:
 	var ratio := clampf(health / maxf(max_health, 1.0), 0.0, 1.0)
 	_health_fill.scale.x = maxf(ratio, 0.001)
 	_health_fill.position.x = -0.46 * (1.0 - ratio)
-	if ratio > 0.55:
-		_health_fill_material.albedo_color = Color(0.20, 0.88, 0.32, 1.0)
-	elif ratio > 0.25:
-		_health_fill_material.albedo_color = Color(1.0, 0.67, 0.16, 1.0)
-	else:
-		_health_fill_material.albedo_color = Color(0.92, 0.20, 0.16, 1.0)
+	var health_band := "good"
+	if ratio <= 0.25:
+		health_band = "critical"
+	elif ratio <= 0.55:
+		health_band = "warning"
+	_health_fill_material = _get_health_material(health_band)
+	_health_fill.material_override = _health_fill_material
+
+
+func _get_health_material(band: String) -> StandardMaterial3D:
+	var color := Palette.HEALTH_GOOD
+	if band == "warning":
+		color = Palette.HEALTH_WARNING
+	elif band == "critical":
+		color = Palette.HEALTH_CRITICAL
+	return VisualCacheScript.get_material("unit:health:" + band, func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	) as StandardMaterial3D
 
 
 func set_selected(value: bool) -> void:

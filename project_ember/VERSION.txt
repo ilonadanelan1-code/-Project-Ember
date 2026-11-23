@@ -1,7 +1,10 @@
-Project Ember v0.8.0 — Visual Overhaul
-- Illustrated 91-cell strategic map with layered terrain, forests, hills, water details, settlement silhouettes and army banners.
-- Procedural low-poly 3D battlefield with ground texture, grass, stones, trees, ruins, ambient lighting and directional shadows.
-- Distinct procedural models for swordsmen, archers, spearmen, cavalry horse-and-rider, and commanders.
-- Subtle unit animation and unified dark bronze / aged-gold UI styling.
-- Godot 4.3 GL Compatibility renderer retained; campaign, saves, combat systems and touch controls preserved.
-- Android device validation is still required for performance, touch feel and UI scaling.
+Project Ember v0.9.0 — Foundation
+- Centralized visual palette and Stylized Low-Poly Fantasy art bible.
+- Shared runtime Theme for strategic and tactical UI, with readable base typography and minimum touch-target sizing.
+- Independent player settings in user://settings.cfg: graphics quality, audio levels, UI scale, performance overlay, vibration and camera speed.
+- Three graphics-quality tiers with a first-run mobile-aware quality heuristic.
+- Performance overlay for FPS, draw calls, rendered objects, primitives, scene node count and available memory metrics.
+- Cached runtime resources for procedural soldier/environment meshes and materials, plus the battlefield ground texture.
+- Low quality disables dynamic battlefield shadows and reduces decorative scenery; higher tiers restore detail.
+- Campaign save data, combat parameters, role IDs, formation slots, collision and input mappings remain unchanged.
+- Godot CI and physical Android validation are required; phone performance, safe areas and touch response remain unverified.

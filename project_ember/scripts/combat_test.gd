@@ -1,5 +1,9 @@
 extends Node3D
 
+const UiThemeScript = preload("res://scripts/ui_theme.gd")
+const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
+const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
+
 const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 
 const FIELD_SIZE := Vector2(38.0, 26.0)
@@ -33,6 +37,7 @@ var _formation_button: Button
 var _pause_button: Button
 var _speed_button: Button
 var _result_panel: PanelContainer
+var _settings_panel: SettingsPanel
 var _result_title: Label
 var _result_details: Label
 var _formation_mode: FormationMode = FormationMode.LINE
@@ -59,6 +64,7 @@ func _ready() -> void:
 	_create_environment()
 	_spawn_armies()
 	_create_ui()
+	add_child(PerfOverlayScript.new())
 	_refresh_ui()
 
 
@@ -203,6 +209,8 @@ func _create_ui() -> void:
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
+	UiThemeScript.apply_safe_area(root)
 	layer.add_child(root)
 	_create_selection_marquee(root)
 
@@ -215,7 +223,6 @@ func _create_ui() -> void:
 	top_panel.offset_top = 8.0
 	top_panel.offset_right = -10.0
 	top_panel.offset_bottom = 128.0
-	top_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.035, 0.055, 0.075, 0.92)))
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
@@ -223,12 +230,12 @@ func _create_ui() -> void:
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 18)
+	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
 	_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	top_box.add_child(_status_label)
 
 	_help_label = Label.new()
-	_help_label.add_theme_font_size_override("font_size", 13)
+	_help_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 	_help_label.add_theme_color_override("font_color", Color(0.85, 0.91, 0.96))
 	top_box.add_child(_help_label)
 
@@ -236,13 +243,15 @@ func _create_ui() -> void:
 	group_row.add_theme_constant_override("separation", 5)
 	top_box.add_child(group_row)
 	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ: ВЫКЛ", _toggle_group_store_mode)
-	_group_store_button.custom_minimum_size = Vector2(0.0, 40.0)
+	_group_store_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
 	_group_store_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for group_id in range(1, 5):
 		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
 		group_button.custom_minimum_size = Vector2(0.0, 40.0)
 		group_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_control_group_buttons[group_id] = group_button
+	var settings_button := _add_action_button(group_row, "НАСТРОЙКИ", _open_settings)
+	settings_button.custom_minimum_size = Vector2(120.0, UiThemeScript.touch_target(48.0))
 
 	# Four compact rows: selection/orders, formation/retreat, battle controls and commander ability.
 	var bottom_panel := Panel.new()
@@ -254,7 +263,6 @@ func _create_ui() -> void:
 	bottom_panel.offset_top = -258.0
 	bottom_panel.offset_right = -8.0
 	bottom_panel.offset_bottom = -8.0
-	bottom_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.025, 0.035, 0.05, 0.96)))
 	root.add_child(bottom_panel)
 
 	var margin := MarginContainer.new()
@@ -291,6 +299,9 @@ func _create_ui() -> void:
 			_combat_buttons.append(child as Button)
 
 	_create_result_panel(root)
+	_settings_panel = SettingsPanelScript.new()
+	_settings_panel.pause_game_on_open = true
+	root.add_child(_settings_panel)
 
 
 func _create_result_panel(parent: Control) -> void:
@@ -304,7 +315,6 @@ func _create_result_panel(parent: Control) -> void:
 	_result_panel.offset_right = 270.0
 	_result_panel.offset_bottom = 158.0
 	_result_panel.custom_minimum_size = Vector2(540.0, 316.0)
-	_result_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.035, 0.055, 0.075, 0.98)))
 	_result_panel.visible = false
 	parent.add_child(_result_panel)
 
@@ -321,39 +331,19 @@ func _create_result_panel(parent: Control) -> void:
 
 	_result_title = Label.new()
 	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_title.add_theme_font_size_override("font_size", 27)
+	_result_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(27))
 	_result_title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
 	content.add_child(_result_title)
 
 	_result_details = Label.new()
 	_result_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_details.add_theme_font_size_override("font_size", 14)
+	_result_details.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
 	_result_details.add_theme_color_override("font_color", Color(0.92, 0.95, 0.98))
 	content.add_child(_result_details)
 
 	var return_button := _add_action_button(content, "НА СТРАТЕГИЧЕСКУЮ КАРТУ", _return_to_strategy_map)
-	return_button.custom_minimum_size = Vector2(0.0, 48.0)
+	return_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(52.0))
 
-
-func _make_panel_style(background: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_width_left = 2
-	style.border_width_top = 2
-	style.border_width_right = 2
-	style.border_width_bottom = 2
-	style.border_color = Color(0.59, 0.45, 0.25, 0.96)
-	style.corner_radius_top_left = 10
-	style.corner_radius_top_right = 10
-	style.corner_radius_bottom_left = 10
-	style.corner_radius_bottom_right = 10
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.40)
-	style.shadow_size = 5
-	style.content_margin_left = 10.0
-	style.content_margin_top = 8.0
-	style.content_margin_right = 10.0
-	style.content_margin_bottom = 8.0
-	return style
 
 
 func _add_action_button(parent: Container, title: String, callback: Callable) -> Button:
@@ -361,38 +351,13 @@ func _add_action_button(parent: Container, title: String, callback: Callable) ->
 	button.text = title
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
-	button.custom_minimum_size = Vector2(0.0, 52.0)
+	button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(52.0))
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_size_override("font_size", 14)
-	button.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0))
-	button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
-	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.65))
-	button.add_theme_stylebox_override("normal", _make_button_style(Color(0.14, 0.12, 0.09)))
-	button.add_theme_stylebox_override("hover", _make_button_style(Color(0.24, 0.19, 0.12)))
-	button.add_theme_stylebox_override("pressed", _make_button_style(Color(0.25, 0.28, 0.15)))
-	button.add_theme_stylebox_override("focus", _make_button_style(Color(0.19, 0.16, 0.11)))
+	button.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
-
-
-func _make_button_style(background: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.66, 0.54, 0.34, 0.96)
-	style.corner_radius_top_left = 7
-	style.corner_radius_top_right = 7
-	style.corner_radius_bottom_left = 7
-	style.corner_radius_bottom_right = 7
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.30)
-	style.shadow_size = 3
-	return style
-
 
 func _create_selection_marquee(parent: Control) -> void:
 	_selection_marquee = Panel.new()
@@ -522,8 +487,9 @@ func _pan_camera(screen_delta: Vector2) -> void:
 	if not is_instance_valid(_camera):
 		return
 	var scale := _camera.size / maxf(get_viewport().get_visible_rect().size.y, 1.0)
-	_camera.position.x = clampf(_camera.position.x - screen_delta.x * scale, -20.0, 20.0)
-	_camera.position.z = clampf(_camera.position.z + screen_delta.y * scale, 5.0, 30.0)
+	var camera_speed := GameSettings.camera_speed
+	_camera.position.x = clampf(_camera.position.x - screen_delta.x * scale * camera_speed, -20.0, 20.0)
+	_camera.position.z = clampf(_camera.position.z + screen_delta.y * scale * camera_speed, 5.0, 30.0)
 
 
 func _set_camera_zoom(new_size: float) -> void:
@@ -758,6 +724,11 @@ func _issue_order_to_slot(unit: BattleUnit, slot: Vector3) -> void:
 		unit.order_attack_move(slot)
 	else:
 		unit.order_move(slot)
+
+
+func _open_settings() -> void:
+	if is_instance_valid(_settings_panel):
+		_settings_panel.open_panel()
 
 
 func _raycast(screen_position: Vector2) -> Dictionary:

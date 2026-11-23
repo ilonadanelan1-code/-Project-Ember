@@ -3,6 +3,7 @@ extends SceneTree
 const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 const BattleUnitScript = preload("res://scripts/battle_unit.gd")
+const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 
 var _failures := 0
 
@@ -27,7 +28,12 @@ func _run() -> void:
 	_check(environment_data.get("camera") is Camera3D, "visual battlefield creates the tactical camera")
 	_check(scene_root.get_child_count() >= 8, "visual battlefield adds lighting, world environment and procedural decoration")
 
+	VisualCacheScript.clear()
 	var swordsman := BattleUnitVisualsScript.build(0, BattleUnitScript.UnitRole.MELEE)
+	var material_count_after_first_swordsman := VisualCacheScript.get_material_count()
+	var second_swordsman := BattleUnitVisualsScript.build(0, BattleUnitScript.UnitRole.MELEE)
+	_check(swordsman.get_child(0).mesh == second_swordsman.get_child(0).mesh, "same team and role share the same first-part mesh")
+	_check(VisualCacheScript.get_material_count() == material_count_after_first_swordsman, "spawning a second same-role unit does not create new materials")
 	var archer := BattleUnitVisualsScript.build(0, BattleUnitScript.UnitRole.RANGED)
 	var cavalry := BattleUnitVisualsScript.build(1, BattleUnitScript.UnitRole.CAVALRY)
 	var commander := BattleUnitVisualsScript.build(0, BattleUnitScript.UnitRole.COMMANDER)
@@ -36,6 +42,7 @@ func _run() -> void:
 	_check(cavalry.get_child_count() >= 20, "cavalry includes a horse and rider model")
 	_check(commander.get_child_count() >= 18, "commander includes hero armor and a banner")
 	swordsman.free()
+	second_swordsman.free()
 	archer.free()
 	cavalry.free()
 	commander.free()

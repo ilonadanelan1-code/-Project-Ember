@@ -36,6 +36,13 @@ jobs:
           test -f project_ember/tests/unit_roster_smoke_test.gd
           test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/tests/visual_overhaul_smoke_test.gd
+          test -f project_ember/tests/foundation_smoke_test.gd
+          test -f project_ember/scripts/art_palette.gd
+          test -f project_ember/scripts/ui_theme.gd
+          test -f project_ember/scripts/game_settings.gd
+          test -f project_ember/scripts/perf_overlay.gd
+          test -f project_ember/scripts/visual_cache.gd
+          test -f project_ember/scripts/settings_panel.gd
           test -f project_ember/scripts/battlefield_visuals.gd
           test -f project_ember/scripts/battle_unit_visuals.gd
           test -f project_ember/scripts/unit_catalog.gd
@@ -119,10 +126,20 @@ jobs:
             echo "Visual builder tests reported an unexpected error." >&2
             exit 1
           fi
+      - name: Test Foundation settings, Theme and resource cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/foundation_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Foundation tests reported an error." >&2
+            exit 1
+          fi
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.8.0-Visual-Overhaul
+          name: Project-Ember-v0.9.0-Foundation
           path: |
             project_ember/**
             !project_ember/.godot/**

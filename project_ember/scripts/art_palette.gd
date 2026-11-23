@@ -1,0 +1,36 @@
+extends RefCounted
+class_name ArtPalette
+## Shared Project Ember colors. Keep renderer and UI colors centralized here.
+# Terrain
+const EARTH := Color("#66523c")
+const GRASS := Color("#607b43")
+const GRASS_LIGHT := Color("#93a75b")
+const FOREST := Color("#294d35")
+const FOREST_LIGHT := Color("#47734a")
+const HILLS := Color("#827456")
+const WATER := Color("#315b78")
+const WATER_LIGHT := Color("#83b5c3")
+const STONE := Color("#77766d")
+const WOOD := Color("#50351f")
+# Shared materials and factions
+const METAL := Color("#77838a")
+const METAL_DARK := Color("#343b40")
+const GOLD := Color("#c5a35a")
+const GOLD_LIGHT := Color("#edd28b")
+const PLAYER_TEAM := Color("#397fc1")
+const PLAYER_CLOTH := Color("#254f7d")
+const PLAYER_CLOTH_LIGHT := Color("#477ead")
+const ENEMY_TEAM := Color("#b33f3b")
+const ENEMY_CLOTH := Color("#742b30")
+const ENEMY_CLOTH_LIGHT := Color("#a64b43")
+# UI and feedback
+const UI_BRONZE := Color("#211b15")
+const UI_BRONZE_LIGHT := Color("#392d20")
+const UI_GOLD := Color("#c5a35a")
+const UI_TEXT := Color("#f3ead6")
+const UI_MUTED := Color("#c3b69b")
+const WARNING := Color("#c95a45")
+const REWARD := Color("#8dbb72")
+const HEALTH_GOOD := Color("#59a965")
+const HEALTH_WARNING := Color("#d49a42")
+const HEALTH_CRITICAL := Color("#bd4c42")

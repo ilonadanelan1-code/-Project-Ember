@@ -1,12 +1,17 @@
 extends Node2D
 
+const UiThemeScript = preload("res://scripts/ui_theme.gd")
+const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
+const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
+const Palette = preload("res://scripts/art_palette.gd")
+
 ## First playable strategic-map slice: a compact axial-hex map, one player army,
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
 
 const MAP_RADIUS := 5
 const HEX_SIZE := 30.0
-const PLAYER_TEAM_COLOR := Color(0.16, 0.52, 1.0)
-const ENEMY_TEAM_COLOR := Color(0.91, 0.23, 0.18)
+const PLAYER_TEAM_COLOR := Palette.PLAYER_TEAM
+const ENEMY_TEAM_COLOR := Palette.ENEMY_TEAM
 
 const NEIGHBOR_OFFSETS: Array[Vector2i] = [
 	Vector2i(1, 0),
@@ -27,6 +32,7 @@ var _turn_button: Button
 var _selection_button: Button
 var _city_button: Button
 var _city_panel: PanelContainer
+var _settings_panel: SettingsPanel
 var _city_overview_label: Label
 var _city_title_label: Label
 var _settler_button: Button
@@ -46,6 +52,7 @@ func _ready() -> void:
 		CampaignState.new_campaign()
 	_build_map()
 	_create_ui()
+	add_child(PerfOverlayScript.new())
 	if CampaignState.last_battle_report_pending:
 		_show_last_battle_report()
 	elif CampaignState.campaign_lost:
@@ -282,6 +289,8 @@ func _create_ui() -> void:
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
+	UiThemeScript.apply_safe_area(root)
 	layer.add_child(root)
 
 	var top_panel := PanelContainer.new()
@@ -293,7 +302,6 @@ func _create_ui() -> void:
 	top_panel.offset_top = 8.0
 	top_panel.offset_right = -10.0
 	top_panel.offset_bottom = 92.0
-	top_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.035, 0.055, 0.075, 0.94)))
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
@@ -301,13 +309,13 @@ func _create_ui() -> void:
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 18)
+	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
 	_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
 	top_box.add_child(_status_label)
 
 	_message_label = Label.new()
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_message_label.add_theme_font_size_override("font_size", 13)
+	_message_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 	_message_label.add_theme_color_override("font_color", Color(0.84, 0.91, 0.96))
 	top_box.add_child(_message_label)
 
@@ -320,7 +328,6 @@ func _create_ui() -> void:
 	bottom_panel.offset_top = -180.0
 	bottom_panel.offset_right = -10.0
 	bottom_panel.offset_bottom = -8.0
-	bottom_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.025, 0.035, 0.05, 0.96)))
 	root.add_child(bottom_panel)
 
 	var margin := MarginContainer.new()
@@ -332,7 +339,7 @@ func _create_ui() -> void:
 	bottom_panel.add_child(margin)
 
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 5)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -345,7 +352,11 @@ func _create_ui() -> void:
 	_attack_button = _add_button(grid, "АТАКОВАТЬ", _attack_enemy)
 	_add_button(grid, "НОВАЯ КАМПАНИЯ", _restart_campaign)
 	_found_city_button = _add_button(grid, "ОСНОВАТЬ ГОРОД", _found_city)
+	_add_button(grid, "НАСТРОЙКИ", _open_settings)
 	_create_city_panel(root)
+	_settings_panel = SettingsPanelScript.new()
+	_settings_panel.pause_game_on_open = false
+	root.add_child(_settings_panel)
 	_refresh_ui()
 
 
@@ -355,7 +366,6 @@ func _create_city_panel(root: Control) -> void:
 	_city_panel.anchor_top = 0.11
 	_city_panel.anchor_right = 0.93
 	_city_panel.anchor_bottom = 0.88
-	_city_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.035, 0.055, 0.075, 0.985)))
 	_city_panel.visible = false
 	root.add_child(_city_panel)
 
@@ -374,12 +384,12 @@ func _create_city_panel(root: Control) -> void:
 	content.add_child(header)
 	_city_title_label = Label.new()
 	_city_title_label.text = "ГОРОД — " + CampaignState.city_name
-	_city_title_label.add_theme_font_size_override("font_size", 23)
+	_city_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(23))
 	_city_title_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
 	_city_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_city_title_label)
 	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_city)
-	close_button.custom_minimum_size = Vector2(120.0, 42.0)
+	close_button.custom_minimum_size = Vector2(120.0, UiThemeScript.touch_target(48.0))
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -392,31 +402,31 @@ func _create_city_panel(root: Control) -> void:
 
 	_city_overview_label = Label.new()
 	_city_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_city_overview_label.add_theme_font_size_override("font_size", 16)
+	_city_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
 	_city_overview_label.add_theme_color_override("font_color", Color(0.93, 0.95, 0.98))
 	details.add_child(_city_overview_label)
 
 	_city_income_label = Label.new()
 	_city_income_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_city_income_label.add_theme_font_size_override("font_size", 14)
+	_city_income_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
 	_city_income_label.add_theme_color_override("font_color", Color(0.65, 0.85, 0.72))
 	details.add_child(_city_income_label)
 
 	_city_queue_label = Label.new()
 	_city_queue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_city_queue_label.add_theme_font_size_override("font_size", 14)
+	_city_queue_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
 	_city_queue_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.48))
 	details.add_child(_city_queue_label)
 
 	var hero_title := Label.new()
 	hero_title.text = "ПРАВИТЕЛЬ И КОМАНДИР"
-	hero_title.add_theme_font_size_override("font_size", 17)
+	hero_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(17))
 	hero_title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.38))
 	details.add_child(hero_title)
 
 	_hero_overview_label = Label.new()
 	_hero_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hero_overview_label.add_theme_font_size_override("font_size", 14)
+	_hero_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
 	_hero_overview_label.add_theme_color_override("font_color", Color(0.93, 0.95, 0.98))
 	details.add_child(_hero_overview_label)
 
@@ -427,13 +437,13 @@ func _create_city_panel(root: Control) -> void:
 	details.add_child(hero_skill_grid)
 	for skill_id in ["leadership", "tactics", "might"]:
 		var skill_button := _add_button(hero_skill_grid, "НАВЫК", _upgrade_hero_skill.bind(skill_id))
-		skill_button.custom_minimum_size = Vector2(0.0, 58.0)
-		skill_button.add_theme_font_size_override("font_size", 12)
+		skill_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(64.0))
+		skill_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
 		_hero_skill_buttons[skill_id] = skill_button
 
 	var building_title := Label.new()
 	building_title.text = "СТРОИТЕЛЬСТВО"
-	building_title.add_theme_font_size_override("font_size", 16)
+	building_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
 	building_title.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
 	details.add_child(building_title)
 
@@ -446,13 +456,13 @@ func _create_city_panel(root: Control) -> void:
 		var data: Dictionary = CampaignState.get_city_building_data(building_id)
 		var button_text := "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Здание")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
 		var building_button := _add_button(building_grid, button_text, _queue_building.bind(building_id))
-		building_button.custom_minimum_size = Vector2(0.0, 66.0)
-		building_button.add_theme_font_size_override("font_size", 13)
+		building_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(76.0))
+		building_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 		_city_building_buttons[building_id] = building_button
 
 	var recruit_title := Label.new()
 	recruit_title.text = "НАЙМ ВОЙСК"
-	recruit_title.add_theme_font_size_override("font_size", 16)
+	recruit_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
 	recruit_title.add_theme_color_override("font_color", Color(0.88, 0.92, 1.0))
 	details.add_child(recruit_title)
 
@@ -466,17 +476,17 @@ func _create_city_panel(root: Control) -> void:
 		var button_text := "%s\n%d зол. · %d пр." % [str(recruit_data.get("name", "Отряд")), int(recruit_data.get("gold_cost", 0)), int(recruit_data.get("production_cost", 0))]
 		var recruit_button := _add_button(recruit_grid, button_text, _queue_recruit.bind(role_id))
 		recruit_button.custom_minimum_size = Vector2(0.0, 58.0)
-		recruit_button.add_theme_font_size_override("font_size", 13)
+		recruit_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 		_city_recruit_buttons[role_id] = recruit_button
 
 	_settler_button = _add_button(details, "ПОСТРОИТЬ ПОСЕЛЕНЦА · 45 зол. · 10 пр.", _queue_settler)
-	_settler_button.custom_minimum_size = Vector2(0.0, 52.0)
-	_settler_button.add_theme_font_size_override("font_size", 13)
+	_settler_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(56.0))
+	_settler_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 
 	var hint := Label.new()
 	hint.text = "Заказы оплачиваются золотом сразу, производство накапливается каждый ход. Казармы открывают мечников и копейщиков; стрельбище — лучников; конюшня — кавалерию. Стрельбище и конюшня требуют казарм. Поселенец основывает город не ближе 3 гексов."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
 	hint.add_theme_color_override("font_color", Color(0.68, 0.75, 0.83))
 	details.add_child(hint)
 	_refresh_city_panel()
@@ -630,62 +640,24 @@ func _get_army_composition_text() -> String:
 	]
 
 
-func _panel_style(background: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_width_left = 2
-	style.border_width_top = 2
-	style.border_width_right = 2
-	style.border_width_bottom = 2
-	style.border_color = Color(0.59, 0.45, 0.25, 0.96)
-	style.corner_radius_top_left = 10
-	style.corner_radius_top_right = 10
-	style.corner_radius_bottom_left = 10
-	style.corner_radius_bottom_right = 10
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.38)
-	style.shadow_size = 5
-	style.content_margin_left = 10.0
-	style.content_margin_top = 8.0
-	style.content_margin_right = 10.0
-	style.content_margin_bottom = 8.0
-	return style
-
 
 func _add_button(parent: Container, text_value: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text_value
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
-	button.custom_minimum_size = Vector2(0.0, 48.0)
+	button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_size_override("font_size", 15)
-	button.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0))
-	button.add_theme_stylebox_override("normal", _button_style(Color(0.14, 0.12, 0.09)))
-	button.add_theme_stylebox_override("hover", _button_style(Color(0.24, 0.19, 0.12)))
-	button.add_theme_stylebox_override("pressed", _button_style(Color(0.25, 0.28, 0.15)))
-	button.add_theme_stylebox_override("focus", _button_style(Color(0.19, 0.16, 0.11)))
+	button.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
 
 
-func _button_style(background: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.66, 0.54, 0.34, 0.96)
-	style.corner_radius_top_left = 7
-	style.corner_radius_top_right = 7
-	style.corner_radius_bottom_left = 7
-	style.corner_radius_bottom_right = 7
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.30)
-	style.shadow_size = 3
-	return style
-
+func _open_settings() -> void:
+	if is_instance_valid(_settings_panel):
+		_settings_panel.open_panel()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if CampaignState.campaign_lost or CampaignState.battle_in_progress:

@@ -1,6 +1,9 @@
 extends RefCounted
 class_name BattlefieldVisuals
 
+const VisualCacheScript = preload("res://scripts/visual_cache.gd")
+const Palette = preload("res://scripts/art_palette.gd")
+
 ## Lightweight, procedural battlefield dressing for Project Ember.
 ## Everything is generated from meshes/materials at runtime; no external asset packs.
 
@@ -8,12 +11,15 @@ static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
 	var ground := MeshInstance3D.new()
 	var ground_mesh := PlaneMesh.new()
 	ground_mesh.size = field_size
-	ground.mesh = ground_mesh
-	var ground_material := StandardMaterial3D.new()
-	ground_material.albedo_texture = _make_ground_texture()
-	ground_material.albedo_color = Color(0.82, 0.91, 0.73)
-	ground_material.roughness = 1.0
-	ground_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	ground.mesh = VisualCacheScript.cache_mesh_resource(ground_mesh)
+	var ground_material := VisualCacheScript.get_material("battlefield:ground", func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_texture = _make_ground_texture()
+		material.albedo_color = Color(0.82, 0.91, 0.73)
+		material.roughness = 1.0
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+		return material
+	)
 	ground.material_override = ground_material
 	parent.add_child(ground)
 
@@ -31,9 +37,9 @@ static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
 	var world := WorldEnvironment.new()
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.12, 0.16, 0.14)
+	environment.background_color = Color("#252d28")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.70, 0.77, 0.68)
+	environment.ambient_light_color = Color("#b5c1ad")
 	environment.ambient_light_energy = 0.62
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	world.environment = environment
@@ -41,10 +47,11 @@ static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-48.0, -28.0, 0.0)
-	light.light_color = Color(1.0, 0.88, 0.70)
+	light.light_color = Palette.GOLD_LIGHT
 	light.light_energy = 1.15
-	light.shadow_enabled = true
-	light.directional_shadow_max_distance = 48.0
+	var quality := GameSettings.graphics_quality
+	light.shadow_enabled = quality >= GameSettings.GraphicsQuality.MEDIUM
+	light.directional_shadow_max_distance = 48.0 if quality == GameSettings.GraphicsQuality.HIGH else 34.0
 	parent.add_child(light)
 
 	var camera := Camera3D.new()
@@ -55,13 +62,20 @@ static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
 	camera.look_at(Vector3.ZERO, Vector3.UP)
 	camera.current = true
 
-	_add_ground_accents(parent, field_size)
-	_add_forest_edge(parent, field_size)
-	_add_ruins(parent)
+	_add_ground_accents(parent, field_size, quality)
+	_add_forest_edge(parent, field_size, quality)
+	if quality >= GameSettings.GraphicsQuality.MEDIUM:
+		_add_ruins(parent)
 	return {"ground_body": ground_body, "camera": camera}
 
 
 static func _make_ground_texture() -> Texture2D:
+	return VisualCacheScript.get_texture("battlefield:ground:noise128", func() -> Texture2D:
+		return _build_ground_texture()
+	)
+
+
+static func _build_ground_texture() -> Texture2D:
 	var image := Image.create(128, 128, false, Image.FORMAT_RGBA8)
 	for y in range(128):
 		for x in range(128):
@@ -73,7 +87,7 @@ static func _make_ground_texture() -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
-static func _add_ground_accents(parent: Node3D, field_size: Vector2) -> void:
+static func _add_ground_accents(parent: Node3D, field_size: Vector2, quality: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 841207
 	var dirt_mesh := CylinderMesh.new()
@@ -81,9 +95,10 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2) -> void:
 	dirt_mesh.bottom_radius = 0.78
 	dirt_mesh.height = 0.025
 	dirt_mesh.radial_segments = 7
-	var dirt_material := _material(Color(0.30, 0.25, 0.16), 0.0, 1.0)
+	var dirt_material := _material(Palette.EARTH, 0.0, 1.0)
 	var dirt_transforms: Array[Transform3D] = []
-	for index in range(24):
+	var dirt_count := 12 if quality == GameSettings.GraphicsQuality.LOW else (24 if quality == GameSettings.GraphicsQuality.MEDIUM else 32)
+	for index in range(dirt_count):
 		var x := rng.randf_range(-field_size.x * 0.45, field_size.x * 0.45)
 		var z := rng.randf_range(-field_size.y * 0.43, field_size.y * 0.43)
 		var scale := rng.randf_range(0.65, 1.55)
@@ -92,9 +107,10 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2) -> void:
 
 	var grass_mesh := BoxMesh.new()
 	grass_mesh.size = Vector3(0.075, 0.32, 0.055)
-	var grass_material := _material(Color(0.40, 0.53, 0.27), 0.0, 0.95)
+	var grass_material := _material(Palette.GRASS, 0.0, 0.95)
 	var grass_transforms: Array[Transform3D] = []
-	for index in range(115):
+	var grass_count := 38 if quality == GameSettings.GraphicsQuality.LOW else (90 if quality == GameSettings.GraphicsQuality.MEDIUM else 140)
+	for index in range(grass_count):
 		var x := rng.randf_range(-field_size.x * 0.47, field_size.x * 0.47)
 		var z := rng.randf_range(-field_size.y * 0.46, field_size.y * 0.46)
 		var yaw := rng.randf_range(0.0, TAU)
@@ -108,9 +124,10 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2) -> void:
 	stone_mesh.height = 0.45
 	stone_mesh.radial_segments = 6
 	stone_mesh.rings = 3
-	var stone_material := _material(Color(0.34, 0.36, 0.32), 0.0, 1.0)
+	var stone_material := _material(Palette.STONE, 0.0, 1.0)
 	var stone_transforms: Array[Transform3D] = []
-	for index in range(20):
+	var stone_count := 8 if quality == GameSettings.GraphicsQuality.LOW else (18 if quality == GameSettings.GraphicsQuality.MEDIUM else 24)
+	for index in range(stone_count):
 		var x := rng.randf_range(-field_size.x * 0.46, field_size.x * 0.46)
 		var z := rng.randf_range(-field_size.y * 0.44, field_size.y * 0.44)
 		if absf(x) < 8.0 and absf(z) < 8.0:
@@ -121,11 +138,12 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2) -> void:
 	_add_multimesh(parent, stone_mesh, stone_material, stone_transforms)
 
 
-static func _add_forest_edge(parent: Node3D, field_size: Vector2) -> void:
+static func _add_forest_edge(parent: Node3D, field_size: Vector2, quality: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 120884
 	var tree_positions: Array[Vector2] = []
-	for index in range(42):
+	var tree_count := 18 if quality == GameSettings.GraphicsQuality.LOW else (38 if quality == GameSettings.GraphicsQuality.MEDIUM else 52)
+	for index in range(tree_count):
 		var x := rng.randf_range(-field_size.x * 0.48, field_size.x * 0.48)
 		var z := rng.randf_range(-field_size.y * 0.47, field_size.y * 0.47)
 		if absf(x) < 9.5 and absf(z) < 8.5:
@@ -137,14 +155,14 @@ static func _add_forest_edge(parent: Node3D, field_size: Vector2) -> void:
 	trunk_mesh.bottom_radius = 0.16
 	trunk_mesh.height = 1.0
 	trunk_mesh.radial_segments = 6
-	var trunk_material := _material(Color(0.27, 0.17, 0.10), 0.0, 1.0)
+	var trunk_material := _material(Palette.WOOD, 0.0, 1.0)
 	var crown_mesh := CylinderMesh.new()
 	crown_mesh.top_radius = 0.0
 	crown_mesh.bottom_radius = 0.78
 	crown_mesh.height = 1.75
 	crown_mesh.radial_segments = 6
-	var crown_material := _material(Color(0.16, 0.31, 0.17), 0.0, 0.95)
-	var crown_light := _material(Color(0.25, 0.42, 0.20), 0.0, 0.95)
+	var crown_material := _material(Palette.FOREST, 0.0, 0.95)
+	var crown_light := _material(Palette.FOREST_LIGHT, 0.0, 0.95)
 	var trunk_transforms: Array[Transform3D] = []
 	var crown_transforms: Array[Transform3D] = []
 	var crown_light_transforms: Array[Transform3D] = []
@@ -162,8 +180,8 @@ static func _add_forest_edge(parent: Node3D, field_size: Vector2) -> void:
 
 
 static func _add_ruins(parent: Node3D) -> void:
-	var stone := _material(Color(0.39, 0.40, 0.36), 0.0, 1.0)
-	var trim := _material(Color(0.53, 0.48, 0.36), 0.0, 0.95)
+	var stone := _material(Palette.STONE, 0.0, 1.0)
+	var trim := _material(Palette.EARTH.lightened(0.12), 0.0, 0.95)
 	var positions := [
 		Vector3(-17.0, 0.0, -10.2),
 		Vector3(-15.8, 0.0, -10.0),
@@ -193,7 +211,7 @@ static func _add_multimesh(parent: Node3D, mesh: Mesh, material: Material, trans
 		return
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.mesh = mesh
+	multimesh.mesh = VisualCacheScript.cache_mesh_resource(mesh)
 	multimesh.instance_count = transforms.size()
 	for index in range(transforms.size()):
 		multimesh.set_instance_transform(index, transforms[index])
@@ -204,8 +222,11 @@ static func _add_multimesh(parent: Node3D, mesh: Mesh, material: Material, trans
 
 
 static func _material(color: Color, metallic: float, roughness: float) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.metallic = metallic
-	material.roughness = roughness
-	return material
+	var key := "battlefield:%02x%02x%02x:%02d:%02d" % [roundi(color.r * 255.0), roundi(color.g * 255.0), roundi(color.b * 255.0), roundi(metallic * 100.0), roundi(roughness * 100.0)]
+	return VisualCacheScript.get_material(key, func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.metallic = metallic
+		material.roughness = roughness
+		return material
+	) as StandardMaterial3D

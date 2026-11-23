@@ -89,3 +89,8 @@ The visual target is stylized low-poly fantasy: readable unit silhouettes, paint
 ## v0.8.0 implementation boundaries
 
 The visual overhaul must not alter campaign save keys, unit role identifiers, tactical damage calculations, movement speeds, formation slot calculations or input mapping. Visual smoke tests cover the new procedural environment and unit-model builders; the existing campaign, roster and hero progression tests remain required.
+
+
+## Art direction — v0.9.0
+
+The visual constraints, palette, faction identifiers and readability rules are documented in [ART_BIBLE.md](ART_BIBLE.md). Runtime color constants live in `scripts/art_palette.gd`. The project remains on Godot 4.3 GL Compatibility.

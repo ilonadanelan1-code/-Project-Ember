@@ -1,5 +1,20 @@
 # Project Ember — Tasks
 
+## v0.9.0 — Foundation
+
+- [x] Add central `ArtPalette` and `ART_BIBLE.md`.
+- [x] Add shared runtime `UiTheme` for strategic and tactical interfaces.
+- [x] Add separate `GameSettings` persistence at `user://settings.cfg`.
+- [x] Add quality presets, audio levels, interface scale, overlay, vibration and camera speed controls.
+- [x] Add first-run mobile-aware quality selection.
+- [x] Add `PerfOverlay` with FPS, draw calls, objects, primitives, node count and available memory counters.
+- [x] Add `VisualCache` for materials, meshes and battlefield ground texture.
+- [x] Route existing soldier/environment builders through cached resources.
+- [x] Add Foundation smoke tests for settings persistence, Theme and resource cache.
+- [ ] Import v0.9.0 into Godot Android Editor and verify both scenes.
+- [ ] Check touch targets and safe-area placement on the phone.
+- [ ] Record FPS/draw calls/objects/primitives for 20–50 units on Low and Medium quality.
+
 ## v0.7.0 — Hero Commanders and Progression
 
 - [x] Add persistent ruler and enemy commander records to campaign state and save/load.

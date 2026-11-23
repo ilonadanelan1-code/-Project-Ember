@@ -1,3 +1,15 @@
+## v0.9.0 — Foundation
+
+- Added a centralized `ArtPalette` and `ART_BIBLE.md` for the stylized low-poly fantasy direction.
+- Added a shared runtime `UiTheme` for strategic and tactical screens, including panel and button states, progress bars, readable 16 px base text and minimum 48 px touch targets.
+- Added `GameSettings` with independent `user://settings.cfg` persistence for graphics quality, master/music/SFX volume, UI scale, FPS overlay, vibration and camera speed. Campaign saves are untouched.
+- Added three graphics-quality presets and a first-run mobile-aware quality heuristic.
+- Added `PerfOverlay` for FPS, draw calls, rendered objects, primitives, node count and memory metrics where available.
+- Added `VisualCache` for shared materials, primitive meshes and the battlefield ground texture. Existing procedural unit/environment builders now reuse cached resources.
+- Added quality-aware battlefield decoration and shadow settings, plus Foundation tests for settings persistence, Theme construction and cache identity.
+- Campaign save keys, role IDs, damage formulas, movement speed, formation slots, collision and touch-control mapping remain unchanged.
+- Physical Android performance, touch response, safe-area placement and live UI scaling still require device validation.
+
 ## v0.8.0 — Visual Overhaul
 
 - Added an illustrated hex-map renderer with layered terrain, tree silhouettes, hills, water details, miniature castles and shield/banner army markers.

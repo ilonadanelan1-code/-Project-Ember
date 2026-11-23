@@ -1,20 +1,23 @@
 extends RefCounted
 class_name BattleUnitVisuals
 
+const VisualCacheScript = preload("res://scripts/visual_cache.gd")
+const Palette = preload("res://scripts/art_palette.gd")
+
 ## Procedural low-poly soldier silhouettes. Gameplay collision and stats stay in BattleUnit.
 
 static func build(team: int, role: int) -> Node3D:
 	var root := Node3D.new()
 	var forward := 1.0 if team == 0 else -1.0
-	var cloth_color := Color(0.12, 0.31, 0.54) if team == 0 else Color(0.53, 0.14, 0.12)
-	var cloth_light := Color(0.25, 0.48, 0.69) if team == 0 else Color(0.72, 0.29, 0.20)
-	var metal := _material(Color(0.43, 0.48, 0.51), 0.66, 0.34)
-	var gold := _material(Color(0.78, 0.57, 0.23), 0.78, 0.28)
-	var leather := _material(Color(0.25, 0.15, 0.09), 0.0, 0.9)
+	var cloth_color := Palette.PLAYER_CLOTH if team == 0 else Palette.ENEMY_CLOTH
+	var cloth_light := Palette.PLAYER_CLOTH_LIGHT if team == 0 else Palette.ENEMY_CLOTH_LIGHT
+	var metal := _material(Palette.METAL, 0.66, 0.34)
+	var gold := _material(Palette.GOLD, 0.78, 0.28)
+	var leather := _material(Palette.WOOD, 0.0, 0.9)
 	var cloth := _material(cloth_color, 0.0, 0.84)
 	var cloth_highlight := _material(cloth_light, 0.0, 0.78)
-	var skin := _material(Color(0.69, 0.49, 0.34), 0.0, 0.9)
-	var boots := _material(Color(0.12, 0.10, 0.08), 0.0, 0.95)
+	var skin := _material(Color("#b88b68"), 0.0, 0.9)
+	var boots := _material(Palette.METAL_DARK, 0.0, 0.95)
 
 	if role == BattleUnit.UnitRole.CAVALRY:
 		_add_horse(root, team, forward, leather, _material(Color(0.34, 0.22, 0.14) if team == 0 else Color(0.22, 0.15, 0.12), 0.0, 0.95))
@@ -144,7 +147,7 @@ static func _add_horse(root: Node3D, team: int, forward: float, leather: Materia
 	_add(root, saddle, leather, Vector3(0.0, 0.91, 0.0))
 	var blanket := BoxMesh.new()
 	blanket.size = Vector3(0.66, 0.10, 0.62)
-	var blanket_material := _material(Color(0.17, 0.29, 0.43) if team == 0 else Color(0.48, 0.16, 0.13), 0.0, 0.85)
+	var blanket_material := _material(Palette.PLAYER_TEAM if team == 0 else Palette.ENEMY_TEAM, 0.0, 0.85)
 	_add(root, blanket, blanket_material, Vector3(0.0, 0.81, 0.0))
 	for side in [-1.0, 1.0]:
 		for direction in [-1.0, 1.0]:
@@ -240,7 +243,7 @@ static func _add_commander_details(root: Node3D, forward: float, gold: Material,
 	var jewel := SphereMesh.new()
 	jewel.radius = 0.065
 	jewel.height = 0.13
-	_add(root, jewel, _material(Color(0.20, 0.70, 0.70), 0.25, 0.22), Vector3(forward * 0.02, 2.29, 0.10))
+	_add(root, jewel, _material(Palette.WATER_LIGHT, 0.25, 0.22), Vector3(forward * 0.02, 2.29, 0.10))
 	var pole := CylinderMesh.new()
 	pole.top_radius = 0.025
 	pole.bottom_radius = 0.035
@@ -254,7 +257,7 @@ static func _add_commander_details(root: Node3D, forward: float, gold: Material,
 
 static func _add(root: Node3D, mesh: Mesh, material: Material, position: Vector3, rotation: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()
-	instance.mesh = mesh
+	instance.mesh = VisualCacheScript.cache_mesh_resource(mesh)
 	instance.material_override = material
 	instance.position = position
 	instance.rotation = rotation
@@ -263,8 +266,11 @@ static func _add(root: Node3D, mesh: Mesh, material: Material, position: Vector3
 
 
 static func _material(color: Color, metallic: float, roughness: float) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.metallic = metallic
-	material.roughness = roughness
-	return material
+	var key := "unit:%02x%02x%02x:%02d:%02d" % [roundi(color.r * 255.0), roundi(color.g * 255.0), roundi(color.b * 255.0), roundi(metallic * 100.0), roundi(roughness * 100.0)]
+	return VisualCacheScript.get_material(key, func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.metallic = metallic
+		material.roughness = roughness
+		return material
+	) as StandardMaterial3D
