@@ -1,3 +1,5 @@
+const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
+
 class_name BattleUnit
 extends CharacterBody3D
 
@@ -63,6 +65,8 @@ var _selection_ring: MeshInstance3D
 var _target_ring: MeshInstance3D
 var _health_fill: MeshInstance3D
 var _health_fill_material: StandardMaterial3D
+var _visual_root: Node3D
+var _animation_clock: float = 0.0
 
 
 func _ready() -> void:
@@ -112,48 +116,28 @@ func _get_role_id() -> String:
 
 
 func _build_visuals() -> void:
-	var body_mesh := MeshInstance3D.new()
-	var body_material := StandardMaterial3D.new()
-	if team == 0:
-		body_material.albedo_color = Color(0.16, 0.48, 0.95)
-	else:
-		body_material.albedo_color = Color(0.88, 0.20, 0.17)
-	body_material.roughness = 0.82
+	_visual_root = BattleUnitVisualsScript.build(team, role)
+	add_child(_visual_root)
 
 	var body_radius := 0.38
-	var body_height := 1.45
-	var body_y := 0.76
+	var body_height := 1.65
+	var body_y := 0.84
 	if role == UnitRole.RANGED:
-		body_radius = 0.29
-		body_height = 1.30
-		body_y = 0.68
+		body_radius = 0.32
+		body_height = 1.55
+		body_y = 0.78
 	elif role == UnitRole.SPEAR:
-		body_radius = 0.34
-		body_height = 1.42
-		body_y = 0.73
+		body_radius = 0.36
+		body_height = 1.65
+		body_y = 0.84
 	elif role == UnitRole.CAVALRY:
-		body_radius = 0.30
-		body_height = 1.20
-		body_y = 1.02
+		body_radius = 0.60
+		body_height = 1.85
+		body_y = 0.88
 	elif role == UnitRole.COMMANDER:
-		body_radius = 0.43
-		body_height = 1.62
-		body_y = 0.86
-
-	if role == UnitRole.CAVALRY:
-		_add_cavalry_mount()
-	var body_capsule := CapsuleMesh.new()
-	body_capsule.radius = body_radius
-	body_capsule.height = body_height
-	body_mesh.mesh = body_capsule
-	body_mesh.position.y = body_y
-	if role == UnitRole.COMMANDER:
-		body_material.metallic = 0.52
-		body_material.roughness = 0.48
-	body_mesh.material_override = body_material
-	add_child(body_mesh)
-	if role == UnitRole.COMMANDER:
-		_add_commander_visuals()
+		body_radius = 0.46
+		body_height = 2.10
+		body_y = 1.05
 
 	var collision := CollisionShape3D.new()
 	var capsule_shape := CapsuleShape3D.new()
@@ -163,10 +147,6 @@ func _build_visuals() -> void:
 	collision.shape = capsule_shape
 	add_child(collision)
 
-	if role == UnitRole.SPEAR:
-		_add_spear_visual()
-	_create_role_marker()
-
 	_selection_ring = MeshInstance3D.new()
 	var ring_mesh := TorusMesh.new()
 	ring_mesh.inner_radius = 0.48
@@ -174,7 +154,9 @@ func _build_visuals() -> void:
 	_selection_ring.mesh = ring_mesh
 	_selection_ring.position.y = 0.055
 	var ring_material := StandardMaterial3D.new()
-	ring_material.albedo_color = Color(1.0, 0.88, 0.22)
+	ring_material.albedo_color = Color(1.0, 0.82, 0.30)
+	ring_material.emission_enabled = true
+	ring_material.emission = Color(0.34, 0.22, 0.04)
 	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_selection_ring.material_override = ring_material
 	_selection_ring.visible = false
@@ -196,6 +178,7 @@ func _build_visuals() -> void:
 	add_child(_target_ring)
 
 	_create_health_bar()
+
 
 
 func _add_cavalry_mount() -> void:
@@ -494,6 +477,20 @@ func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 		eliminated.emit(self, attacker)
 		queue_free()
 
+
+
+func _process(delta: float) -> void:
+	if not is_instance_valid(_visual_root):
+		return
+	var moving := velocity.length_squared() > 0.08
+	_animation_clock += delta * (7.0 if moving else 1.8)
+	var bob := sin(_animation_clock) * (0.055 if moving else 0.018)
+	_visual_root.position.y = bob
+	if moving:
+		var desired_angle := atan2(-velocity.z, velocity.x)
+		if team == 1:
+			desired_angle -= PI
+		_visual_root.rotation.y = lerp_angle(_visual_root.rotation.y, desired_angle, minf(delta * 7.0, 1.0))
 
 func _physics_process(delta: float) -> void:
 	if health <= 0.0:
