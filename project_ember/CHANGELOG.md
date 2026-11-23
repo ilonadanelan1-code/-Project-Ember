@@ -1,5 +1,11 @@
 # Changelog — Project Ember
 
+## v0.5.1 — Tactical timer fix
+
+- Fixed battle timer minute calculation to avoid integer-division warnings in GDScript.
+- Explicitly typed elapsed seconds, minutes and remaining seconds; clamped negative elapsed time to zero.
+- Runtime test on Godot Android Editor is still pending.
+
 ## v0.5.0 — Settlements and expansion
 
 - Expanded the strategic map to 91 hexes and adjusted hex size for mobile viewport.
