@@ -39,6 +39,27 @@ func _run() -> void:
 			)
 	_check(resolved_biomes.size() == 4, "the strategic map can produce all four tactical biomes")
 
+	var offsets: Array[Vector2i] = [
+		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1),
+		Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 1),
+	]
+	for terrain_kind in ["plain", "forest", "hills", "water"]:
+		var terrain_map: Dictionary = {}
+		for offset in offsets:
+			terrain_map[offset] = terrain_kind
+		var expected := BattlefieldBiomesScript.GRASSLAND
+		match terrain_kind:
+			"forest":
+				expected = BattlefieldBiomesScript.WOODLAND
+			"hills":
+				expected = BattlefieldBiomesScript.HIGHLANDS
+			"water":
+				expected = BattlefieldBiomesScript.MARSH
+		_check(
+			BattlefieldBiomesScript.resolve_from_terrain_map(terrain_map, Vector2i.ZERO) == expected,
+			"live strategic terrain transfers %s into the matching battlefield biome" % terrain_kind
+		)
+
 	var grass_profile := BattlefieldBiomesScript.get_profile(BattlefieldBiomesScript.GRASSLAND)
 	var wood_profile := BattlefieldBiomesScript.get_profile(BattlefieldBiomesScript.WOODLAND)
 	var hill_profile := BattlefieldBiomesScript.get_profile(BattlefieldBiomesScript.HIGHLANDS)
