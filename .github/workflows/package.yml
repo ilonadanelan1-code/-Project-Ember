@@ -97,8 +97,13 @@ jobs:
           set -euo pipefail
           log_file="$(mktemp)"
           godot --headless --path project_ember --script res://tests/hero_progression_smoke_test.gd 2>&1 | tee "$log_file"
-          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
-            echo "Hero progression tests reported an error." >&2
+          # Godot 4.3 dummy-renderer shutdown can emit the same confirmed
+          # MeshInstance3D cleanup warning seen in the tactical startup test.
+          # Ignore only that exact signature; all script and test errors still fail CI.
+          reported_errors="$(grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file" | grep -Fv 'ERROR: Parameter "m" is null.' || true)"
+          if [ -n "$reported_errors" ]; then
+            printf '%s\\n' "$reported_errors" >&2
+            echo "Hero progression tests reported an unexpected error." >&2
             exit 1
           fi
       - name: Upload ready-to-open Godot project
