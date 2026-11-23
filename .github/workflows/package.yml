@@ -34,6 +34,7 @@ jobs:
           test -d project_ember/scripts
           test -f project_ember/tests/campaign_smoke_test.gd
           test -f project_ember/tests/unit_roster_smoke_test.gd
+          test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/scripts/unit_catalog.gd
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
@@ -90,10 +91,25 @@ jobs:
             echo "Unit roster tests reported an error." >&2
             exit 1
           fi
+      - name: Test hero progression and commander abilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/hero_progression_smoke_test.gd 2>&1 | tee "$log_file"
+          # Godot 4.3 dummy-renderer shutdown can emit the same confirmed
+          # MeshInstance3D cleanup warning seen in the tactical startup test.
+          # Ignore only that exact signature; all script and test errors still fail CI.
+          reported_errors="$(grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file" | grep -Fv 'ERROR: Parameter "m" is null.' || true)"
+          if [ -n "$reported_errors" ]; then
+            printf '%s\\n' "$reported_errors" >&2
+            echo "Hero progression tests reported an unexpected error." >&2
+            exit 1
+          fi
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.6.0
+          name: Project-Ember-v0.7.0
           path: |
             project_ember/**
             !project_ember/.godot/**

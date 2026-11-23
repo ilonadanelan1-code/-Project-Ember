@@ -60,6 +60,8 @@ var enemy_cell: Vector2i = Vector2i(2, 0)
 var enemy_present: bool = true
 var player_units: Array[Dictionary] = []
 var enemy_units: Array[Dictionary] = []
+var player_hero: Dictionary = {}
+var enemy_hero: Dictionary = {}
 
 # First playable city: the capital exists from the start. Settler-based expansion
 # is deliberately deferred until the basic city -> army -> battle loop is stable.
@@ -124,6 +126,8 @@ func new_campaign(persist: bool = true) -> void:
 	enemy_present = true
 	player_units = _make_starting_army()
 	enemy_units = _make_starting_army()
+	player_hero = _make_hero_record("Эдрик", "Правитель Каменного Брода")
+	enemy_hero = _make_hero_record("Варг", "Воевода Красного Отряда")
 	city_founded = true
 	city_name = "Каменный Брод"
 	city_cell = Vector2i(-3, 1)
@@ -158,6 +162,116 @@ func _make_starting_army() -> Array[Dictionary]:
 	return result
 
 
+func _make_hero_record(hero_name: String, hero_title: String) -> Dictionary:
+	return {
+		"name": hero_name,
+		"title": hero_title,
+		"level": 1,
+		"experience": 0,
+		"skill_points": 0,
+		"skills": {"leadership": 0, "tactics": 0, "might": 0},
+		"health": 210.0,
+		"wounded_turns": 0,
+	}
+
+
+func get_hero_max_health(hero: Dictionary) -> float:
+	var level := clampi(int(hero.get("level", 1)), 1, 30)
+	var skills_value: Variant = hero.get("skills", {})
+	var skills: Dictionary = skills_value if skills_value is Dictionary else {}
+	var might := clampi(int(skills.get("might", 0)), 0, 5)
+	return 210.0 + float(level - 1) * 16.0 + float(might) * 14.0
+
+
+func get_hero_xp_to_next_level() -> int:
+	var level := clampi(int(player_hero.get("level", 1)), 1, 30)
+	return 100 + (level - 1) * 75
+
+
+func award_hero_experience(victory: bool, kills: int, damage: float) -> int:
+	if player_hero.is_empty():
+		player_hero = _make_hero_record("Эдрик", "Правитель Каменного Брода")
+	var gain := 35 + maxi(0, kills) * 10 + floori(maxf(0.0, damage) / 40.0)
+	gain += (60 if victory else 20)
+	var old_max_health := get_hero_max_health(player_hero)
+	player_hero["experience"] = maxi(0, int(player_hero.get("experience", 0))) + gain
+	while int(player_hero.get("level", 1)) < 30:
+		var threshold := 100 + (int(player_hero.get("level", 1)) - 1) * 75
+		if int(player_hero.get("experience", 0)) < threshold:
+			break
+		player_hero["experience"] = int(player_hero.get("experience", 0)) - threshold
+		player_hero["level"] = int(player_hero.get("level", 1)) + 1
+		player_hero["skill_points"] = int(player_hero.get("skill_points", 0)) + 1
+		var current_health := float(player_hero.get("health", old_max_health))
+		if current_health > 0.0:
+			player_hero["health"] = minf(get_hero_max_health(player_hero), current_health + 20.0)
+	save_campaign()
+	return gain
+
+
+func upgrade_hero_skill(skill_id: String) -> bool:
+	if not ["leadership", "tactics", "might"].has(skill_id):
+		return false
+	if int(player_hero.get("skill_points", 0)) <= 0:
+		return false
+	var skills_value: Variant = player_hero.get("skills", {})
+	var skills: Dictionary = skills_value.duplicate(true) if skills_value is Dictionary else {}
+	var current_rank := clampi(int(skills.get(skill_id, 0)), 0, 5)
+	if current_rank >= 5:
+		return false
+	var old_max_health := get_hero_max_health(player_hero)
+	skills[skill_id] = current_rank + 1
+	player_hero["skills"] = skills
+	player_hero["skill_points"] = int(player_hero.get("skill_points", 0)) - 1
+	if skill_id == "might":
+		var current_health := float(player_hero.get("health", old_max_health))
+		if current_health > 0.0:
+			player_hero["health"] = minf(
+				get_hero_max_health(player_hero),
+				current_health + get_hero_max_health(player_hero) - old_max_health
+			)
+	save_campaign()
+	return true
+
+
+func _read_hero_record(value: Variant, fallback: Dictionary) -> Dictionary:
+	var source: Dictionary = value if value is Dictionary else fallback
+	var result := fallback.duplicate(true)
+	result["name"] = str(source.get("name", result.get("name", "Командир")))
+	result["title"] = str(source.get("title", result.get("title", "Правитель")))
+	result["level"] = clampi(int(source.get("level", 1)), 1, 30)
+	result["experience"] = maxi(0, int(source.get("experience", 0)))
+	result["skill_points"] = clampi(int(source.get("skill_points", 0)), 0, 99)
+	var raw_skills: Variant = source.get("skills", {})
+	var skills: Dictionary = raw_skills.duplicate(true) if raw_skills is Dictionary else {}
+	for skill_id in ["leadership", "tactics", "might"]:
+		skills[skill_id] = clampi(int(skills.get(skill_id, 0)), 0, 5)
+	result["skills"] = skills
+	result["wounded_turns"] = clampi(int(source.get("wounded_turns", 0)), 0, 5)
+	result["health"] = clampf(
+		float(source.get("health", get_hero_max_health(result))),
+		0.0,
+		get_hero_max_health(result)
+	)
+	return result
+
+
+func _recover_campaign_heroes() -> void:
+	for hero in [player_hero, enemy_hero]:
+		if hero.is_empty():
+			continue
+		var max_health := get_hero_max_health(hero)
+		var current_health := clampf(float(hero.get("health", max_health)), 0.0, max_health)
+		if current_health <= 0.0:
+			hero["health"] = max_health * 0.35
+			hero["wounded_turns"] = 2
+		elif int(hero.get("wounded_turns", 0)) > 0:
+			hero["health"] = minf(max_health, current_health + max_health * 0.12)
+			hero["wounded_turns"] = maxi(0, int(hero.get("wounded_turns", 0)) - 1)
+		else:
+			hero["health"] = minf(max_health, current_health + max_health * 0.18)
+
+
 func begin_battle() -> bool:
 	if battle_in_progress or campaign_lost or not enemy_present:
 		return false
@@ -173,7 +287,9 @@ func complete_battle(
 		player_survivors: Array[Dictionary],
 		enemy_survivors: Array[Dictionary],
 		victory: bool,
-		stats: Dictionary
+		stats: Dictionary,
+		player_commander_health: float = -1.0,
+		enemy_commander_health: float = -1.0
 ) -> void:
 	if not battle_in_progress:
 		return
@@ -184,6 +300,22 @@ func complete_battle(
 	last_battle_result["victory"] = victory
 	last_battle_result["player_survivors"] = player_units.size()
 	last_battle_result["enemy_survivors"] = enemy_units.size()
+	if player_commander_health >= 0.0:
+		player_hero["health"] = clampf(player_commander_health, 0.0, get_hero_max_health(player_hero))
+		if player_commander_health <= 0.0:
+			player_hero["wounded_turns"] = 2
+	if enemy_commander_health >= 0.0:
+		enemy_hero["health"] = clampf(enemy_commander_health, 0.0, get_hero_max_health(enemy_hero))
+		if enemy_commander_health <= 0.0:
+			enemy_hero["wounded_turns"] = 2
+	var hero_xp_gained := award_hero_experience(
+		victory,
+		int(stats.get("player_kills", 0)),
+		float(stats.get("player_damage", 0.0))
+	)
+	last_battle_result["hero_xp_gained"] = hero_xp_gained
+	last_battle_result["hero_level"] = int(player_hero.get("level", 1))
+	last_battle_result["hero_skill_points"] = int(player_hero.get("skill_points", 0))
 	last_battle_report_pending = true
 
 	if victory:
@@ -443,6 +575,7 @@ func get_city_queue_summary() -> String:
 
 func advance_campaign_turn() -> void:
 	turn_number += 1
+	_recover_campaign_heroes()
 	player_moves_left = 1
 	settler_moves_left = 1
 	var previous_city_id := active_city_id
@@ -537,6 +670,8 @@ func save_campaign() -> bool:
 		"enemy_present": enemy_present,
 		"player_units": player_units,
 		"enemy_units": enemy_units,
+		"player_hero": player_hero,
+		"enemy_hero": enemy_hero,
 		"last_battle_result": last_battle_result,
 		"last_battle_report_pending": last_battle_report_pending,
 		"city_founded": city_founded,
@@ -598,6 +733,10 @@ func load_campaign() -> bool:
 	enemy_cell = Vector2i(int(enemy_cell_data[0]), int(enemy_cell_data[1]))
 	player_units = loaded_player
 	enemy_units = loaded_enemy
+	var player_hero_fallback := _make_hero_record("Эдрик", "Правитель Каменного Брода")
+	var enemy_hero_fallback := _make_hero_record("Варг", "Воевода Красного Отряда")
+	player_hero = _read_hero_record(data.get("player_hero", player_hero_fallback), player_hero_fallback)
+	enemy_hero = _read_hero_record(data.get("enemy_hero", enemy_hero_fallback), enemy_hero_fallback)
 	enemy_present = bool(data.get("enemy_present", true)) and not enemy_units.is_empty()
 	var loaded_result: Variant = data.get("last_battle_result", {})
 	if loaded_result is Dictionary:
