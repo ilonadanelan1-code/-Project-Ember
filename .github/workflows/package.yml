@@ -28,13 +28,17 @@ jobs:
           test -d project_ember/scripts
       - name: Import and parse all Godot scripts
         run: godot --headless --editor --path project_ember --quit
-      - name: Smoke-test main scene startup
+      - name: Smoke-test strategic map startup
         run: godot --headless --path project_ember --quit-after 10
+      - name: Smoke-test tactical battle startup
+        run: godot --headless --path project_ember res://scenes/combat_test.tscn --quit-after 10
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
           name: Project-Ember-v0.5.2
-          path: project_ember/
+          path: |
+            project_ember/**
+            !project_ember/.godot/**
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
