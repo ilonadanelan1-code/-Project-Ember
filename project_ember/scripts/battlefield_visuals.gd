@@ -268,12 +268,15 @@ static func _add_marsh_pools(parent: Node3D, field_size: Vector2, quality: int, 
 	pool_mesh.bottom_radius = 1.0
 	pool_mesh.height = 0.022
 	pool_mesh.radial_segments = 12
-	var water_material := StandardMaterial3D.new()
-	var water_color: Color = profile["water"]
-	water_material.albedo_color = Color(water_color.r, water_color.g, water_color.b, 0.78)
-	water_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	water_material.roughness = 0.34
-	water_material.metallic = 0.08
+	var water_material := VisualCacheScript.get_material("battlefield:marsh:water", func() -> Material:
+		var material := StandardMaterial3D.new()
+		var water_color: Color = profile["water"]
+		material.albedo_color = Color(water_color.r, water_color.g, water_color.b, 0.78)
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.roughness = 0.34
+		material.metallic = 0.08
+		return material
+	)
 	var pools: Array[Transform3D] = []
 	var pool_base := 3 if quality == QUALITY_LOW else (6 if quality == QUALITY_MEDIUM else 9)
 	var pool_count := _scaled_count(pool_base, profile["pool_density"])
