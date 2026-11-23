@@ -247,7 +247,7 @@ func queue_settler() -> bool:
 	return true
 
 func can_found_city(cell: Vector2i) -> bool:
-	if not settler_active or get_city_index_at(cell) >= 0 or cities.size() >= 5:
+	if not settler_active or get_city_index_at(cell) >= 0 or cities.size() >= 5 or cell == player_cell or (enemy_present and cell == enemy_cell):
 		return false
 	for c in cities:
 		var xy: Array = c.get("cell", [])
