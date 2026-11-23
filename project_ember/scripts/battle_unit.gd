@@ -468,10 +468,14 @@ func _begin_death() -> void:
 		_health_fill.visible = false
 
 	var corpse_limit := 7
-	match GameSettings.graphics_quality:
-		GameSettings.GraphicsQuality.LOW:
+	# Resolve the settings autoload dynamically. This script is also loaded by
+	# headless --script smoke tests before project autoloads are registered.
+	var settings_node := get_node_or_null("/root/GameSettings")
+	if is_instance_valid(settings_node):
+		var graphics_quality := int(settings_node.get("graphics_quality"))
+		if graphics_quality == 0: # LOW
 			corpse_limit = 3
-		GameSettings.GraphicsQuality.HIGH:
+		elif graphics_quality == 2: # HIGH
 			corpse_limit = 12
 	if _active_corpse_count >= corpse_limit:
 		queue_free()
