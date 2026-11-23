@@ -4,10 +4,14 @@ class_name BattlefieldVisuals
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 const Palette = preload("res://scripts/art_palette.gd")
 
+const QUALITY_LOW := 0
+const QUALITY_MEDIUM := 1
+const QUALITY_HIGH := 2
+
 ## Lightweight, procedural battlefield dressing for Project Ember.
 ## Everything is generated from meshes/materials at runtime; no external asset packs.
 
-static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
+static func create(parent: Node3D, field_size: Vector2, quality: int = QUALITY_MEDIUM) -> Dictionary:
 	var ground := MeshInstance3D.new()
 	var ground_mesh := PlaneMesh.new()
 	ground_mesh.size = field_size
@@ -49,9 +53,8 @@ static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
 	light.rotation_degrees = Vector3(-48.0, -28.0, 0.0)
 	light.light_color = Palette.GOLD_LIGHT
 	light.light_energy = 1.15
-	var quality := GameSettings.graphics_quality
-	light.shadow_enabled = quality >= GameSettings.GraphicsQuality.MEDIUM
-	light.directional_shadow_max_distance = 48.0 if quality == GameSettings.GraphicsQuality.HIGH else 34.0
+	light.shadow_enabled = quality >= QUALITY_MEDIUM
+	light.directional_shadow_max_distance = 48.0 if quality == QUALITY_HIGH else 34.0
 	parent.add_child(light)
 
 	var camera := Camera3D.new()
@@ -64,7 +67,7 @@ static func create(parent: Node3D, field_size: Vector2) -> Dictionary:
 
 	_add_ground_accents(parent, field_size, quality)
 	_add_forest_edge(parent, field_size, quality)
-	if quality >= GameSettings.GraphicsQuality.MEDIUM:
+	if quality >= QUALITY_MEDIUM:
 		_add_ruins(parent)
 	return {"ground_body": ground_body, "camera": camera}
 
@@ -97,7 +100,7 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2, quality: in
 	dirt_mesh.radial_segments = 7
 	var dirt_material := _material(Palette.EARTH, 0.0, 1.0)
 	var dirt_transforms: Array[Transform3D] = []
-	var dirt_count := 12 if quality == GameSettings.GraphicsQuality.LOW else (24 if quality == GameSettings.GraphicsQuality.MEDIUM else 32)
+	var dirt_count := 12 if quality == QUALITY_LOW else (24 if quality == QUALITY_MEDIUM else 32)
 	for index in range(dirt_count):
 		var x := rng.randf_range(-field_size.x * 0.45, field_size.x * 0.45)
 		var z := rng.randf_range(-field_size.y * 0.43, field_size.y * 0.43)
@@ -109,7 +112,7 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2, quality: in
 	grass_mesh.size = Vector3(0.075, 0.32, 0.055)
 	var grass_material := _material(Palette.GRASS, 0.0, 0.95)
 	var grass_transforms: Array[Transform3D] = []
-	var grass_count := 38 if quality == GameSettings.GraphicsQuality.LOW else (90 if quality == GameSettings.GraphicsQuality.MEDIUM else 140)
+	var grass_count := 38 if quality == QUALITY_LOW else (90 if quality == QUALITY_MEDIUM else 140)
 	for index in range(grass_count):
 		var x := rng.randf_range(-field_size.x * 0.47, field_size.x * 0.47)
 		var z := rng.randf_range(-field_size.y * 0.46, field_size.y * 0.46)
@@ -126,7 +129,7 @@ static func _add_ground_accents(parent: Node3D, field_size: Vector2, quality: in
 	stone_mesh.rings = 3
 	var stone_material := _material(Palette.STONE, 0.0, 1.0)
 	var stone_transforms: Array[Transform3D] = []
-	var stone_count := 8 if quality == GameSettings.GraphicsQuality.LOW else (18 if quality == GameSettings.GraphicsQuality.MEDIUM else 24)
+	var stone_count := 8 if quality == QUALITY_LOW else (18 if quality == QUALITY_MEDIUM else 24)
 	for index in range(stone_count):
 		var x := rng.randf_range(-field_size.x * 0.46, field_size.x * 0.46)
 		var z := rng.randf_range(-field_size.y * 0.44, field_size.y * 0.44)
@@ -142,7 +145,7 @@ static func _add_forest_edge(parent: Node3D, field_size: Vector2, quality: int) 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 120884
 	var tree_positions: Array[Vector2] = []
-	var tree_count := 18 if quality == GameSettings.GraphicsQuality.LOW else (38 if quality == GameSettings.GraphicsQuality.MEDIUM else 52)
+	var tree_count := 18 if quality == QUALITY_LOW else (38 if quality == QUALITY_MEDIUM else 52)
 	for index in range(tree_count):
 		var x := rng.randf_range(-field_size.x * 0.48, field_size.x * 0.48)
 		var z := rng.randf_range(-field_size.y * 0.47, field_size.y * 0.47)

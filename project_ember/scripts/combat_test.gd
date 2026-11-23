@@ -79,7 +79,7 @@ func _process(delta: float) -> void:
 
 
 func _create_environment() -> void:
-	var visual_data: Dictionary = BattlefieldVisualsScript.create(self, FIELD_SIZE)
+	var visual_data: Dictionary = BattlefieldVisualsScript.create(self, FIELD_SIZE, GameSettings.graphics_quality)
 	_ground_body = visual_data.get("ground_body") as StaticBody3D
 	_camera = visual_data.get("camera") as Camera3D
 
