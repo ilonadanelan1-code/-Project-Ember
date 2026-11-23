@@ -4,6 +4,7 @@ extends Node
 ## Only persistent data is stored here; scene nodes and UI remain in their own scenes.
 
 const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
+const BattlefieldBiomesScript = preload("res://scripts/battlefield_biomes.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -84,6 +85,9 @@ var settler_moves_left: int = 1
 var battle_in_progress: bool = false
 var battle_origin_cell: Vector2i = Vector2i.ZERO
 var battle_enemy_cell: Vector2i = Vector2i.ZERO
+# Runtime-only battle presentation data; deliberately excluded from campaign saves.
+var battlefield_biome_id: String = BattlefieldBiomesScript.GRASSLAND
+var battlefield_seed: int = 841207
 var last_battle_result: Dictionary = {}
 var last_battle_report_pending: bool = false
 var _prevent_save_overwrite: bool = false
@@ -279,6 +283,8 @@ func begin_battle() -> bool:
 		return false
 	battle_origin_cell = player_cell
 	battle_enemy_cell = enemy_cell
+	battlefield_biome_id = BattlefieldBiomesScript.resolve_for_cell(battle_origin_cell)
+	battlefield_seed = BattlefieldBiomesScript.seed_for_cell(battle_origin_cell)
 	battle_in_progress = true
 	return true
 
