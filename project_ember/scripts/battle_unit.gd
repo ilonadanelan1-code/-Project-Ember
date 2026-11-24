@@ -135,6 +135,32 @@ func _apply_role_stats() -> void:
 func _get_role_id() -> String:
 	return UNIT_CATALOG_SCRIPT.get_role_for_battle_index(role)
 
+func _play_battle_feedback(effect_id: String, sound_id: String, world_position: Vector3, source_team: int, direction: Vector3 = Vector3.ZERO) -> void:
+	var scene_tree := get_tree()
+	if scene_tree == null:
+		return
+	var manager := scene_tree.get_first_node_in_group("battle_effects")
+	if not is_instance_valid(manager):
+		return
+	if not effect_id.is_empty() and manager.has_method("spawn_effect"):
+		manager.call("spawn_effect", effect_id, world_position, source_team, direction)
+	if not sound_id.is_empty() and manager.has_method("play_sound"):
+		manager.call("play_sound", sound_id, world_position)
+
+
+func _get_damage_sound(attacker: BattleUnit) -> String:
+	if not is_instance_valid(attacker):
+		return "arrow_impact"
+	match attacker.role:
+		UnitRole.SPEAR:
+			return "spear"
+		UnitRole.CAVALRY:
+			return "cavalry"
+		UnitRole.RANGED:
+			return "arrow_impact"
+		_:
+			return "melee"
+
 
 func _build_visuals() -> void:
 	_visual_root = BattleUnitVisualsScript.build(team, role)
@@ -392,6 +418,7 @@ func activate_rally() -> bool:
 		return false
 	_trigger_rally_animation()
 	rally_cooldown_timer = maxf(14.0, 28.0 - float(commander_tactics) * 2.5)
+	_play_battle_feedback("rally", "rally", global_position + Vector3(0.0, 0.85, 0.0), team)
 	return true
 
 
@@ -445,12 +472,13 @@ func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 	if health <= 0.0:
 		if is_instance_valid(attacker) and attacker != self:
 			attacker.kills += 1
+		_play_battle_feedback("death", "death", global_position + Vector3(0.0, 0.65, 0.0), team)
 		eliminated.emit(self, attacker)
 		_begin_death()
 	elif is_instance_valid(_body_mesh) or is_instance_valid(_action_mesh):
 		_trigger_hit_flash()
-
-
+		var source_team := attacker.team if is_instance_valid(attacker) else team
+		_play_battle_feedback("impact", _get_damage_sound(attacker), global_position + Vector3(0.0, 0.95, 0.0), source_team)
 func _begin_death() -> void:
 	remove_from_group("battle_units")
 	collision_layer = 0
@@ -673,6 +701,7 @@ func _attack_or_chase() -> void:
 			if charge_attack:
 				_charge_timer = 4.5
 				_charge_armed = false
+				_play_battle_feedback("charge", "cavalry", global_position + Vector3(0.0, 0.35, 0.0), team, offset.normalized())
 			play_attack_animation(charge_attack)
 			_target.take_damage(strike_damage, self)
 			_attack_timer = attack_cooldown
@@ -724,7 +753,9 @@ func _fire_projectile(enemy: BattleUnit) -> void:
 	projectile.damage = attack_damage * (1.0 + command_damage_bonus + rally_damage_bonus)
 	projectile.speed = projectile_speed
 	get_parent().add_child(projectile)
-	projectile.global_position = global_position + Vector3(0.0, 1.05, 0.0)
+	var launch_position := global_position + Vector3(0.0, 1.05, 0.0)
+	projectile.global_position = launch_position
+	_play_battle_feedback("muzzle", "bow", launch_position, team, (enemy.global_position - launch_position).normalized())
 
 
 func _steer(direction: Vector3) -> void:
