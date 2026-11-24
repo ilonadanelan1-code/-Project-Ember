@@ -13,6 +13,13 @@ var _message_label: Label
 var _confirm_label: String = "ПОДТВЕРДИТЬ"
 
 
+func _dp(value: float) -> float:
+	var metrics := get_node_or_null("/root/UiMetrics")
+	if is_instance_valid(metrics) and metrics.has_method("dp"):
+		return float(metrics.call("dp", value))
+	return value
+
+
 func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -21,11 +28,11 @@ func _ready() -> void:
 	anchor_top = 0.5
 	anchor_right = 0.5
 	anchor_bottom = 0.5
-	offset_left = -UiMetrics.dp(220.0)
-	offset_top = -UiMetrics.dp(110.0)
-	offset_right = UiMetrics.dp(220.0)
-	offset_bottom = UiMetrics.dp(110.0)
-	custom_minimum_size = Vector2(UiMetrics.dp(320.0), UiMetrics.dp(190.0))
+	offset_left = -_dp(220.0)
+	offset_top = -_dp(110.0)
+	offset_right = _dp(220.0)
+	offset_bottom = _dp(110.0)
+	custom_minimum_size = Vector2(_dp(320.0), _dp(190.0))
 	_build_contents()
 
 
@@ -49,44 +56,44 @@ var _cancel_button: Button
 
 func _build_contents() -> void:
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(16.0)))
-	margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(16.0)))
-	margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(14.0)))
-	margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(14.0)))
+	margin.add_theme_constant_override("margin_left", int(_dp(16.0)))
+	margin.add_theme_constant_override("margin_right", int(_dp(16.0)))
+	margin.add_theme_constant_override("margin_top", int(_dp(14.0)))
+	margin.add_theme_constant_override("margin_bottom", int(_dp(14.0)))
 	add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	column.add_theme_constant_override("separation", int(_dp(8.0)))
 	margin.add_child(column)
 	_title_label = Label.new()
 	_title_label.name = "DialogTitle"
 	_title_label.text = _pending_title
-	_title_label.add_theme_font_size_override("font_size", int(UiMetrics.dp(20.0)))
+	_title_label.add_theme_font_size_override("font_size", int(_dp(20.0)))
 	column.add_child(_title_label)
 	_message_label = Label.new()
 	_message_label.name = "DialogMessage"
 	_message_label.text = _pending_message
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_message_label.add_theme_font_size_override("font_size", int(UiMetrics.dp(14.0)))
+	_message_label.add_theme_font_size_override("font_size", int(_dp(14.0)))
 	column.add_child(_message_label)
 	_hold_fill = ProgressBar.new()
 	_hold_fill.min_value = 0.0
 	_hold_fill.max_value = 1.0
 	_hold_fill.value = 0.0
-	_hold_fill.custom_minimum_size.y = UiMetrics.dp(8.0)
+	_hold_fill.custom_minimum_size.y = _dp(8.0)
 	_hold_fill.visible = false
 	column.add_child(_hold_fill)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	row.add_theme_constant_override("separation", int(_dp(8.0)))
 	column.add_child(row)
 	_cancel_button = Button.new()
 	_cancel_button.text = _cancel_button_text
-	_cancel_button.custom_minimum_size.y = UiMetrics.dp(48.0)
+	_cancel_button.custom_minimum_size.y = _dp(48.0)
 	_cancel_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_cancel_button.pressed.connect(cancel)
 	row.add_child(_cancel_button)
 	_confirm_button = Button.new()
 	_confirm_button.text = _confirm_label
-	_confirm_button.custom_minimum_size.y = UiMetrics.dp(48.0)
+	_confirm_button.custom_minimum_size.y = _dp(48.0)
 	_confirm_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_confirm_button.button_down.connect(_on_confirm_button_down)
 	_confirm_button.button_up.connect(_on_confirm_button_up)
