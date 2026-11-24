@@ -554,18 +554,36 @@ func _refresh_kingdoms_panel() -> void:
 		var kingdom: Dictionary = CampaignState.kingdoms[index]
 		var cities: Array = kingdom.get("cities", [])
 		var army: Array = kingdom.get("army", [])
+		var known_city_count := 0
+		for city_data in cities:
+			var city_cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
+			if CampaignState.is_cell_explored(city_cell):
+				known_city_count += 1
+		var capital_cell := WorldGeneratorScript.array_to_cell(kingdom.get("capital_cell", []))
+		var capital_known := CampaignState.is_cell_explored(capital_cell)
+		var army_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
+		var army_visible := not army.is_empty() and CampaignState.is_cell_visible(army_cell)
+		var has_intel := capital_known or known_city_count > 0 or army_visible
 		var label := Label.new()
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 		label.add_theme_color_override("font_color", _kingdom_color(index))
-		label.text = "%d. %s — %s\nГородов: %d · Войск: %d\n%s" % [
-			index + 1,
-			str(kingdom.get("name", "Королевство")),
-			str(kingdom.get("ruler", "Правитель")),
-			cities.size(),
-			army.size(),
-			str(kingdom.get("last_action", "Развивается")),
-		]
+		if not has_intel:
+			label.text = "%d. %s\nТерритория не разведана · Нет данных" % [
+				index + 1,
+				str(kingdom.get("name", "Неизвестная держава")),
+			]
+		else:
+			var army_status := str(army.size()) if army_visible else "Не наблюдается"
+			var latest_intel := str(kingdom.get("last_action", "Развивается")) if capital_known and CampaignState.is_cell_visible(capital_cell) else "Последние сведения устарели"
+			label.text = "%d. %s — %s\nИзвестных городов: %d · Войск видно: %s\n%s" % [
+				index + 1,
+				str(kingdom.get("name", "Королевство")),
+				str(kingdom.get("ruler", "Правитель")) if capital_known else "Правитель неизвестен",
+				known_city_count,
+				army_status,
+				latest_intel,
+			]
 		_kingdoms_list.add_child(label)
 		_kingdoms_list.add_child(HSeparator.new())
 
@@ -1179,10 +1197,10 @@ func _show_last_battle_report() -> void:
 func _refresh_ui() -> void:
 	if not is_instance_valid(_status_label):
 		return
-	_status_label.text = "ХОД %d · ДЕРЖАВ: %d · ВРАЖЕСКИХ ВОЙСК: %d · ЗОЛОТО: %d" % [
+	_status_label.text = "ХОД %d · ДЕРЖАВ: %d · ВОЙСК ВИДНО: %d · ЗОЛОТО: %d" % [
 		CampaignState.turn_number,
 		CampaignState.kingdoms.size(),
-		CampaignState.get_total_enemy_units(),
+		_get_visible_enemy_unit_count(),
 		CampaignState.city_gold,
 	]
 	_message_label.text = _message_text
@@ -1202,6 +1220,16 @@ func _refresh_ui() -> void:
 		_refresh_city_panel()
 	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
 		_refresh_kingdoms_panel()
+
+
+func _get_visible_enemy_unit_count() -> int:
+	var total := 0
+	for kingdom in CampaignState.kingdoms:
+		var army: Array = kingdom.get("army", [])
+		var army_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
+		if not army.is_empty() and CampaignState.is_cell_visible(army_cell):
+			total += army.size()
+	return total
 
 
 func _is_traversable(cell: Vector2i) -> bool:
