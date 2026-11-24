@@ -36,6 +36,7 @@ jobs:
           test -f project_ember/tests/campaign_smoke_test.gd
           test -f project_ember/tests/world_campaign_smoke_test.gd
           test -f project_ember/tests/map_batch_renderer_smoke_test.gd
+          test -f project_ember/ART_BIBLE.md
           test -f project_ember/tests/unit_roster_smoke_test.gd
           test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/tests/visual_overhaul_smoke_test.gd
@@ -340,7 +341,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.10.3-Performance-Report
+          name: Project-Ember-v0.10.4-Illustrated-Terrain
           path: |
             project_ember/**
             !project_ember/.godot/**

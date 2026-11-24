@@ -94,12 +94,15 @@ func _draw() -> void:
 	_refresh_owner_lookup()
 	var centers := PackedVector2Array()
 	var colors := PackedColorArray()
+	var terrain_data := PackedColorArray()
 	centers.resize(_cells.size())
 	colors.resize(_cells.size())
+	terrain_data.resize(_cells.size())
 	for index in range(_cells.size()):
 		var cell: Vector2i = _cells[index]
 		centers[index] = _hex_center(cell)
-		var tint := _terrain_color(CampaignState.get_world_terrain(cell))
+		var terrain_kind := CampaignState.get_world_terrain(cell)
+		var tint := _terrain_color(terrain_kind)
 		var owner_id := int(_owner_lookup.get(cell, -1))
 		if owner_id == -2:
 			tint = tint.lerp(PLAYER_TEAM_COLOR, 0.22)
@@ -108,8 +111,9 @@ func _draw() -> void:
 		if not CampaignState.is_cell_visible(cell):
 			tint = tint.darkened(0.58)
 		colors[index] = tint
+		terrain_data[index] = HexMapBatchRendererScript.make_instance_data(cell, terrain_kind)
 	if is_instance_valid(_terrain_renderer):
-		_terrain_renderer.set_map_tiles(_cells, centers, colors, Vector2(56.0, 64.0), _map_zoom)
+		_terrain_renderer.set_map_tiles(_cells, centers, colors, Vector2(56.0, 64.0), _map_zoom, terrain_data)
 
 	# Explored cities remain on the map as remembered locations. Enemy armies,
 	# unlike cities, are shown only while currently inside the player's sight.

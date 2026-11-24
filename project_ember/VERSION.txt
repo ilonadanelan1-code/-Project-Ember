@@ -1,3 +1,12 @@
+Project Ember v0.10.4 — Illustrated Strategic Terrain
+- Replaces the repeated flat hex fill with a compact five-column atlas: grassland, forest, highlands, water and continent-scale topographic surfaces.
+- Terrain atlas variation is selected per MultiMesh instance through INSTANCE_CUSTOM; each cell gets a stable six-way motif orientation derived from axial coordinates.
+- At zoom <= 0.22, six-hex LOD chunks use a restrained topographic motif instead of oversized individual terrain symbols.
+- The map retains one MultiMesh terrain batch; no per-hex nodes or additional terrain draw calls are introduced.
+- Fog-of-war tinting and ownership overlays continue to modulate each instance colour.
+- Adds renderer smoke tests for atlas selection, per-instance data, LOD motif selection and single-batch rendering.
+- Visual pass follows the Art Bible's warm, matte, stylized tabletop miniature direction and avoids heavy post-processing.
+
 Project Ember v0.10.3 — In-game Performance Report
 - FPS overlay now samples current, average, minimum and maximum FPS over a rolling 10-second window.
 - Adds a one-tap Android clipboard export with build, Godot/platform, viewport, CPU process time, draw calls, objects, primitives, node count, RAM/video memory and strategic map LOD/zoom statistics.
