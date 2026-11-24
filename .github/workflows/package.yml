@@ -50,6 +50,22 @@ jobs:
           test -f project_ember/tests/battlefield_biome_smoke_test.gd
           test -f project_ember/scripts/combat_effects.gd
           test -f project_ember/tests/combat_effects_smoke_test.gd
+          test -f project_ember/scripts/ui_metrics.gd
+          test -f project_ember/scripts/safe_area_container.gd
+          test -f project_ember/scripts/touch_gesture_router.gd
+          test -f project_ember/scripts/haptics.gd
+          test -f project_ember/scripts/toast.gd
+          test -f project_ember/scripts/toast_manager.gd
+          test -f project_ember/scripts/confirm_dialog.gd
+          test -f project_ember/scripts/bottom_sheet.gd
+          test -f project_ember/scripts/icon_button.gd
+          test -f project_ember/tests/ui_metrics_smoke_test.gd
+          test -f project_ember/tests/touch_gesture_router_smoke_test.gd
+          test -f project_ember/tests/ui_foundation_smoke_test.gd
+          test -f project_ember/tests/atomic_save_smoke_test.gd
+          test -f project_ember/tests/new_campaign_confirm_smoke_test.gd
+          test -f project_ember/ui/icons/menu.svg
+          test -f project_ember/ui/icons/settings.svg
           test -f project_ember/scripts/unit_catalog.gd
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
@@ -187,10 +203,80 @@ jobs:
             echo "Combat effects tests did not reach their success marker." >&2
             exit 1
           fi
+      - name: Test UI dp metrics and safe-area container
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/ui_metrics_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "UI metrics tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All UI metrics smoke tests passed." "$log_file"; then
+            echo "UI metrics tests did not reach their success marker." >&2
+            exit 1
+          fi
+      - name: Test multitouch gesture router
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/touch_gesture_router_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Touch gesture router tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All touch gesture router smoke tests passed." "$log_file"; then
+            echo "Touch gesture router tests did not reach their success marker." >&2
+            exit 1
+          fi
+      - name: Test reusable mobile UI components
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/ui_foundation_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "UI foundation tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All UI foundation smoke tests passed." "$log_file"; then
+            echo "UI foundation tests did not reach their success marker." >&2
+            exit 1
+          fi
+      - name: Test atomic campaign save and backup recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/atomic_save_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Atomic save tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All atomic save smoke tests passed." "$log_file"; then
+            echo "Atomic save tests did not reach their success marker." >&2
+            exit 1
+          fi
+      - name: Test destructive campaign reset confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/new_campaign_confirm_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Campaign reset confirmation tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All campaign reset confirmation smoke tests passed." "$log_file"; then
+            echo "Campaign reset confirmation tests did not reach their success marker." >&2
+            exit 1
+          fi
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.9.3-Combat-Effects-Sound
+          name: Project-Ember-v0.9.4-Metrics-Input
           path: |
             project_ember/**
             !project_ember/.godot/**
