@@ -6,6 +6,9 @@ const UiThemeScript = preload("res://scripts/ui_theme.gd")
 const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
 const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
 const CombatEffectsScript = preload("res://scripts/combat_effects.gd")
+const SafeAreaContainerScript = preload("res://scripts/safe_area_container.gd")
+const TouchGestureRouterScript = preload("res://scripts/touch_gesture_router.gd")
+const ToastManagerScript = preload("res://scripts/toast_manager.gd")
 
 const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 
@@ -60,9 +63,13 @@ var _control_group_buttons: Dictionary = {}
 var _group_store_mode: bool = false
 var _group_store_button: Button
 var _rally_button: Button
+var _safe_area: SafeAreaContainer
+var _gesture_router: TouchGestureRouter
+var _toast_manager: ToastManager
 
 
 func _ready() -> void:
+	get_tree().set_auto_accept_quit(false)
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	_create_environment()
@@ -222,12 +229,17 @@ func _create_ui() -> void:
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 
-	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_safe_area = SafeAreaContainerScript.new()
+	layer.add_child(_safe_area)
+	var root := _safe_area.get_content_root()
 	root.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
-	UiThemeScript.apply_safe_area(root)
-	layer.add_child(root)
+	_gesture_router = TouchGestureRouterScript.new()
+	_gesture_router.name = "TouchGestureRouter"
+	_gesture_router.set_ui_root(root)
+	root.add_child(_gesture_router)
+	_toast_manager = ToastManagerScript.new()
+	_toast_manager.name = "ToastManager"
+	root.add_child(_toast_manager)
 	_create_selection_marquee(root)
 
 	var top_panel := PanelContainer.new()
@@ -745,6 +757,35 @@ func _issue_order_to_slot(unit: BattleUnit, slot: Vector3) -> void:
 func _open_settings() -> void:
 	if is_instance_valid(_settings_panel):
 		_settings_panel.open_panel()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		if is_instance_valid(_settings_panel) and _settings_panel.visible:
+			_settings_panel.close_panel()
+		elif not _game_over:
+			if not _paused:
+				_toggle_pause()
+			else:
+				_toggle_pause()
+	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_pause_for_background()
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		if _paused and is_instance_valid(_toast_manager):
+			_toast_manager.show_toast("Бой приостановлен", 2.5, "Ⅱ")
+
+
+func _pause_for_background() -> void:
+	if _game_over:
+		return
+	if not _paused:
+		_paused = true
+		get_tree().paused = true
+	if is_instance_valid(_pause_button):
+		_pause_button.text = "ПРОДОЛЖИТЬ"
+	# CampaignState.save_campaign() intentionally refuses to write during a
+	# tactical battle, preserving the last safe strategic save and battle result.
+
+
 
 
 func _raycast(screen_position: Vector2) -> Dictionary:
