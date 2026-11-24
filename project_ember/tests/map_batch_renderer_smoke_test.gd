@@ -39,7 +39,11 @@ func _run() -> void:
 		centers.append(Vector2(float(column) * 52.0, float(row) * 45.0))
 		colors.append(Color(0.35 + float(index % 3) * 0.1, 0.55, 0.35, 1.0))
 		cells.append(cell)
-		styles.append(Color(float(index % 4), float(posmod(index, 6)) / 6.0, 0.0, 1.0))
+		if index < 4:
+			styles.append(Color(float(index), 0.0, 0.0, 1.0))
+		else:
+			var terrain_name := ["grass", "forest", "hills", "water"][index % 4]
+			styles.append(RendererScript.make_instance_data(cell, terrain_name))
 
 	renderer.set_tiles(centers, colors, Vector2(56.0, 64.0), 0.9, styles)
 	_check(renderer.get_tile_instance_count() == 1024, "1024 visible hexes use 1024 instances")
@@ -48,7 +52,8 @@ func _run() -> void:
 	_check(renderer.get_instance_atlas_index(1) == 2, "forest instance selects its first atlas orientation")
 	_check(renderer.get_instance_atlas_index(2) == 4, "highland instance selects its first atlas orientation")
 	_check(renderer.get_instance_atlas_index(3) == 6, "water instance selects its first atlas orientation")
-	_check(renderer.get_instance_atlas_index(5) in [0, 1], "cell coordinates deterministically select a grass motif orientation")
+	_check(renderer.get_instance_atlas_index(5) in [2, 3], "cell coordinates deterministically select one of the forest motif orientations")
+	_check(RendererScript.make_instance_data(Vector2i(5, 0), "forest") == RendererScript.make_instance_data(Vector2i(5, 0), "forest"), "terrain motif orientation is stable for the same axial cell")
 
 	var small_centers := PackedVector2Array([Vector2(100.0, 100.0), Vector2(160.0, 100.0)])
 	var small_colors := PackedColorArray([Color.WHITE, Color(0.2, 0.4, 0.8, 1.0)])
