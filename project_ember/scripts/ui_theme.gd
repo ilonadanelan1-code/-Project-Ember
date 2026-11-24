@@ -46,10 +46,10 @@ static func _panel_style(background: Color, scale: float) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = Palette.UI_GOLD.darkened(0.12)
-	style.set_border_width_all(maxi(1, roundi(2.0 * scale)))
-	style.set_corner_radius_all(roundi(10.0 * scale))
+	style.set_border_width_all(maxi(1, roundi(UiMetrics.dp(2.0))))
+	style.set_corner_radius_all(roundi(UiMetrics.dp(10.0)))
 	style.shadow_color = Palette.UI_SHADOW
-	style.shadow_size = roundi(5.0 * scale)
+	style.shadow_size = roundi(UiMetrics.dp(5.0))
 	style.content_margin_left = UiMetrics.dp(10.0)
 	style.content_margin_top = UiMetrics.dp(8.0)
 	style.content_margin_right = UiMetrics.dp(10.0)
@@ -61,8 +61,8 @@ static func _button_style(background: Color, border: Color, scale: float, alpha:
 	background_tint.a = alpha
 	style.bg_color = background_tint
 	style.border_color = border
-	style.set_border_width_all(maxi(1, roundi(1.5 * scale)))
-	style.set_corner_radius_all(roundi(7.0 * scale))
+	style.set_border_width_all(maxi(1, roundi(UiMetrics.dp(1.5))))
+	style.set_corner_radius_all(roundi(UiMetrics.dp(7.0)))
 	style.content_margin_left = UiMetrics.dp(10.0)
 	style.content_margin_top = UiMetrics.dp(7.0)
 	style.content_margin_right = UiMetrics.dp(10.0)
@@ -72,13 +72,13 @@ static func _flat_style(background: Color, border: Color, scale: float) -> Style
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = border
-	style.set_border_width_all(maxi(1, roundi(scale)))
-	style.set_corner_radius_all(roundi(4.0 * scale))
+	style.set_border_width_all(maxi(1, roundi(UiMetrics.dp(1.0))))
+	style.set_corner_radius_all(roundi(UiMetrics.dp(4.0)))
 	return style
 static func _focus_style(scale: float) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Palette.UI_TRANSPARENT
 	style.border_color = Palette.GOLD_LIGHT
-	style.set_border_width_all(maxi(2, roundi(2.0 * scale)))
+	style.set_border_width_all(maxi(2, roundi(UiMetrics.dp(2.0))))
 	style.set_corner_radius_all(roundi(7.0 * scale))
 	return style
