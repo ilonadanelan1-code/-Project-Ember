@@ -1,5 +1,17 @@
 # Project Ember — Tasks
 
+## v0.9.3 — Combat Effects & Sound
+
+- [x] Connect impact feedback to melee, spear, cavalry and ranged damage events.
+- [x] Add cavalry charge, commander rally, muzzle flash, death dust and projectile trail effects.
+- [x] Generate original short combat sound cues at runtime and route them through the existing SFX bus.
+- [x] Scale fixed visual and audio pools across Low / Medium / High graphics profiles.
+- [x] Cache bolt meshes/materials and reuse effect slots instead of allocating nodes for every hit.
+- [x] Add CI tests for audio sample data, pool sizing, effect reuse and node budgets.
+- [ ] Import v0.9.3 in Godot Android Editor and listen to the combat sound cues.
+- [ ] Verify effect readability and audio balance during 20–50 unit battles on the phone.
+- [ ] Measure Low / Medium FPS during large engagements.
+
 ## v0.9.2 — Battlefield Biomes & Terrain
 
 - [x] Add grassland, woodland, highlands and marsh tactical biome profiles.
