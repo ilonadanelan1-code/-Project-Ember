@@ -11,6 +11,8 @@ const ROLE_SPEAR := "spear"
 const ROLE_CAVALRY := "cavalry"
 const ARMY_CAPACITY := 24
 const SAVE_PATH := "user://project_ember_campaign.json"
+const SAVE_TEMP_PATH := SAVE_PATH + ".tmp"
+const SAVE_BACKUP_PATH := SAVE_PATH + ".bak"
 const SAVE_VERSION := 1
 
 const CITY_BUILDINGS := {
@@ -695,36 +697,91 @@ func save_campaign() -> bool:
 		"settler_cell": [settler_cell.x, settler_cell.y],
 		"settler_moves_left": settler_moves_left,
 	}
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(SAVE_TEMP_PATH, FileAccess.WRITE)
 	if file == null:
-		push_warning("Project Ember: could not open campaign save for writing.")
+		push_warning("Project Ember: could not open temporary campaign save.")
 		return false
 	file.store_string(JSON.stringify(save_data))
+	file.flush()
+	var write_error: Error = file.get_error()
 	file.close()
+	if write_error != OK:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_TEMP_PATH))
+		push_warning("Project Ember: temporary campaign save write failed.")
+		return false
+
+	var verification := _read_save_dictionary(SAVE_TEMP_PATH)
+	if verification.is_empty():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_TEMP_PATH))
+		push_warning("Project Ember: temporary campaign save did not validate.")
+		return false
+
+	var main_absolute := ProjectSettings.globalize_path(SAVE_PATH)
+	var temporary_absolute := ProjectSettings.globalize_path(SAVE_TEMP_PATH)
+	var backup_absolute := ProjectSettings.globalize_path(SAVE_BACKUP_PATH)
+	if FileAccess.file_exists(SAVE_BACKUP_PATH):
+		var remove_backup_error: Error = DirAccess.remove_absolute(backup_absolute)
+		if remove_backup_error != OK:
+			DirAccess.remove_absolute(temporary_absolute)
+			push_warning("Project Ember: could not rotate the previous backup.")
+			return false
+	if FileAccess.file_exists(SAVE_PATH):
+		var rotate_error: Error = DirAccess.rename_absolute(main_absolute, backup_absolute)
+		if rotate_error != OK:
+			DirAccess.remove_absolute(temporary_absolute)
+			push_warning("Project Ember: could not preserve the previous campaign save.")
+			return false
+
+	var replace_error: Error = DirAccess.rename_absolute(temporary_absolute, main_absolute)
+	if replace_error != OK:
+		if FileAccess.file_exists(SAVE_BACKUP_PATH) and not FileAccess.file_exists(SAVE_PATH):
+			DirAccess.rename_absolute(backup_absolute, main_absolute)
+		push_warning("Project Ember: could not atomically replace the campaign save.")
+		return false
 	return true
 
 
-func load_campaign() -> bool:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return false
-	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+func _read_save_dictionary(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return false
+		return {}
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
 	if not parsed is Dictionary:
-		return false
+		return {}
 	var data: Dictionary = parsed
 	if int(data.get("version", -1)) != SAVE_VERSION:
-		return false
-
+		return {}
 	var player_cell_data: Variant = data.get("player_cell", [])
 	var enemy_cell_data: Variant = data.get("enemy_cell", [])
 	if not player_cell_data is Array or player_cell_data.size() < 2:
-		return false
+		return {}
 	if not enemy_cell_data is Array or enemy_cell_data.size() < 2:
-		return false
+		return {}
+	return data
 
+
+func load_campaign() -> bool:
+	var data := _read_save_dictionary(SAVE_PATH)
+	if data.is_empty():
+		data = _read_save_dictionary(SAVE_BACKUP_PATH)
+		if data.is_empty():
+			return false
+		# Preserve an unreadable primary file before attempting recovery.
+		if FileAccess.file_exists(SAVE_PATH):
+			if not _preserve_unreadable_save():
+				_prevent_save_overwrite = true
+		if not _prevent_save_overwrite:
+			var restore_error: Error = DirAccess.copy_absolute(
+				ProjectSettings.globalize_path(SAVE_BACKUP_PATH),
+				ProjectSettings.globalize_path(SAVE_PATH)
+			)
+			if restore_error != OK:
+				_prevent_save_overwrite = true
+				push_warning("Project Ember: loaded the backup in memory; restoring the primary save failed.")
+	var player_cell_data: Variant = data.get("player_cell", [])
 	var loaded_player := _read_unit_records(data.get("player_units", []))
 	var loaded_enemy := _read_unit_records(data.get("enemy_units", []))
 	var lost := bool(data.get("campaign_lost", false))
