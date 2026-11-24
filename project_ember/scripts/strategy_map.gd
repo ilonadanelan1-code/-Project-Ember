@@ -572,6 +572,7 @@ func _found_city() -> void:
 			_terrain[CampaignState.city_cell] = "plain"
 		_settler_selected = false
 		_message_text = "Основан новый город: " + CampaignState.city_name
+		Haptics.confirm(30)
 		_close_city()
 	else:
 		_message_text = "Нужно свободное место не ближе 3 гексов от других городов."
@@ -725,6 +726,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 	if CampaignState.settler_active and cell == CampaignState.settler_cell:
 		_settler_selected = true
 		_army_selected = false
+		Haptics.tap(10)
 		_message_text = "Поселенец выбран. Перемести его на свободный гекс и нажми ОСНОВАТЬ ГОРОД."
 		_refresh_ui()
 		queue_redraw()
@@ -735,6 +737,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 			CampaignState.settler_cell = cell
 			CampaignState.settler_moves_left -= 1
 			CampaignState.save_campaign()
+			Haptics.confirm(15)
 			_message_text = "Поселенец перемещён. Нажми ОСНОВАТЬ ГОРОД."
 			_refresh_ui()
 			queue_redraw()
@@ -749,6 +752,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 	if cell == CampaignState.player_cell:
 		_settler_selected = false
 		_army_selected = true
+		Haptics.tap(10)
 		_message_text = "Армия выбрана. Коснись соседнего гекса для перемещения."
 		_refresh_ui()
 		queue_redraw()
@@ -832,6 +836,7 @@ func _advance_turn() -> void:
 		_terrain[CampaignState.settler_cell] = "plain"
 	_enemy_take_turn()
 	CampaignState.save_campaign()
+	Haptics.confirm(15)
 	if CampaignState.enemy_present and _hex_distance(CampaignState.player_cell, CampaignState.enemy_cell) <= 1:
 		_message_text = "Вражеская армия приблизилась! Нажми АТАКОВАТЬ, чтобы начать бой."
 	else:
