@@ -11,6 +11,7 @@ const ToastManagerScript = preload("res://scripts/toast_manager.gd")
 const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
 const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
 const HexMapBatchRendererScript = preload("res://scripts/hex_map_batch_renderer.gd")
+const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 
 ## Explored-world strategic map: fog of war, viewport streaming and AI kingdom markers.
 
@@ -95,13 +96,16 @@ func _draw() -> void:
 	var centers := PackedVector2Array()
 	var colors := PackedColorArray()
 	var terrain_data := PackedColorArray()
+	var terrain_kinds: Array[String] = []
 	centers.resize(_cells.size())
 	colors.resize(_cells.size())
 	terrain_data.resize(_cells.size())
+	terrain_kinds.resize(_cells.size())
 	for index in range(_cells.size()):
 		var cell: Vector2i = _cells[index]
 		centers[index] = _hex_center(cell)
 		var terrain_kind := CampaignState.get_world_terrain(cell)
+		terrain_kinds[index] = terrain_kind
 		var tint := _terrain_color(terrain_kind)
 		var owner_id := int(_owner_lookup.get(cell, -1))
 		if owner_id == -2:
@@ -115,23 +119,42 @@ func _draw() -> void:
 	if is_instance_valid(_terrain_renderer):
 		_terrain_renderer.set_map_tiles(_cells, centers, colors, Vector2(56.0, 64.0), _map_zoom, terrain_data)
 
+	# Natural landmarks are seeded from the campaign world and only drawn
+	# over cells already revealed by fog of war.
+	if _map_zoom >= 0.32:
+		for index in range(_cells.size()):
+			var cell: Vector2i = _cells[index]
+			var landmark_kind := StrategicMapDetailsScript.landmark_kind(
+				cell,
+				terrain_kinds[index],
+				CampaignState.world_seed
+			)
+			if not landmark_kind.is_empty() and _point_is_visible(centers[index], 22.0 * _map_zoom):
+				_draw_natural_landmark(centers[index], landmark_kind, CampaignState.is_cell_visible(cell))
+
+	_draw_roads()
+	_draw_territory_borders()
+
 	# Explored cities remain on the map as remembered locations. Enemy armies,
 	# unlike cities, are shown only while currently inside the player's sight.
-	for city_data in CampaignState.cities:
+	for city_index in range(CampaignState.cities.size()):
+		var city_data: Dictionary = CampaignState.cities[city_index]
 		var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 		var center := _hex_center(cell)
 		if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
-			_draw_city_marker(center, Palette.MAP_CITY_FLAG)
+			_draw_city_marker(center, PLAYER_TEAM_COLOR, city_index == 0, true)
 
 	for kingdom_index in range(CampaignState.kingdoms.size()):
 		var kingdom: Dictionary = CampaignState.kingdoms[kingdom_index]
 		var faction_color := _kingdom_color(kingdom_index)
-		for city_data in kingdom.get("cities", []):
+		var kingdom_cities: Array = kingdom.get("cities", [])
+		for city_index in range(kingdom_cities.size()):
+			var city_data: Dictionary = kingdom_cities[city_index]
 			var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 			var center := _hex_center(cell)
 			if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
 				var remembered_color := faction_color if CampaignState.is_cell_visible(cell) else faction_color.darkened(0.58)
-				_draw_city_marker(center, remembered_color)
+				_draw_city_marker(center, remembered_color, city_index == 0, false)
 		var army: Array = kingdom.get("army", [])
 		if not army.is_empty():
 			var army_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
@@ -242,19 +265,237 @@ func _kingdom_color(index: int) -> Color:
 	return Color.from_hsv(float(posmod(index, WorldGeneratorScript.KINGDOM_COUNT)) / float(WorldGeneratorScript.KINGDOM_COUNT), 0.68, 0.92, 1.0)
 
 
-func _draw_city_marker(center: Vector2, banner_color: Color = Palette.MAP_CITY_FLAG) -> void:
+func _draw_city_marker(
+		center: Vector2,
+		banner_color: Color = Palette.MAP_CITY_FLAG,
+		is_capital: bool = false,
+		is_player_city: bool = false
+) -> void:
 	if _map_zoom < 0.28:
-		draw_circle(center, maxf(2.5, 9.0 * _map_zoom), banner_color)
+		var dot_radius := maxf(2.5, (8.5 if is_capital else 6.5) * _map_zoom)
+		draw_circle(center, dot_radius + 1.0, Palette.MAP_OBJECT_SHADOW)
+		draw_circle(center, dot_radius, banner_color)
+		if is_capital:
+			draw_circle(center, maxf(1.0, dot_radius * 0.34), Palette.GOLD_LIGHT)
 		return
-	draw_circle(center + Vector2(0.0, 3.0 * _map_zoom), 17.0 * _map_zoom, Palette.MAP_OBJECT_SHADOW)
-	draw_rect(Rect2(center + Vector2(-11.0, -7.0) * _map_zoom, Vector2(22.0, 17.0) * _map_zoom), Palette.MAP_CITY_WALL)
-	draw_rect(Rect2(center + Vector2(-15.0, -12.0) * _map_zoom, Vector2(8.0, 18.0) * _map_zoom), Palette.MAP_CITY_TOWER)
-	draw_rect(Rect2(center + Vector2(7.0, -12.0) * _map_zoom, Vector2(8.0, 18.0) * _map_zoom), Palette.MAP_CITY_TOWER)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(-17.0, -12.0) * _map_zoom, center + Vector2(-11.0, -20.0) * _map_zoom, center + Vector2(-5.0, -12.0) * _map_zoom]), banner_color.lightened(0.18))
-	draw_colored_polygon(PackedVector2Array([center + Vector2(5.0, -12.0) * _map_zoom, center + Vector2(11.0, -20.0) * _map_zoom, center + Vector2(17.0, -12.0) * _map_zoom]), banner_color.lightened(0.18))
-	draw_rect(Rect2(center + Vector2(-3.0, 1.0) * _map_zoom, Vector2(6.0, 9.0) * _map_zoom), Palette.MAP_CITY_DOOR)
-	draw_line(center + Vector2(0.0, -19.0) * _map_zoom, center + Vector2(0.0, -29.0) * _map_zoom, Palette.MAP_CITY_FLAG_POLE, maxf(0.7, 2.0 * _map_zoom))
-	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0) * _map_zoom, center + Vector2(12.0, -25.0) * _map_zoom, center + Vector2(1.0, -21.0) * _map_zoom]), banner_color)
+
+	var marker_scale := _map_zoom * (1.0 if is_capital else 0.82)
+	var foundation := PackedVector2Array([
+		center + Vector2(-17.0, 5.0) * marker_scale,
+		center + Vector2(-13.0, -7.0) * marker_scale,
+		center + Vector2(-8.0, -12.0) * marker_scale,
+		center + Vector2(8.0, -12.0) * marker_scale,
+		center + Vector2(13.0, -7.0) * marker_scale,
+		center + Vector2(17.0, 5.0) * marker_scale,
+		center + Vector2(12.0, 12.0) * marker_scale,
+		center + Vector2(-12.0, 12.0) * marker_scale,
+	])
+	draw_circle(center + Vector2(0.0, 4.0) * marker_scale, 18.0 * marker_scale, Palette.MAP_OBJECT_SHADOW)
+	draw_colored_polygon(foundation, Palette.MAP_CITY_FOUNDATION)
+	draw_polyline(_closed_polygon(foundation), Palette.MAP_CITY_DOOR, maxf(0.7, 1.4 * marker_scale), true)
+
+	# Stone curtain wall and twin gate towers.
+	draw_rect(Rect2(center + Vector2(-11.0, -8.0) * marker_scale, Vector2(22.0, 17.0) * marker_scale), Palette.MAP_CITY_WALL)
+	draw_rect(Rect2(center + Vector2(-11.0, -8.0) * marker_scale, Vector2(22.0, 3.0) * marker_scale), Palette.MAP_CITY_STONE_LIGHT)
+	draw_rect(Rect2(center + Vector2(-15.0, -14.0) * marker_scale, Vector2(8.0, 20.0) * marker_scale), Palette.MAP_CITY_TOWER)
+	draw_rect(Rect2(center + Vector2(7.0, -14.0) * marker_scale, Vector2(8.0, 20.0) * marker_scale), Palette.MAP_CITY_TOWER)
+	draw_rect(Rect2(center + Vector2(-14.0, -13.0) * marker_scale, Vector2(6.0, 2.0) * marker_scale), Palette.MAP_CITY_STONE_LIGHT)
+	draw_rect(Rect2(center + Vector2(8.0, -13.0) * marker_scale, Vector2(6.0, 2.0) * marker_scale), Palette.MAP_CITY_STONE_LIGHT)
+
+	# Keep roof, smaller houses and warm lit windows create a miniature skyline.
+	draw_rect(Rect2(center + Vector2(-4.5, -17.0) * marker_scale, Vector2(9.0, 14.0) * marker_scale), Palette.MAP_CITY_TOWER)
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-6.0, -16.0) * marker_scale,
+		center + Vector2(0.0, -24.0) * marker_scale,
+		center + Vector2(6.0, -16.0) * marker_scale,
+	]), Palette.MAP_CITY_ROOF)
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-17.0, -14.0) * marker_scale,
+		center + Vector2(-11.0, -21.0) * marker_scale,
+		center + Vector2(-5.0, -14.0) * marker_scale,
+	]), Palette.MAP_CITY_ROOF)
+	draw_colored_polygon(PackedVector2Array([
+		center + Vector2(5.0, -14.0) * marker_scale,
+		center + Vector2(11.0, -21.0) * marker_scale,
+		center + Vector2(17.0, -14.0) * marker_scale,
+	]), Palette.MAP_CITY_ROOF)
+	draw_rect(Rect2(center + Vector2(-8.0, -5.0) * marker_scale, Vector2(3.0, 4.0) * marker_scale), Palette.MAP_CITY_WINDOW)
+	draw_rect(Rect2(center + Vector2(5.0, -5.0) * marker_scale, Vector2(3.0, 4.0) * marker_scale), Palette.MAP_CITY_WINDOW)
+	draw_rect(Rect2(center + Vector2(-2.5, 1.0) * marker_scale, Vector2(5.0, 9.0) * marker_scale), Palette.MAP_CITY_DOOR)
+	draw_line(center + Vector2(-11.0, -8.0) * marker_scale, center + Vector2(11.0, -8.0) * marker_scale, Palette.MAP_CITY_STONE_LIGHT, maxf(0.55, 0.9 * marker_scale))
+
+	if is_capital:
+		draw_line(
+			center + Vector2(0.0, -23.0) * marker_scale,
+			center + Vector2(0.0, -35.0) * marker_scale,
+			Palette.MAP_CITY_FLAG_POLE,
+			maxf(0.7, 1.6 * marker_scale)
+		)
+		draw_colored_polygon(PackedVector2Array([
+			center + Vector2(1.0, -34.0) * marker_scale,
+			center + Vector2(14.0, -30.0) * marker_scale,
+			center + Vector2(1.0, -25.0) * marker_scale,
+		]), banner_color)
+		draw_circle(center + Vector2(0.0, -35.0) * marker_scale, maxf(1.0, 1.8 * marker_scale), Palette.GOLD_LIGHT)
+	else:
+		draw_line(
+			center + Vector2(10.0, -17.0) * marker_scale,
+			center + Vector2(10.0, -25.0) * marker_scale,
+			Palette.MAP_CITY_FLAG_POLE,
+			maxf(0.6, 1.2 * marker_scale)
+		)
+		draw_colored_polygon(PackedVector2Array([
+			center + Vector2(11.0, -24.0) * marker_scale,
+			center + Vector2(18.0, -22.0) * marker_scale,
+			center + Vector2(11.0, -19.0) * marker_scale,
+		]), banner_color.lightened(0.12))
+
+	if is_player_city:
+		draw_line(center + Vector2(-12.0, 10.0) * marker_scale, center + Vector2(12.0, 10.0) * marker_scale, Palette.GOLD, maxf(0.5, 0.8 * marker_scale))
+
+
+func _draw_roads() -> void:
+	if _map_zoom < 0.28:
+		return
+	var road_segments := PackedVector2Array()
+	road_segments = _append_city_road_segments(CampaignState.cities, -2, road_segments)
+	for kingdom_index in range(CampaignState.kingdoms.size()):
+		var kingdom: Dictionary = CampaignState.kingdoms[kingdom_index]
+		var cities: Array = kingdom.get("cities", [])
+		road_segments = _append_city_road_segments(cities, kingdom_index, road_segments)
+	if road_segments.is_empty():
+		return
+	draw_multiline(road_segments, Palette.MAP_ROAD_SHADOW, maxf(1.1, 4.2 * _map_zoom), true)
+	draw_multiline(road_segments, Palette.MAP_ROAD_LIGHT, maxf(0.7, 1.8 * _map_zoom), true)
+
+
+func _append_city_road_segments(
+		cities: Array,
+		owner_id: int,
+		road_segments: PackedVector2Array
+) -> PackedVector2Array:
+	if cities.size() < 2:
+		return road_segments
+	var capital_data: Dictionary = cities[0]
+	var capital_cell := WorldGeneratorScript.array_to_cell(capital_data.get("cell", []))
+	for city_index in range(1, cities.size()):
+		var city_data: Dictionary = cities[city_index]
+		var destination := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
+		var route: Array[Vector2i] = StrategicMapDetailsScript.axial_line(capital_cell, destination)
+		for step in range(route.size() - 1):
+			var start_cell := route[step]
+			var finish_cell := route[step + 1]
+			if not CampaignState.is_cell_explored(start_cell) or not CampaignState.is_cell_explored(finish_cell):
+				continue
+			if CampaignState.get_world_terrain(start_cell) == "water" or CampaignState.get_world_terrain(finish_cell) == "water":
+				continue
+			var start_owner := int(_owner_lookup.get(start_cell, -1))
+			var finish_owner := int(_owner_lookup.get(finish_cell, -1))
+			if (start_owner != -1 and start_owner != owner_id) or (finish_owner != -1 and finish_owner != owner_id):
+				continue
+			var start_point := _hex_center(start_cell)
+			var finish_point := _hex_center(finish_cell)
+			var direction := (finish_point - start_point).normalized()
+			if step == 0:
+				start_point += direction * 12.0 * _map_zoom
+			if step == route.size() - 2:
+				finish_point -= direction * 12.0 * _map_zoom
+			if start_point.distance_to(finish_point) < 3.0:
+				continue
+			if not _point_is_visible((start_point + finish_point) * 0.5, 24.0 * _map_zoom):
+				continue
+			road_segments.append(start_point)
+			road_segments.append(finish_point)
+	return road_segments
+
+
+func _draw_territory_borders() -> void:
+	if _cells.is_empty():
+		return
+	var boundary_segments := PackedVector2Array()
+	for cell in _cells:
+		var cell_owner := int(_owner_lookup.get(cell, -1))
+		for direction_index in range(3):
+			var neighbor := cell + NEIGHBOR_OFFSETS[direction_index]
+			if not CampaignState.is_cell_explored(neighbor):
+				continue
+			var neighbor_owner := int(_owner_lookup.get(neighbor, -1))
+			if cell_owner == neighbor_owner or (cell_owner == -1 and neighbor_owner == -1):
+				continue
+			var corners := _hex_points(_hex_center(cell))
+			var edge_index := posmod(-direction_index, 6)
+			var edge_start := corners[edge_index]
+			var edge_finish := corners[(edge_index + 1) % 6]
+			if not _point_is_visible((edge_start + edge_finish) * 0.5, 12.0 * _map_zoom):
+				continue
+			boundary_segments.append(edge_start)
+			boundary_segments.append(edge_finish)
+	if boundary_segments.is_empty():
+		return
+	draw_multiline(boundary_segments, Palette.MAP_BORDER_SHADOW, maxf(0.55, 1.8 * _map_zoom), true)
+	draw_multiline(boundary_segments, Palette.MAP_CLAIM_BORDER, maxf(0.4, 0.9 * _map_zoom), true)
+
+
+func _draw_natural_landmark(center: Vector2, landmark_kind: String, currently_visible: bool) -> void:
+	var marker_scale := clampf(_map_zoom, 0.50, 1.05)
+	var stone_color := Palette.MAP_LANDMARK_STONE if currently_visible else Palette.MAP_LANDMARK_STONE.darkened(0.52)
+	var light_color := Palette.MAP_LANDMARK_STONE_LIGHT if currently_visible else Palette.MAP_LANDMARK_STONE_LIGHT.darkened(0.52)
+	match landmark_kind:
+		"peak":
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-12.0, 7.0) * marker_scale,
+				center + Vector2(-2.0, -10.0) * marker_scale,
+				center + Vector2(12.0, 7.0) * marker_scale,
+			]), Palette.MAP_OBJECT_SHADOW)
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-10.0, 6.0) * marker_scale,
+				center + Vector2(-1.5, -9.0) * marker_scale,
+				center + Vector2(9.0, 6.0) * marker_scale,
+			]), stone_color)
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-3.5, -5.5) * marker_scale,
+				center + Vector2(-1.5, -9.0) * marker_scale,
+				center + Vector2(2.0, -3.5) * marker_scale,
+				center + Vector2(0.0, -2.0) * marker_scale,
+			]), light_color)
+		"elder_tree":
+			draw_circle(center + Vector2(0.0, 5.0) * marker_scale, 8.0 * marker_scale, Palette.MAP_OBJECT_SHADOW)
+			draw_rect(Rect2(center + Vector2(-1.8, -2.0) * marker_scale, Vector2(3.6, 11.0) * marker_scale), Palette.MAP_LANDMARK_BARK)
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-10.0, 1.0) * marker_scale,
+				center + Vector2(0.0, -13.0) * marker_scale,
+				center + Vector2(10.0, 1.0) * marker_scale,
+			]), Palette.MAP_LANDMARK_FOLIAGE)
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-7.0, -3.0) * marker_scale,
+				center + Vector2(0.0, -15.0) * marker_scale,
+				center + Vector2(7.0, -3.0) * marker_scale,
+			]), Palette.MAP_LANDMARK_FOLIAGE_LIGHT)
+			draw_circle(center + Vector2(-3.0, -6.0) * marker_scale, 2.0 * marker_scale, Palette.MAP_LANDMARK_FOLIAGE_LIGHT)
+		"islet":
+			draw_circle(center + Vector2(0.0, 4.0) * marker_scale, 8.0 * marker_scale, Palette.MAP_LANDMARK_SAND)
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-7.0, 2.0) * marker_scale,
+				center + Vector2(0.0, -7.0) * marker_scale,
+				center + Vector2(8.0, 2.0) * marker_scale,
+			]), Palette.MAP_LANDMARK_FOLIAGE)
+			draw_circle(center + Vector2(3.0, -3.0) * marker_scale, 2.5 * marker_scale, Palette.MAP_LANDMARK_FOLIAGE_LIGHT)
+		"standing_stone":
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-7.0, 8.0) * marker_scale,
+				center + Vector2(-5.0, -7.0) * marker_scale,
+				center + Vector2(1.0, -12.0) * marker_scale,
+				center + Vector2(6.0, -5.0) * marker_scale,
+				center + Vector2(7.0, 8.0) * marker_scale,
+			]), Palette.MAP_OBJECT_SHADOW)
+			draw_colored_polygon(PackedVector2Array([
+				center + Vector2(-5.0, 7.0) * marker_scale,
+				center + Vector2(-4.0, -6.0) * marker_scale,
+				center + Vector2(1.0, -10.0) * marker_scale,
+				center + Vector2(5.0, -4.0) * marker_scale,
+				center + Vector2(5.0, 7.0) * marker_scale,
+			]), stone_color)
+			draw_line(center + Vector2(0.0, -5.0) * marker_scale, center + Vector2(0.0, 4.0) * marker_scale, light_color, maxf(0.7, 1.2 * marker_scale))
 
 
 func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> void:

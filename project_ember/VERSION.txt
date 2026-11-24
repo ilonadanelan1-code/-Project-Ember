@@ -1,3 +1,12 @@
+Project Ember v0.10.5 — Illustrated Strategic Map
+- Capitals and settlements receive a clearer low-poly skyline, faction banners, stone foundations and capital/outpost scale hierarchy.
+- Adds cartographic road links from kingdom capitals to founded cities; road segments are drawn only over explored land that is not held by a rival.
+- Adds warm territory boundary strokes, generated only between explored cells with different ownership.
+- Adds deterministic natural landmarks: highland peaks, ancient trees, small islets and standing stones, derived from axial coordinates and world seed.
+- Road and border segments are batched into shared multiline draw calls on the existing strategic map canvas; no per-feature scene nodes or new save fields.
+- Adds smoke tests for axial path continuity, deterministic seed variation and all natural landmark families.
+- Retains the single MultiMesh terrain batch, fog-of-war rules, existing campaign save schema and GL Compatibility renderer.
+
 Project Ember v0.10.4 — Illustrated Strategic Terrain
 - Replaces the repeated flat hex fill with a compact five-column atlas: grassland, forest, highlands, water and continent-scale topographic surfaces.
 - Terrain atlas variation is encoded in the MultiMesh instance color alpha band; each cell gets a stable two-way motif orientation derived from axial coordinates, avoiding unsupported CanvasItem custom-instance shader data in Godot 4.3 GL Compatibility.
