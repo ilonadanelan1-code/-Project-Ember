@@ -1,3 +1,11 @@
+Project Ember v0.9.3 — Combat Effects & Sound
+- Connects pooled hit, charge, rally, death, muzzle and projectile trail effects to tactical combat events.
+- Adds original procedural combat sounds for melee, spear, cavalry, bow, arrow impact, death and commander rally.
+- Scales fixed visual/audio pools by quality: Low 8/4, Medium 14/6, High 18/8.
+- Caches the glowing bolt mesh and material; no per-hit effect nodes are allocated.
+- Reuses the existing SFX volume setting and preserves damage formulas, saves, movement, unit roles, formation slots, collision and touch controls.
+- Godot 4.3 GL Compatibility remains the target. Physical Android sound balance and performance checks are still required.
+
 Project Ember v0.9.2 — Battlefield Biomes & Terrain
 - Adds grassland, woodland, highlands and marsh battlefield profiles selected from neighboring strategic hex terrain.
 - Biome-specific ground textures/palettes, vegetation density and low-poly props create repeatable battlefield variation.
