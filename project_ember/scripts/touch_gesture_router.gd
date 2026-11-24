@@ -37,6 +37,13 @@ var _pending_tap_position: Vector2 = Vector2.ZERO
 var _pending_tap_msec: int = -10000
 
 
+func _dp(value: float) -> float:
+	var metrics := get_node_or_null("/root/UiMetrics")
+	if is_instance_valid(metrics) and metrics.has_method("dp"):
+		return float(metrics.call("dp", value))
+	return value
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
@@ -134,7 +141,7 @@ func _move_pointer(index: int, position: Vector2) -> void:
 	if bool(entry.get("ui", false)) or _suppressed_until_all_released or index != _primary_index:
 		return
 	var start: Vector2 = entry.get("start", position)
-	if (gesture_state == GestureState.PRESS or gesture_state == GestureState.LONG_PRESS) and position.distance_to(start) >= UiMetrics.dp(DRAG_THRESHOLD_DP):
+	if (gesture_state == GestureState.PRESS or gesture_state == GestureState.LONG_PRESS) and position.distance_to(start) >= _dp(DRAG_THRESHOLD_DP):
 		gesture_state = GestureState.DRAG
 		drag_started.emit(start)
 	var frame_delta := position - previous
@@ -156,7 +163,7 @@ func _finish_pointer(index: int, position: Vector2) -> void:
 		var start: Vector2 = entry.get("start", position)
 		var elapsed := Time.get_ticks_msec() - int(entry.get("started_msec", _press_started_msec))
 		var moved := position.distance_to(start)
-		if gesture_state == GestureState.PRESS and elapsed <= TAP_MAX_MSEC and moved < UiMetrics.dp(DRAG_THRESHOLD_DP):
+		if gesture_state == GestureState.PRESS and elapsed <= TAP_MAX_MSEC and moved < _dp(DRAG_THRESHOLD_DP):
 			_emit_tap(position)
 		elif gesture_state == GestureState.DRAG:
 			drag_ended.emit(_last_drag_delta)
@@ -178,7 +185,7 @@ func _finish_pointer(index: int, position: Vector2) -> void:
 
 func _emit_tap(position: Vector2) -> void:
 	var now := Time.get_ticks_msec()
-	if _pending_tap and now - _pending_tap_msec <= DOUBLE_TAP_MSEC and position.distance_to(_pending_tap_position) <= UiMetrics.dp(DOUBLE_TAP_DISTANCE_DP):
+	if _pending_tap and now - _pending_tap_msec <= DOUBLE_TAP_MSEC and position.distance_to(_pending_tap_position) <= _dp(DOUBLE_TAP_DISTANCE_DP):
 		_pending_tap = false
 		gesture_state = GestureState.TAP
 		double_tap.emit(position)
@@ -204,7 +211,7 @@ func _process(_delta: float) -> void:
 	var elapsed := Time.get_ticks_msec() - int(entry.get("started_msec", _press_started_msec))
 	var position: Vector2 = entry.get("position", Vector2.ZERO)
 	var start: Vector2 = entry.get("start", position)
-	if elapsed >= LONG_PRESS_MSEC and position.distance_to(start) < UiMetrics.dp(DRAG_THRESHOLD_DP):
+	if elapsed >= LONG_PRESS_MSEC and position.distance_to(start) < _dp(DRAG_THRESHOLD_DP):
 		gesture_state = GestureState.LONG_PRESS
 		long_press.emit(position)
 
