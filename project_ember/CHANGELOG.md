@@ -1,3 +1,124 @@
+## v0.10.2 — Fog of War & Chunked Map Streaming
+
+- Added player vision: the field army reveals a radius of 9 hexes; player cities reveal a radius of 4; the active settler reveals a radius of 3.
+- Added persistent exploration state. Previously explored terrain remains on the map but is dimmed when it is outside current line of sight. Unknown cells are hidden behind a dark fog layer.
+- Enemy field armies are rendered only while inside current player vision. Enemy cities remain as remembered map locations after discovery.
+- Exploration is stored as sparse encoded cell IDs in the existing campaign JSON. Save version and existing fields are unchanged; older saves automatically reveal only the player's current army/city/settler vicinity.
+- The viewport map streamer now iterates only the explored-cell index rather than looping over the entire 24,031-cell world on every map redraw.
+- Added continent-scale LOD: when zoom is at or below 0.22, explored cells are aggregated into 6×6 axial chunks before being submitted to the single MultiMesh terrain batch.
+- Partially explored chunks receive a soft alpha so the fog boundary remains visually distinct without drawing individual terrain details at continent scale.
+- Added regression tests for fog radius, hidden/unvisited cells, movement-based discovery, persistent remembered terrain, save/load and 1,024-to-36-instance LOD reduction.
+- FPS overlay now reports explored cells, discovered cells in the viewport, actual terrain batch instances and active LOD chunk size.
+- Physical Android pan/zoom performance and fog readability still require target-device verification.
+
+## v0.10.1 — Render Batch Performance Hotfix
+
+- Replaced per-hex drawing of terrain fills, shadows, outlines and grass/forest/hill/water details with one viewport-scoped `MultiMeshInstance2D` batch.
+- The batch uses a single compact procedural hex texture and per-instance terrain/faction tinting; visible map cells remain generated on demand.
+- Removed the high-frequency per-tile CanvasItem drawing methods from the strategic map.
+- Replaced repeated per-cell city ownership scans with a compact local lookup built from city claim rings.
+- Added a renderer smoke test that populates 1,024 tile instances and verifies that they are submitted as one terrain batch.
+- Extended the performance overlay with CPU process time, visible hex count and terrain batch count.
+- Preserved map coordinates, terrain generation, player movement, AI turns, city ownership, campaign saves and the nine-kingdom simulation.
+- Android device FPS and real GPU draw-call reduction still require physical validation; CI verifies the renderer's one-batch contract but cannot emulate the target phone's GPU.
+
+## v0.10.0 — Living World & Nine AI Kingdoms
+
+- Expanded the strategic world from the original 91-hex radius-5 map to a radius-89 hexagon containing exactly 24,031 hexes.
+- Added deterministic procedural terrain lookup. Hex terrain is generated from coordinates and a persisted world seed; the game does not allocate a scene node or save record for every tile.
+- Changed strategic rendering to generate and draw only the visible viewport cells. Added map navigation with one-finger drag, two-finger pan, pinch zoom, mouse-wheel zoom and keyboard panning.
+- Added nine independent AI kingdoms with named rulers, capitals, cities, armies, treasuries, food, production, buildings, build queues and military objectives.
+- Each campaign turn, all nine kingdoms collect city income, grow populations when food allows, progress construction, recruit role-specific troops, found additional cities when developed and move field armies.
+- Added faction-coloured territory/city/army map markers and a scrollable Kingdoms overview panel.
+- Tactical combat now targets whichever kingdom army the player selects; post-battle survivors, commander health and army position are written back to that kingdom.
+- Added additive save fields for world seed and kingdom states without changing SAVE_VERSION or removing existing JSON keys. Older v0.9.x saves preserve the player's city, army and enemy army as the first realm, then generate the remaining eight kingdoms.
+- Added CI smoke tests for exact world size, deterministic terrain, kingdom spawn safety, per-turn AI development, army aggregation and campaign save/load.
+- Procedural terrain is deterministic and currently visual/strategic passability only; biome combat still uses the local terrain sample. Advanced diplomacy, treaties, siege warfare and full AI-vs-AI battles remain future work.
+- Real-device performance and touch-navigation feel still require Android verification.
+
+## v0.9.5 — Compact Mobile HUD Fix
+
+- Replaced the permanent multi-row strategic command grid with a compact dock: Army, City, Turn and More.
+- Moved Attack, New Campaign, Found City and Settings into a secondary panel that is collapsed by default.
+- Reduced the strategic top status panel and clipped long status/help strings to a single line so the map remains visible.
+- Replaced the permanent tactical 4×3 command grid with a compact dock: Select All, March, Pause and Commands.
+- Moved selection/order/formation/retreat/speed/zoom/Battle Cry, group controls and Settings into a scrollable command drawer, collapsed by default.
+- Android Back closes an open command drawer before navigating other panels.
+- Preserved the existing callbacks, campaign rules, combat orders, control groups and touch target sizes.
+- Added CI smoke coverage for collapsed/expanded drawers, dock height budgets and the clear central map/battlefield area.
+- Physical Android testing is still required for actual touch reach, drawer scroll feel and different screen aspect ratios.
+
+## v0.9.4 — Mobile UX Foundation (UI-1)
+
+- Added DPI-aware `UiMetrics` with physical-pixel-to-reference-pixel dp conversion, 120–640 dpi clamping, 160 dpi fallback, live resize/UI-scale refresh and the 0.8–1.6 scale range.
+- Added a resize-aware `SafeAreaContainer` and placed the strategy, battle and FPS overlay HUD roots inside safe content bounds.
+- Added a shared `TouchGestureRouter` foundation for indexed touch, tap/double-tap/long-press, drag, pinch, two-finger pan and Control hit-testing. Raw touch is separated from emulated mouse input; existing Control buttons and legacy world input remain active.
+- Added reusable `Haptics`, `ToastManager`/`Toast`, `ConfirmDialog`, `BottomSheet` and `IconButton` components with a starter SVG icon set.
+- Connected vibration feedback to army/settler selection, orders, group recording and Battle Cry, respecting the existing vibration setting and an 80 ms rate limit.
+- Added Android Back handling: closes the top modal/panel first; battle Back pauses the fight, while map Back opens the existing settings panel rather than quitting.
+- Added app-background handling: the map saves its strategic state; tactical combat pauses and leaves the previous strategic checkpoint unchanged, matching the existing no-save-during-battle guard.
+- Changed handheld orientation to Sensor Landscape (both landscape directions) and disabled automatic exit on Back.
+- Protected New Campaign with a one-second hold confirmation; a normal tap no longer resets the campaign.
+- Changed campaign persistence to write/flush/validate `.tmp`, rotate the previous valid save to `.bak`, then replace the primary. Loading can recover from `.bak` and still uses the existing `.corrupt` preservation path. JSON v1 keys are unchanged.
+- Converted shared theme, settings, strategy/battle panel offsets, touch targets and FPS overlay dimensions to dp-based values.
+- Added CI smoke tests for dp calculation, touch routing, UI components, destructive reset confirmation, atomic saves and backup recovery.
+- Existing map/battle layouts and legacy mouse-world interactions are retained for this foundation pass; full gesture-driven HUD replacement remains UI-2/UI-3. Physical Android verification is still required.
+
+## v0.9.3 — Combat Effects & Sound
+
+- Connected pooled combat feedback to melee, spear, cavalry and ranged hits, projectile launches and trails, unit deaths, and the commander's Battle Cry.
+- Added reusable low-poly impact sparks, cavalry charge bursts, rally pulses, death dust and bow muzzle flashes.
+- Added seven original procedurally generated mono PCM sound cues: melee, spear, cavalry, bow, arrow impact, death and rally. No external audio files or licensed tracks are required.
+- Scales fixed effect/audio pools by graphics quality: Low 8/4, Medium 14/6, High 18/8.
+- Caches projectile mesh/material and effect meshes/materials; hit feedback reuses fixed slots rather than allocating scene nodes per strike.
+- Preserves campaign saves, unit roles, damage/armor formulas, movement, formations, collision and tactical controls. The existing SFX volume setting remains in control.
+- Adds CI coverage for generated sound data, quality-tier pool sizes, slot reuse and stable node budgets.
+- Android sound balance, effect readability and FPS still require device validation.
+
+## v0.9.2 — Battlefield Biomes & Terrain
+
+- Added four tactical battlefield biomes: grassland, woodland, highlands and marsh.
+- The biome is resolved from neighboring strategic hex terrain at battle start; a cell-derived seed keeps each battlefield's decorative layout repeatable.
+- Added biome-specific ground textures and palettes, varied grass/stone/tree densities, fallen woodland logs, highland rock shelves, and marsh pools with reeds.
+- Added the localized biome name to the tactical HUD.
+- Kept the same flat ground collision bounds and unit movement plane. Terrain props remain visual-only and introduce no additional collision bodies.
+- Did not change campaign save keys, unit role IDs, combat formulas, formation placement or tactical input mapping.
+- Added biome smoke tests for all four profiles, deterministic resolution, resource variation, collision safety and scene-node budgets.
+- Physical Android performance and visual readability across all biomes still require device validation.
+
+## v0.9.1 — Units
+
+- Replaced the multi-node procedural troop assembly with two merged, vertex-coloured ArrayMesh batches per team/role: a static silhouette and an animated action part.
+- Added distinct low-poly headgear and role silhouettes for swordsmen, archers, spearmen, cavalry and commanders; cavalry now includes a larger horse/rider silhouette with caparison and bridle details.
+- All ten team/role combinations cache their body/action meshes and share one vertex-colour material.
+- Added manual idle breathing and movement sway; added role-specific sword swings, spear thrusts, bow draw/release, cavalry charge swings and commander banner raises.
+- Added a short shared-material hit flash, falling death animation and 8–10 second corpse cleanup with quality-based corpse caps.
+- Consolidated target/selection feedback into one cached ring. Health bars are shown only for selected, targeted or wounded units.
+- Added distance/zoom-based animation LOD and extended visual tests to spawn 50 units, enforce the eight-node budget and verify mesh/material reuse.
+- Existing campaign saves, unit role IDs, combat formulas, movement, formation slots, collision capsule and touch controls remain unchanged.
+- Physical Android FPS, touch visibility and the feel/readability of the new animation pass remain pending device validation.
+
+## v0.9.0 — Foundation
+
+- Added a centralized `ArtPalette` and `ART_BIBLE.md` for the stylized low-poly fantasy direction.
+- Added a shared runtime `UiTheme` for strategic and tactical screens, including panel and button states, progress bars, readable 16 px base text and minimum 48 px touch targets.
+- Added `GameSettings` with independent `user://settings.cfg` persistence for graphics quality, master/music/SFX volume, UI scale, FPS overlay, vibration and camera speed. Campaign saves are untouched.
+- Added three graphics-quality presets and a first-run mobile-aware quality heuristic.
+- Added `PerfOverlay` for FPS, draw calls, rendered objects, primitives, node count and memory metrics where available.
+- Added `VisualCache` for shared materials, primitive meshes and the battlefield ground texture. Existing procedural unit/environment builders now reuse cached resources.
+- Added quality-aware battlefield decoration and shadow settings, plus Foundation tests for settings persistence, Theme construction and cache identity.
+- Campaign save keys, role IDs, damage formulas, movement speed, formation slots, collision and touch-control mapping remain unchanged.
+- Physical Android performance, touch response, safe-area placement and live UI scaling still require device validation.
+
+## v0.8.0 — Visual Overhaul
+
+- Added an illustrated hex-map renderer with layered terrain, tree silhouettes, hills, water details, miniature castles and shield/banner army markers.
+- Added a procedural low-poly tactical environment with textured ground, MultiMesh vegetation and stones, forest edges, ruins, ambient lighting and directional shadows.
+- Replaced capsule-only troop visuals with distinct swordsman, archer, spearman, cavalry horse-and-rider, and commander models.
+- Added subtle unit idle/movement animation while keeping collision, movement, combat stats and selection on the existing BattleUnit controller.
+- Updated strategy and battle panels to a dark bronze and aged-gold interface.
+- Added visual-overhaul smoke tests; campaign saves, role IDs, tactical controls and campaign rules remain unchanged.
+
 # Changelog — Project Ember
 
 ## v0.7.0 — Hero Commanders and Progression

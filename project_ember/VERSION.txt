@@ -1,8 +1,98 @@
-Project Ember v0.7.0
-- Added persistent player and enemy commanders with dedicated tactical units and visuals.
-- Added commander aura, Battle Cry, enemy commander ability AI and cooldown controls.
-- Added commander experience, levels, skill points and Leadership/Tactics/Might progression.
-- Added commander health persistence, wounds and recovery across campaign turns.
-- Added city-panel hero profile and skill-upgrade interface.
-- Added automated hero progression, tactical ability and save/load smoke tests.
-- Godot 4.3 CI validation required before release; v0.7.0 Android touch/UI/balance testing remains pending.
+Project Ember v0.10.5 — Illustrated Strategic Map
+- Capitals and settlements receive a clearer low-poly skyline, faction banners, stone foundations and capital/outpost scale hierarchy.
+- Adds cartographic road links from kingdom capitals to founded cities; road segments are drawn only over explored land that is not held by a rival.
+- Adds warm territory boundary strokes, generated only between explored cells with different ownership.
+- Adds deterministic natural landmarks: highland peaks, ancient trees, small islets and standing stones, derived from axial coordinates and world seed.
+- Road and border segments are batched into shared multiline draw calls on the existing strategic map canvas; no per-feature scene nodes or new save fields.
+- Adds smoke tests for axial path continuity, deterministic seed variation and all natural landmark families.
+- Retains the single MultiMesh terrain batch, fog-of-war rules, existing campaign save schema and GL Compatibility renderer.
+
+Project Ember v0.10.4 — Illustrated Strategic Terrain
+- Replaces the repeated flat hex fill with a compact five-column atlas: grassland, forest, highlands, water and continent-scale topographic surfaces.
+- Terrain atlas variation is encoded in the MultiMesh instance color alpha band; each cell gets a stable two-way motif orientation derived from axial coordinates, avoiding unsupported CanvasItem custom-instance shader data in Godot 4.3 GL Compatibility.
+- At zoom <= 0.22, six-hex LOD chunks use a restrained topographic motif instead of oversized individual terrain symbols.
+- The map retains one MultiMesh terrain batch; no per-hex nodes or additional terrain draw calls are introduced.
+- Fog-of-war tinting and ownership overlays continue to modulate each instance colour.
+- Adds renderer smoke tests for atlas selection, per-instance data, LOD motif selection and single-batch rendering.
+- Visual pass follows the Art Bible's warm, matte, stylized tabletop miniature direction and avoids heavy post-processing.
+
+Project Ember v0.10.3 — In-game Performance Report
+- FPS overlay now samples current, average, minimum and maximum FPS over a rolling 10-second window.
+- Adds a one-tap Android clipboard export with build, Godot/platform, viewport, CPU process time, draw calls, objects, primitives, node count, RAM/video memory and strategic map LOD/zoom statistics.
+- The copied report contains no account email, access token, campaign seed or player coordinates.
+- Adds a headless smoke test for report formatting and inclusion of key diagnostics.
+
+Project Ember v0.10.2 — Fog of War & Chunked Map Streaming
+- Field army vision radius: 9 hexes; city vision radius: 4; settler vision radius: 3.
+- Newly discovered cells are saved. Previously explored terrain stays visible in a dimmed remembered state; unknown cells remain hidden by fog.
+- Enemy armies render only inside current vision; enemy cities remain remembered after discovery.
+- Existing campaign JSON version and fields are preserved. Older saves discover the area around current player sources automatically.
+- Strategic viewport streaming iterates only explored cell IDs, not all 24,031 world hexes.
+- At zoom <= 0.22, discovered terrain aggregates into 6×6 axial LOD chunks and remains one MultiMesh draw batch.
+- FPS overlay reports explored count, viewport-known cells, batch instances and LOD scale.
+- Includes fog/save/load regression checks and a renderer test confirming 1,024 cells collapse to at most 36 instances in LOD mode.
+
+Project Ember v0.10.1 — Render Batch Performance Hotfix
+- Strategic terrain draws through a single viewport-scoped MultiMeshInstance2D batch instead of thousands of per-hex CanvasItem draw commands.
+- The hex texture is generated once in memory; per-instance colors preserve terrain and territory tinting.
+- City ownership tinting uses a compact claim lookup rather than repeatedly scanning every kingdom for every visible hex.
+- Performance overlay now reports CPU process ms, visible map hexes and terrain batch count.
+- Includes a renderer smoke test verifying 1,024 tile instances are submitted in one batch.
+- The 24,031-hex world, nine AI kingdoms, map navigation, save compatibility and existing tactical gameplay are retained.
+
+Project Ember v0.10.0 — Living World & Nine AI Kingdoms
+- World radius 89: 24,031 hexes. Terrain is deterministic, generated on demand from axial coordinates and a saved world seed.
+- Strategic map draws visible viewport cells only; it does not instantiate or persist 24,031 tile nodes.
+- Nine AI kingdoms have independent capitals, rulers, cities, economies, armies and building/recruitment queues.
+- Each turn every kingdom earns income, processes city development and recruitment, can expand and moves its army toward an objective.
+- Added faction map markers and a kingdom overview panel.
+- Strategic touch navigation supports drag, two-finger pan and pinch zoom; desktop supports middle-drag, wheel zoom and arrow keys.
+- Battles can be started against any selected kingdom army and persist its survivors.
+- Save JSON remains version 1 with additive world_seed and kingdoms fields; v0.9.x saves are migrated without discarding the player's city/army.
+- Godot 4.3 GL Compatibility remains the target.
+
+Project Ember v0.9.5 — Compact Mobile HUD Fix
+- Replaces permanent map and battle button grids with compact quick-action docks.
+- Moves secondary strategy and tactical commands into collapsible drawers; the battle drawer is scrollable.
+- Shortens the top status panels and keeps the map/battlefield visible when command drawers are closed.
+- Android Back closes the active command drawer first.
+- Preserves campaign save schema, tactical orders, group controls, combat rules and 48+ dp touch targets.
+- Adds automated mobile HUD layout smoke tests for drawer state, dock height and free central play area.
+
+Project Ember v0.9.4 — Mobile UX Foundation (UI-1)
+- Adds UiMetrics dp conversion using screen DPI, viewport/window stretch ratio and UI scale; supports dp scale 0.8–1.6 and refreshes after resize/settings changes.
+- Adds a SafeAreaContainer that recalculates display safe insets when the window/viewport changes.
+- Adds TouchGestureRouter signals for tap, double-tap, long-press, drag, pinch and two-finger pan, with UI hit-testing and emulated-mouse duplicate suppression.
+- Adds Haptics, ToastManager/Toast, ConfirmDialog, BottomSheet and IconButton foundations plus initial SVG menu/settings/confirm/cancel icons.
+- Adds Android Back handling, background strategic autosave / battle autopause, Sensor Landscape orientation and confirmed one-second New Campaign reset.
+- Campaign writes now use a validated .tmp file and .bak rotation/recovery. Existing campaign JSON version and key schema are unchanged; saving during unfinished combat remains blocked.
+- Converts shared UI theme, SettingsPanel, existing strategy/battle HUD offsets/button targets and FPS overlay to dp calculations.
+- UI-1 does not yet replace the legacy battle/map layouts or route world commands through the new gesture signals. Those are UI-2/UI-3 work.
+- Godot 4.3 GL Compatibility remains the target. Safe-area insets, actual dp sizing, haptics and app lifecycle require physical Android validation.
+
+Project Ember v0.9.3 — Combat Effects & Sound
+- Connects pooled hit, charge, rally, death, muzzle and projectile trail effects to tactical combat events.
+- Adds original procedural combat sounds for melee, spear, cavalry, bow, arrow impact, death and commander rally.
+- Scales fixed visual/audio pools by quality: Low 8/4, Medium 14/6, High 18/8.
+- Caches the glowing bolt mesh and material; no per-hit effect nodes are allocated.
+- Reuses the existing SFX volume setting and preserves damage formulas, saves, movement, unit roles, formation slots, collision and touch controls.
+- Godot 4.3 GL Compatibility remains the target. Physical Android sound balance and performance checks are still required.
+
+Project Ember v0.9.2 — Battlefield Biomes & Terrain
+- Adds grassland, woodland, highlands and marsh battlefield profiles selected from neighboring strategic hex terrain.
+- Biome-specific ground textures/palettes, vegetation density and low-poly props create repeatable battlefield variation.
+- Adds fallen logs, rock shelves, shallow marsh pools and reeds with quality-aware decoration counts.
+- Tactical HUD displays the terrain name.
+- The flat ground collision body and bounds are unchanged; biome decorations add no blocking colliders.
+- Campaign save schema, unit roles, combat formulas, formation slots and tactical input mapping remain compatible.
+- Godot 4.3 GL Compatibility remains the target; physical Android FPS/readability checks are still required.
+
+- Each unit now uses two merged vertex-coloured ArrayMesh batches: static body silhouette and an animated action part.
+- Ten cached team/role mesh combinations share a single vertex-colour material.
+- Distinct silhouettes and role details are retained for swordsmen, archers, spearmen, cavalry and commanders.
+- Added idle/movement animation, melee swings, spear thrusts, bow draw/release, cavalry charge motion and commander banner motion.
+- Added shared-material hit flash, falling death animation and quality-capped 8–10 second corpses.
+- Selection/target feedback uses one cached ring; health bars appear only when selected, targeted or wounded.
+- Core BattleUnit node count is capped at eight including collision, ring and health elements; CI tests 50 unit instances.
+- Campaign saves, unit role IDs, damage formulas, speeds, formation slots, collision and input mapping remain unchanged.
+- Godot 4.3 GL Compatibility is retained; real Android performance, touch rendering and combat readability still require device testing.

@@ -6,15 +6,19 @@ config_version=5
 config/name="Project Ember"
 run/main_scene="res://scenes/strategy_map.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
+config/quit_on_go_back=false
 
 [autoload]
+GameSettings="*res://scripts/game_settings.gd"
 CampaignState="*res://scripts/campaign_state.gd"
+UiMetrics="*res://scripts/ui_metrics.gd"
+Haptics="*res://scripts/haptics.gd"
 
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=720
 window/size/resizable=true
-window/handheld/orientation=0
+window/handheld/orientation=4
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
