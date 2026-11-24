@@ -15,7 +15,7 @@ func _ready() -> void:
 		var icon_resource := load(icon_path)
 		if icon_resource is Texture2D:
 			icon = icon_resource
-			icon_max_width = int(UiMetrics.dp(26.0))
+			# Godot 4.3 Button does not expose icon_max_width; the dp touch target and native icon layout remain enabled.
 	if icon == null:
 		text = (fallback_icon + "  " + label_text).strip_edges()
 	else:
