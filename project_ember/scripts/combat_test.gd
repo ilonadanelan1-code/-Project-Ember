@@ -248,10 +248,10 @@ func _create_ui() -> void:
 	top_panel.anchor_top = 0.0
 	top_panel.anchor_right = 1.0
 	top_panel.anchor_bottom = 0.0
-	top_panel.offset_left = 10.0
-	top_panel.offset_top = 8.0
-	top_panel.offset_right = -10.0
-	top_panel.offset_bottom = 128.0
+	top_panel.offset_left = UiMetrics.dp(10.0)
+	top_panel.offset_top = UiMetrics.dp(8.0)
+	top_panel.offset_right = -UiMetrics.dp(10.0)
+	top_panel.offset_bottom = UiMetrics.dp(128.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
@@ -276,7 +276,7 @@ func _create_ui() -> void:
 	_group_store_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for group_id in range(1, 5):
 		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
-		group_button.custom_minimum_size = Vector2(0.0, 40.0)
+		group_button.custom_minimum_size = Vector2(UiMetrics.dp(0.0), UiMetrics.dp(40.0))
 		group_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_control_group_buttons[group_id] = group_button
 	var settings_button := _add_action_button(group_row, "НАСТРОЙКИ", _open_settings)
@@ -288,10 +288,10 @@ func _create_ui() -> void:
 	bottom_panel.anchor_top = 1.0
 	bottom_panel.anchor_right = 1.0
 	bottom_panel.anchor_bottom = 1.0
-	bottom_panel.offset_left = 8.0
-	bottom_panel.offset_top = -258.0
-	bottom_panel.offset_right = -8.0
-	bottom_panel.offset_bottom = -8.0
+	bottom_panel.offset_left = UiMetrics.dp(8.0)
+	bottom_panel.offset_top = -UiMetrics.dp(258.0)
+	bottom_panel.offset_right = -UiMetrics.dp(8.0)
+	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
 	root.add_child(bottom_panel)
 
 	var margin := MarginContainer.new()
@@ -339,11 +339,11 @@ func _create_result_panel(parent: Control) -> void:
 	_result_panel.anchor_top = 0.5
 	_result_panel.anchor_right = 0.5
 	_result_panel.anchor_bottom = 0.5
-	_result_panel.offset_left = -270.0
-	_result_panel.offset_top = -158.0
-	_result_panel.offset_right = 270.0
-	_result_panel.offset_bottom = 158.0
-	_result_panel.custom_minimum_size = Vector2(540.0, 316.0)
+	_result_panel.offset_left = -UiMetrics.dp(270.0)
+	_result_panel.offset_top = -UiMetrics.dp(158.0)
+	_result_panel.offset_right = UiMetrics.dp(270.0)
+	_result_panel.offset_bottom = UiMetrics.dp(158.0)
+	_result_panel.custom_minimum_size = Vector2(UiMetrics.dp(540.0), UiMetrics.dp(316.0))
 	_result_panel.visible = false
 	parent.add_child(_result_panel)
 
@@ -371,7 +371,7 @@ func _create_result_panel(parent: Control) -> void:
 	content.add_child(_result_details)
 
 	var return_button := _add_action_button(content, "НА СТРАТЕГИЧЕСКУЮ КАРТУ", _return_to_strategy_map)
-	return_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(52.0))
+	return_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(56.0))
 
 
 
@@ -380,7 +380,7 @@ func _add_action_button(parent: Container, title: String, callback: Callable) ->
 	button.text = title
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
-	button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(52.0))
+	button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(56.0))
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	button.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
