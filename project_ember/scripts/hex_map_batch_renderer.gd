@@ -2,34 +2,41 @@ extends Node2D
 class_name HexMapBatchRenderer
 
 ## One batched MultiMesh draws every visible strategic hex.
-## Terrain-specific atlas motifs and per-instance orientation keep the map
-## varied without creating per-cell nodes or additional draw calls.
+## Terrain-specific atlas motifs are selected through the instance color alpha
+## channel so the GL Compatibility renderer can keep a single draw call.
 
 const TEXTURE_WIDTH := 64
 const TEXTURE_HEIGHT := 72
 const TERRAIN_VARIANT_COUNT := 5
+const ATLAS_COLUMN_COUNT := 9
 const VARIANT_GRASS := 0
 const VARIANT_FOREST := 1
 const VARIANT_HILLS := 2
 const VARIANT_WATER := 3
 const VARIANT_LOD := 4
+const DIRECT_ALPHA_MIN := 0.55
+const DIRECT_ALPHA_SPAN := 0.42
+const LOD_ALPHA_MIN := 0.28
+const LOD_ALPHA_SPAN := 0.21
 
 const TERRAIN_SHADER_CODE := """
 shader_type canvas_item;
 render_mode blend_mix;
 
 void fragment() {
-	float variant = clamp(floor(INSTANCE_CUSTOM.r + 0.5), 0.0, 4.0);
-	float turn_index = floor(clamp(INSTANCE_CUSTOM.g, 0.0, 0.999) * 6.0);
-	float angle = turn_index * (PI / 3.0);
-	float c = cos(angle);
-	float s = sin(angle);
-	vec2 centered_uv = UV - vec2(0.5);
-	vec2 rotated_uv = mat2(c, -s, s, c) * centered_uv + vec2(0.5);
-	rotated_uv = clamp(rotated_uv, vec2(0.018), vec2(0.982));
-	vec2 atlas_uv = vec2((variant + rotated_uv.x) / 5.0, rotated_uv.y);
+	float encoded_alpha = COLOR.a;
+	float atlas_column = 8.0;
+	float output_alpha = 1.0;
+	if (encoded_alpha < 0.5) {
+		atlas_column = 8.0;
+		output_alpha = clamp((encoded_alpha - 0.28) / 0.21, 0.0, 1.0);
+	} else {
+		atlas_column = clamp(floor(((encoded_alpha - 0.55) / 0.42) * 7.0 + 0.5), 0.0, 7.0);
+	}
+	vec2 local_uv = clamp(UV, vec2(0.018), vec2(0.982));
+	vec2 atlas_uv = vec2((atlas_column + local_uv.x) / 9.0, local_uv.y);
 	vec4 tile = texture(TEXTURE, atlas_uv);
-	COLOR = vec4(tile.rgb * COLOR.rgb, tile.a * COLOR.a);
+	COLOR = vec4(tile.rgb * COLOR.rgb, tile.a * output_alpha);
 }
 """
 
@@ -41,6 +48,7 @@ var _last_instance_count: int = 0
 var _last_zoom: float = -1.0
 var _last_lod_chunk_size: int = 1
 var _last_source_cell_count: int = 0
+var _last_atlas_indices: PackedInt32Array = PackedInt32Array()
 
 
 func _ready() -> void:
@@ -52,7 +60,6 @@ func _ready() -> void:
 	_multimesh = MultiMesh.new()
 	_multimesh.transform_format = MultiMesh.TRANSFORM_2D
 	_multimesh.use_colors = true
-	_multimesh.use_custom_data = true
 	_multimesh.mesh = _quad
 	_multimesh.instance_count = 0
 
@@ -100,27 +107,27 @@ func set_map_tiles(
 		colors: PackedColorArray,
 		tile_size: Vector2,
 		zoom: float,
-		custom_data: PackedColorArray = PackedColorArray()
+		terrain_data: PackedColorArray = PackedColorArray()
 ) -> void:
 	var source_count := mini(cells.size(), mini(centers.size(), colors.size()))
 	_last_source_cell_count = source_count
-	var has_custom_data := custom_data.size() >= source_count
+	var has_terrain_data := terrain_data.size() >= source_count
 	var chunk_size := 1
 	if zoom <= 0.22:
 		chunk_size = 6
 	if chunk_size == 1:
 		var direct_centers := PackedVector2Array()
 		var direct_colors := PackedColorArray()
-		var direct_custom_data := PackedColorArray()
+		var direct_styles := PackedColorArray()
 		direct_centers.resize(source_count)
 		direct_colors.resize(source_count)
-		direct_custom_data.resize(source_count)
+		direct_styles.resize(source_count)
 		for index in range(source_count):
 			direct_centers[index] = centers[index]
 			direct_colors[index] = colors[index]
-			direct_custom_data[index] = custom_data[index] if has_custom_data else make_instance_data(cells[index], "grass")
+			direct_styles[index] = terrain_data[index] if has_terrain_data else make_instance_data(cells[index], "grass")
 		_last_lod_chunk_size = 1
-		set_tiles(direct_centers, direct_colors, tile_size, zoom, direct_custom_data)
+		set_tiles(direct_centers, direct_colors, tile_size, zoom, direct_styles)
 		return
 
 	var buckets: Dictionary = {}
@@ -146,7 +153,7 @@ func set_map_tiles(
 
 	var lod_centers := PackedVector2Array()
 	var lod_colors := PackedColorArray()
-	var lod_custom_data := PackedColorArray()
+	var lod_styles := PackedColorArray()
 	for bucket_key_value in buckets.keys():
 		var bucket: Dictionary = buckets[bucket_key_value]
 		var count := int(bucket["count"])
@@ -154,18 +161,18 @@ func set_map_tiles(
 			continue
 		var average_color: Color = bucket["color"]
 		average_color /= float(count)
-		# A soft alpha at the boundary keeps partially explored chunks visually
-		# subordinate to fully explored terrain without revealing hidden details.
+		# The lower alpha band is reserved for LOD coverage. The shader maps
+		# it back to opacity while selecting a simplified topographic atlas tile.
 		var coverage := clampf(float(count) / float(chunk_size * chunk_size), 0.0, 1.0)
-		average_color.a *= 0.28 + coverage * 0.72
+		average_color.a = LOD_ALPHA_MIN + coverage * LOD_ALPHA_SPAN
 		var average_position: Vector2 = bucket["position"]
 		lod_centers.append(average_position / float(count))
 		lod_colors.append(average_color)
 		var chunk_cell: Vector2i = bucket_key_value
-		lod_custom_data.append(make_instance_data(chunk_cell, "grass", true))
+		lod_styles.append(make_instance_data(chunk_cell, "grass", true))
 
 	_last_lod_chunk_size = chunk_size
-	set_tiles(lod_centers, lod_colors, tile_size * float(chunk_size), zoom, lod_custom_data)
+	set_tiles(lod_centers, lod_colors, tile_size * float(chunk_size), zoom, lod_styles)
 
 
 func set_tiles(
@@ -173,7 +180,7 @@ func set_tiles(
 		colors: PackedColorArray,
 		tile_size: Vector2,
 		zoom: float,
-		custom_data: PackedColorArray = PackedColorArray()
+		terrain_data: PackedColorArray = PackedColorArray()
 ) -> void:
 	if not is_instance_valid(_multimesh) or not is_instance_valid(_instance):
 		return
@@ -182,6 +189,7 @@ func set_tiles(
 		_multimesh.instance_count = count
 		_multimesh.visible_instance_count = count
 	_last_instance_count = count
+	_last_atlas_indices.resize(count)
 	var scaled_size := tile_size * zoom
 	for index in range(count):
 		var center := centers[index]
@@ -191,10 +199,25 @@ func set_tiles(
 			center
 		)
 		_multimesh.set_instance_transform_2d(index, transform)
-		_multimesh.set_instance_color(index, colors[index])
-		var instance_data := custom_data[index] if index < custom_data.size() else Color(float(VARIANT_LOD), 0.0, 0.0, 1.0)
-		_multimesh.set_instance_custom_data(index, instance_data)
+		var style := terrain_data[index] if index < terrain_data.size() else Color(float(VARIANT_GRASS), 0.0, 0.0, 1.0)
+		var rendered_color := colors[index]
+		var atlas_index := _get_atlas_index(style)
+		if atlas_index == 8:
+			rendered_color.a = clampf(colors[index].a, LOD_ALPHA_MIN, LOD_ALPHA_MIN + LOD_ALPHA_SPAN)
+		else:
+			rendered_color.a = DIRECT_ALPHA_MIN + (float(atlas_index) / 7.0) * DIRECT_ALPHA_SPAN
+		_multimesh.set_instance_color(index, rendered_color)
+		_last_atlas_indices[index] = atlas_index
 	_last_zoom = zoom
+
+
+func _get_atlas_index(style: Color) -> int:
+	var terrain_variant := clampi(roundi(style.r), VARIANT_GRASS, VARIANT_LOD)
+	if terrain_variant == VARIANT_LOD:
+		return 8
+	var orientation_step := floori(clampf(style.g, 0.0, 0.999) * 6.0)
+	var orientation_variant := 1 if orientation_step >= 3 else 0
+	return terrain_variant * 2 + orientation_variant
 
 
 func get_tile_instance_count() -> int:
@@ -221,24 +244,24 @@ func get_texture() -> Texture2D:
 	return _hex_texture
 
 
-func get_instance_custom_data(index: int) -> Color:
-	if not is_instance_valid(_multimesh) or index < 0 or index >= _last_instance_count:
-		return Color.TRANSPARENT
-	return _multimesh.get_instance_custom_data(index)
-
-
-func is_using_instance_custom_data() -> bool:
-	return is_instance_valid(_multimesh) and _multimesh.use_custom_data
-
-
 func get_terrain_variant_count() -> int:
 	return TERRAIN_VARIANT_COUNT
 
 
+func get_atlas_column_count() -> int:
+	return ATLAS_COLUMN_COUNT
+
+
+func get_instance_atlas_index(index: int) -> int:
+	if index < 0 or index >= _last_atlas_indices.size():
+		return -1
+	return _last_atlas_indices[index]
+
+
 func _make_hex_texture() -> ImageTexture:
-	var atlas := Image.create(TEXTURE_WIDTH * TERRAIN_VARIANT_COUNT, TEXTURE_HEIGHT, false, Image.FORMAT_RGBA8)
+	var atlas := Image.create(TEXTURE_WIDTH * ATLAS_COLUMN_COUNT, TEXTURE_HEIGHT, false, Image.FORMAT_RGBA8)
 	atlas.fill(Color(0.0, 0.0, 0.0, 0.0))
-	for variant in range(TERRAIN_VARIANT_COUNT):
+	for variant in range(TERRAIN_VARIANT_COUNT - 1):
 		_draw_hex_base(atlas, variant * TEXTURE_WIDTH)
 		match variant:
 			VARIANT_GRASS:
@@ -249,8 +272,18 @@ func _make_hex_texture() -> ImageTexture:
 				_draw_hills_motif(atlas, variant * TEXTURE_WIDTH)
 			VARIANT_WATER:
 				_draw_water_motif(atlas, variant * TEXTURE_WIDTH)
-			VARIANT_LOD:
-				_draw_lod_motif(atlas, variant * TEXTURE_WIDTH)
+	_draw_hex_base(atlas, 8 * TEXTURE_WIDTH)
+	_draw_lod_motif(atlas, 8 * TEXTURE_WIDTH)
+
+	# Duplicate each terrain motif with a 180-degree orientation. A pointy-top
+	# hex is rotationally symmetric at this angle, but its terrain marks are not.
+	for variant in range(TERRAIN_VARIANT_COUNT - 1):
+		var source_offset := variant * TEXTURE_WIDTH
+		var target_offset := (variant + 4) * TEXTURE_WIDTH
+		for y in range(TEXTURE_HEIGHT):
+			for x in range(TEXTURE_WIDTH):
+				atlas.set_pixel(target_offset + TEXTURE_WIDTH - 1 - x, TEXTURE_HEIGHT - 1 - y, atlas.get_pixel(source_offset + x, y))
+
 	_hex_texture = ImageTexture.create_from_image(atlas)
 	return _hex_texture
 
