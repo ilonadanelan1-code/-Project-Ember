@@ -142,6 +142,10 @@ func get_lod_chunk_size() -> int:
 	return _last_lod_chunk_size
 
 
+func get_last_zoom() -> float:
+	return _last_zoom
+
+
 func get_source_cell_count() -> int:
 	return _last_source_cell_count
 

@@ -1,3 +1,9 @@
+Project Ember v0.10.3 — In-game Performance Report
+- FPS overlay now samples current, average, minimum and maximum FPS over a rolling 10-second window.
+- Adds a one-tap Android clipboard export with build, Godot/platform, viewport, CPU process time, draw calls, objects, primitives, node count, RAM/video memory and strategic map LOD/zoom statistics.
+- The copied report contains no account email, access token, campaign seed or player coordinates.
+- Adds a headless smoke test for report formatting and inclusion of key diagnostics.
+
 Project Ember v0.10.2 — Fog of War & Chunked Map Streaming
 - Field army vision radius: 9 hexes; city vision radius: 4; settler vision radius: 3.
 - Newly discovered cells are saved. Previously explored terrain stays visible in a dimmed remembered state; unknown cells remain hidden by fog.

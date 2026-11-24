@@ -47,6 +47,8 @@ jobs:
           test -f project_ember/scripts/ui_theme.gd
           test -f project_ember/scripts/game_settings.gd
           test -f project_ember/scripts/perf_overlay.gd
+          test -f project_ember/scripts/performance_report.gd
+          test -f project_ember/tests/performance_report_smoke_test.gd
           test -f project_ember/scripts/visual_cache.gd
           test -f project_ember/scripts/settings_panel.gd
           test -f project_ember/scripts/battlefield_visuals.gd
@@ -73,6 +75,20 @@ jobs:
           test -f project_ember/ui/icons/menu.svg
           test -f project_ember/ui/icons/settings.svg
           test -f project_ember/scripts/unit_catalog.gd
+      - name: Test in-game performance report formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/performance_report_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Performance report tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All performance report smoke tests passed." "$log_file"; then
+            echo "Performance report test did not reach its success marker." >&2
+            exit 1
+          fi
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
         run: |
@@ -324,7 +340,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.10.2-Fog-of-War-LOD
+          name: Project-Ember-v0.10.3-Performance-Report
           path: |
             project_ember/**
             !project_ember/.godot/**
