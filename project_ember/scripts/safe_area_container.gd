@@ -9,6 +9,13 @@ var content_root: Control
 var _window: Window
 
 
+func _dp(value: float) -> float:
+	var metrics := get_node_or_null("/root/UiMetrics")
+	if is_instance_valid(metrics) and metrics.has_method("dp"):
+		return float(metrics.call("dp", value))
+	return value
+
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -68,9 +75,9 @@ func refresh_safe_area() -> void:
 
 	var scale_x := viewport_size.x / window_size.x
 	var scale_y := viewport_size.y / window_size.y
-	var base_horizontal := UiMetrics.dp(horizontal_padding_dp)
-	var base_top := UiMetrics.dp(top_padding_dp)
-	var base_bottom := UiMetrics.dp(bottom_padding_dp)
+	var base_horizontal := _dp(horizontal_padding_dp)
+	var base_top := _dp(top_padding_dp)
+	var base_bottom := _dp(bottom_padding_dp)
 	content_root.offset_left = insets.x * scale_x + base_horizontal
 	content_root.offset_top = insets.y * scale_y + base_top
 	content_root.offset_right = -(insets.z * scale_x + base_horizontal)
