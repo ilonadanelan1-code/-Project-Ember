@@ -13,6 +13,8 @@ var _hex_texture: ImageTexture
 var _quad: QuadMesh
 var _last_instance_count: int = 0
 var _last_zoom: float = -1.0
+var _last_lod_chunk_size: int = 1
+var _last_source_cell_count: int = 0
 
 
 func _ready() -> void:
@@ -33,6 +35,78 @@ func _ready() -> void:
 	_instance.texture = _make_hex_texture()
 	_instance.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	add_child(_instance)
+
+
+func _draw() -> void:
+	# The empty world is the unexplored fog layer. Discovered tiles are drawn
+	# above this solid backdrop, so no hidden terrain data is exposed.
+	draw_rect(Rect2(Vector2.ZERO, get_viewport_rect().size), Color("#111710"), true)
+
+
+func set_map_tiles(
+		cells: Array[Vector2i],
+		centers: PackedVector2Array,
+		colors: PackedColorArray,
+		tile_size: Vector2,
+		zoom: float
+) -> void:
+	var source_count := mini(cells.size(), mini(centers.size(), colors.size()))
+	_last_source_cell_count = source_count
+	var chunk_size := 1
+	if zoom <= 0.22:
+		chunk_size = 6
+	if chunk_size == 1:
+		var direct_centers := PackedVector2Array()
+		var direct_colors := PackedColorArray()
+		direct_centers.resize(source_count)
+		direct_colors.resize(source_count)
+		for index in range(source_count):
+			direct_centers[index] = centers[index]
+			direct_colors[index] = colors[index]
+		_last_lod_chunk_size = 1
+		set_tiles(direct_centers, direct_colors, tile_size, zoom)
+		return
+
+	var buckets: Dictionary = {}
+	for index in range(source_count):
+		var cell := cells[index]
+		var bucket_key := Vector2i(
+			floori(float(cell.x) / float(chunk_size)),
+			floori(float(cell.y) / float(chunk_size))
+		)
+		if not buckets.has(bucket_key):
+			buckets[bucket_key] = {
+				"position": Vector2.ZERO,
+				"color": Color(0.0, 0.0, 0.0, 0.0),
+				"count": 0,
+			}
+		var bucket: Dictionary = buckets[bucket_key]
+		var bucket_position: Vector2 = bucket["position"]
+		var bucket_color: Color = bucket["color"]
+		bucket["position"] = bucket_position + centers[index]
+		bucket["color"] = bucket_color + colors[index]
+		bucket["count"] = int(bucket["count"]) + 1
+		buckets[bucket_key] = bucket
+
+	var lod_centers := PackedVector2Array()
+	var lod_colors := PackedColorArray()
+	for bucket_value in buckets.values():
+		var bucket: Dictionary = bucket_value
+		var count := int(bucket["count"])
+		if count <= 0:
+			continue
+		var average_color: Color = bucket["color"]
+		average_color /= float(count)
+		# A soft alpha at the boundary keeps partially explored chunks visually
+		# subordinate to fully explored terrain without revealing hidden details.
+		var coverage := clampf(float(count) / float(chunk_size * chunk_size), 0.0, 1.0)
+		average_color.a *= 0.28 + coverage * 0.72
+		var average_position: Vector2 = bucket["position"]
+		lod_centers.append(average_position / float(count))
+		lod_colors.append(average_color)
+
+	_last_lod_chunk_size = chunk_size
+	set_tiles(lod_centers, lod_colors, tile_size * float(chunk_size), zoom)
 
 
 func set_tiles(centers: PackedVector2Array, colors: PackedColorArray, tile_size: Vector2, zoom: float) -> void:
@@ -62,6 +136,14 @@ func get_tile_instance_count() -> int:
 
 func get_batched_draw_count() -> int:
 	return 1 if _last_instance_count > 0 else 0
+
+
+func get_lod_chunk_size() -> int:
+	return _last_lod_chunk_size
+
+
+func get_source_cell_count() -> int:
+	return _last_source_cell_count
 
 
 func get_texture() -> Texture2D:

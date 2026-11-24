@@ -48,12 +48,26 @@ func _run() -> void:
 	_check(state.get_world_terrain(Vector2i(2, 0)) == "plain", "starting conflict corridor is passable")
 	_check(state.get_world_terrain(Vector2i(500, 500)) == "void", "coordinates outside the world are rejected")
 	_check(state.get_world_terrain(Vector2i(20, 18)) == state.get_world_terrain(Vector2i(20, 18)), "procedural terrain is deterministic")
+	_check(WorldScript.decode_cell(WorldScript.encode_cell(Vector2i(-11, 0))) == Vector2i(-11, 0), "fog cell coordinates encode and decode safely")
+	_check(state.is_cell_visible(state.player_cell), "player army has active vision around its current position")
+	_check(state.is_cell_explored(state.player_cell), "current player position is permanently explored")
+	_check(not state.is_cell_explored(Vector2i(20, 20)), "distant terrain starts hidden by fog of war")
+	var initial_explored_count := state.get_explored_cell_count()
+	_check(initial_explored_count > 250 and initial_explored_count < 450, "initial vision reveals only a compact local region")
 
 	var first_army_before := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
 	state.advance_campaign_turn()
 	_check(state.turn_number == 2, "campaign turn advances")
 	var first_army_after := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
 	_check(first_army_after != first_army_before, "first kingdom moves its army on its scheduled AI turn")
+
+	var remembered_cell := Vector2i(-11, 0)
+	state.player_cell = Vector2i(15, 0)
+	state.refresh_fog_of_war()
+	_check(state.is_cell_visible(Vector2i(24, 0)), "moving the army reveals newly visible terrain")
+	_check(state.is_cell_explored(remembered_cell), "previously discovered terrain remains remembered")
+	_check(not state.is_cell_visible(remembered_cell), "remembered terrain is no longer currently visible")
+	_check(not state.is_cell_explored(Vector2i(40, 35)), "unvisited distant terrain remains hidden")
 	for index in range(state.kingdoms.size()):
 		var kingdom: Dictionary = state.kingdoms[index]
 		_check(not str(kingdom.get("last_action", "")).is_empty(), "kingdom %d performs an AI turn" % (index + 1))
@@ -84,6 +98,10 @@ func _run() -> void:
 	_check(str(state.kingdoms[3].get("name", "")) == expected_kingdom_name, "save/load preserves kingdom identities")
 	_check(state.kingdoms.size() == 9, "save/load preserves all nine AI kingdoms")
 	_check(state.get_total_enemy_units() >= total_starting_units, "save/load preserves AI armies")
+	_check(state.is_cell_explored(remembered_cell), "save/load preserves previously explored fog cells")
+	_check(state.is_cell_visible(state.player_cell), "save/load restores current player vision")
+	_check(not state.is_cell_visible(remembered_cell), "save/load does not mark distant memories as currently visible")
+	_check(not state.is_cell_explored(Vector2i(40, 35)), "save/load keeps unknown terrain hidden")
 
 	state.queue_free()
 	await process_frame

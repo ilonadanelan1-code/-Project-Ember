@@ -12,8 +12,7 @@ const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
 const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
 const HexMapBatchRendererScript = preload("res://scripts/hex_map_batch_renderer.gd")
 
-## First playable strategic-map slice: a compact axial-hex map, one player army,
-## one neutral enemy army, turn-based movement and transition to tactical combat.
+## Explored-world strategic map: fog of war, viewport streaming and AI kingdom markers.
 
 const MAP_RADIUS := WorldGeneratorScript.WORLD_RADIUS
 const HEX_SIZE := 30.0
@@ -61,7 +60,7 @@ var _hero_overview_label: Label
 var _hero_skill_buttons: Dictionary = {}
 var _city_building_buttons: Dictionary = {}
 var _city_recruit_buttons: Dictionary = {}
-var _message_text: String = "P — твоя армия, ! — враг. Выбери P и коснись соседнего гекса."
+var _message_text: String = "P — твоя армия. Неизведанные земли скрыты туманом войны."
 var _safe_area: SafeAreaContainer
 var _gesture_router: TouchGestureRouter
 var _toast_manager: ToastManager
@@ -106,16 +105,18 @@ func _draw() -> void:
 			tint = tint.lerp(PLAYER_TEAM_COLOR, 0.22)
 		elif owner_id >= 0:
 			tint = tint.lerp(_kingdom_color(owner_id), 0.20)
+		if not CampaignState.is_cell_visible(cell):
+			tint = tint.darkened(0.58)
 		colors[index] = tint
 	if is_instance_valid(_terrain_renderer):
-		_terrain_renderer.set_tiles(centers, colors, Vector2(56.0, 64.0), _map_zoom)
+		_terrain_renderer.set_map_tiles(_cells, centers, colors, Vector2(56.0, 64.0), _map_zoom)
 
-	# Only strategic entities use individual drawing commands. The thousands of
-	# terrain hexes above are submitted by one MultiMesh draw batch.
+	# Explored cities remain on the map as remembered locations. Enemy armies,
+	# unlike cities, are shown only while currently inside the player's sight.
 	for city_data in CampaignState.cities:
 		var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 		var center := _hex_center(cell)
-		if _point_is_visible(center, 36.0 * _map_zoom):
+		if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
 			_draw_city_marker(center, Palette.MAP_CITY_FLAG)
 
 	for kingdom_index in range(CampaignState.kingdoms.size()):
@@ -124,18 +125,19 @@ func _draw() -> void:
 		for city_data in kingdom.get("cities", []):
 			var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 			var center := _hex_center(cell)
-			if _point_is_visible(center, 36.0 * _map_zoom):
-				_draw_city_marker(center, faction_color)
+			if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
+				var remembered_color := faction_color if CampaignState.is_cell_visible(cell) else faction_color.darkened(0.58)
+				_draw_city_marker(center, remembered_color)
 		var army: Array = kingdom.get("army", [])
 		if not army.is_empty():
 			var army_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
 			var army_center := _hex_center(army_cell)
-			if _point_is_visible(army_center, 30.0 * _map_zoom):
+			if CampaignState.is_cell_visible(army_cell) and _point_is_visible(army_center, 30.0 * _map_zoom):
 				_draw_army_marker(army_cell, faction_color, str(kingdom_index + 1))
 
 	if CampaignState.settler_active:
 		var settler_center := _hex_center(CampaignState.settler_cell)
-		if _point_is_visible(settler_center, 24.0 * _map_zoom):
+		if CampaignState.is_cell_visible(CampaignState.settler_cell) and _point_is_visible(settler_center, 24.0 * _map_zoom):
 			_draw_settler_marker(settler_center)
 	if not CampaignState.player_units.is_empty():
 		var player_center := _hex_center(CampaignState.player_cell)
@@ -169,6 +171,8 @@ func _refresh_owner_lookup() -> void:
 
 
 func _get_visible_map_cells() -> Array[Vector2i]:
+	# Choose the cheaper source: scan the small viewport rectangle when zoomed
+	# in, or scan the sparse explored-cell index when zoomed out over the world.
 	var result: Array[Vector2i] = []
 	var viewport_size := get_viewport_rect().size
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
@@ -194,13 +198,26 @@ func _get_visible_map_cells() -> Array[Vector2i]:
 	var q_end := mini(MAP_RADIUS, ceili(max_q) + 2)
 	var r_start := maxi(-MAP_RADIUS, floori(min_r) - 2)
 	var r_end := mini(MAP_RADIUS, ceili(max_r) + 2)
-	for q in range(q_start, q_end + 1):
-		for r in range(r_start, r_end + 1):
-			var cell := Vector2i(q, r)
-			if not WorldGeneratorScript.is_inside_world(cell):
+	var rectangle_candidates := maxi(0, q_end - q_start + 1) * maxi(0, r_end - r_start + 1)
+
+	if rectangle_candidates <= CampaignState.explored_cells.size():
+		for q in range(q_start, q_end + 1):
+			for r in range(r_start, r_end + 1):
+				var cell := Vector2i(q, r)
+				if not WorldGeneratorScript.is_inside_world(cell) or not CampaignState.is_cell_explored(cell):
+					continue
+				var world_center := _hex_world_position(cell)
+				if absf(world_center.x - _camera_center_world.x) <= half_world.x and absf(world_center.y - _camera_center_world.y) <= half_world.y:
+					result.append(cell)
+	else:
+		for encoded_value in CampaignState.explored_cells.keys():
+			var cell := WorldGeneratorScript.decode_cell(int(encoded_value))
+			if cell == Vector2i(9999, 9999):
 				continue
 			var world_center := _hex_world_position(cell)
-			if absf(world_center.x - _camera_center_world.x) > half_world.x or absf(world_center.y - _camera_center_world.y) > half_world.y:
+			if absf(world_center.x - _camera_center_world.x) > half_world.x:
+				continue
+			if absf(world_center.y - _camera_center_world.y) > half_world.y:
 				continue
 			result.append(cell)
 	return result
@@ -941,6 +958,10 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 	var cell := _screen_to_cell(screen_position)
 	if cell == Vector2i(9999, 9999):
 		return
+	if not CampaignState.is_cell_explored(cell):
+		_message_text = "Эта область скрыта туманом войны. Сначала подведи туда армию или поселенца."
+		_refresh_ui()
+		return
 
 	if CampaignState.settler_active and cell == CampaignState.settler_cell:
 		_settler_selected = true
@@ -978,7 +999,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		queue_redraw()
 		return
 
-	var target_kingdom_id := CampaignState.get_kingdom_index_at_army(cell)
+	var target_kingdom_id := CampaignState.get_kingdom_index_at_army(cell) if CampaignState.is_cell_visible(cell) else -1
 	if target_kingdom_id >= 0:
 		_selected_kingdom_id = target_kingdom_id
 		var target_kingdom: Dictionary = CampaignState.kingdoms[target_kingdom_id]

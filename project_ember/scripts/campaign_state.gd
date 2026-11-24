@@ -74,6 +74,12 @@ var world_seed: int = WorldGeneratorScript.DEFAULT_SEED
 var kingdoms: Array[Dictionary] = []
 var last_kingdom_events: Array[String] = []
 var battle_kingdom_id: int = -1
+var explored_cells: Dictionary = {}
+var visible_cells: Dictionary = {}
+
+const ARMY_VISION_RADIUS := 9
+const CITY_VISION_RADIUS := 4
+const SETTLER_VISION_RADIUS := 3
 
 # First playable city: the capital exists from the start. Settler-based expansion
 # is deliberately deferred until the basic city -> army -> battle loop is stable.
@@ -163,6 +169,9 @@ func new_campaign(persist: bool = true) -> void:
 	battle_in_progress = false
 	last_battle_result.clear()
 	last_battle_report_pending = false
+	explored_cells.clear()
+	visible_cells.clear()
+	refresh_fog_of_war()
 	if persist:
 		save_campaign()
 	else:
@@ -660,6 +669,71 @@ func advance_campaign_turn() -> void:
 		world_seed
 	)
 	_sync_primary_kingdom()
+	refresh_fog_of_war()
+
+
+func refresh_fog_of_war() -> void:
+	visible_cells.clear()
+	if not campaign_started:
+		return
+	if not player_units.is_empty():
+		_reveal_fog_area(player_cell, ARMY_VISION_RADIUS)
+	else:
+		_reveal_fog_area(city_cell, CITY_VISION_RADIUS)
+	for city_record in cities:
+		var cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
+		_reveal_fog_area(cell, CITY_VISION_RADIUS)
+	if settler_active:
+		_reveal_fog_area(settler_cell, SETTLER_VISION_RADIUS)
+
+
+func _reveal_fog_area(origin: Vector2i, radius: int) -> void:
+	for q in range(-radius, radius + 1):
+		for r in range(-radius, radius + 1):
+			var offset := Vector2i(q, r)
+			if WorldGeneratorScript.hex_distance(Vector2i.ZERO, offset) > radius:
+				continue
+			var cell := origin + offset
+			if not WorldGeneratorScript.is_inside_world(cell):
+				continue
+			var encoded := WorldGeneratorScript.encode_cell(cell)
+			if encoded < 0:
+				continue
+			visible_cells[encoded] = true
+			explored_cells[encoded] = true
+
+
+func is_cell_visible(cell: Vector2i) -> bool:
+	var encoded := WorldGeneratorScript.encode_cell(cell)
+	return encoded >= 0 and visible_cells.has(encoded)
+
+
+func is_cell_explored(cell: Vector2i) -> bool:
+	var encoded := WorldGeneratorScript.encode_cell(cell)
+	return encoded >= 0 and explored_cells.has(encoded)
+
+
+func get_explored_cell_count() -> int:
+	return explored_cells.size()
+
+
+func _serialize_explored_cells() -> Array[int]:
+	var result: Array[int] = []
+	for value in explored_cells.keys():
+		result.append(int(value))
+	result.sort()
+	return result
+
+
+func _load_explored_cells(value: Variant) -> void:
+	explored_cells.clear()
+	visible_cells.clear()
+	if value is Array:
+		for raw_value in value:
+			var encoded := int(raw_value)
+			var cell := WorldGeneratorScript.decode_cell(encoded)
+			if cell != Vector2i(9999, 9999):
+				explored_cells[encoded] = true
 
 
 func get_world_terrain(cell: Vector2i) -> String:
@@ -787,9 +861,11 @@ func save_campaign() -> bool:
 	if battle_in_progress or _prevent_save_overwrite:
 		return false
 	_save_active_city()
+	refresh_fog_of_war()
 	var save_data := {
 		"version": SAVE_VERSION,
 		"world_seed": world_seed,
+		"explored_cells": _serialize_explored_cells(),
 		"kingdoms": kingdoms,
 		"campaign_lost": campaign_lost,
 		"turn_number": turn_number,
@@ -1009,6 +1085,10 @@ func load_campaign() -> bool:
 	# the new world and the eight additional realms are generated around them.
 	if kingdoms.size() == KINGDOM_COUNT:
 		_sync_primary_kingdom()
+	_load_explored_cells(data.get("explored_cells", []))
+	# Old campaigns have no exploration array; reveal the area around current
+	# player sources while keeping all prior save fields and campaign data intact.
+	refresh_fog_of_war()
 	battle_in_progress = false
 	return true
 

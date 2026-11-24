@@ -1,4 +1,4 @@
-# Android Start — Project Ember v0.10.1 (Godot 4.3)
+# Android Start — Project Ember v0.10.2 (Godot 4.3)
 
 1. Extract the ZIP archive.
 2. Open Godot Android Editor and import the extracted `project.godot` file.
@@ -24,6 +24,17 @@
 - Tactical combat opens with a compact dock: **ВСЕ**, **МАРШ**, **ПАУЗА**, **КОМАНДЫ**.
 - Tap **КОМАНДЫ** for selection mode, Hold, Stop, Clear, Formation, Retreat, Speed, Zoom, Battle Cry, control groups and Settings. Scroll inside the drawer if every command does not fit at once.
 - The secondary command panels are collapsed by default so they do not cover the strategic map or battlefield. Their buttons keep the existing touch-target sizing.
+
+## Fog of war and map streaming (v0.10.2)
+
+- Your army reveals a radius of **9 hexes** around its current position.
+- Each owned city reveals **4 hexes** around itself. An active settler reveals **3 hexes**.
+- Newly discovered terrain stays on the map, but is darkened when no player source currently sees it. Unvisited terrain is hidden in the dark fog.
+- Enemy armies are visible only while currently inside your vision. Enemy cities you've discovered remain as remembered locations.
+- Pan the camera freely: unexplored areas stay hidden. Move the army or settler to reveal more of the world.
+- Exploration is saved with the campaign. Older saves automatically reveal the starting vicinity and do not need to be reset.
+- At far zoom the map aggregates discovered cells into larger 6×6 axial chunks. The FPS Overlay shows Разведано, В окне, Батч and LOD.
+- At continent zoom, the terrain batch instance count should be much lower than the discovered-cell count; the batch draw count remains 1 when terrain is present.
 
 ## Render performance hotfix (v0.10.1)
 

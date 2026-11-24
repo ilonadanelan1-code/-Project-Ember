@@ -53,9 +53,11 @@ func _update_text() -> void:
 	var map_stats := "Карта: —"
 	for map_renderer in get_tree().get_nodes_in_group("map_batch_renderer"):
 		if is_instance_valid(map_renderer) and map_renderer.has_method("get_tile_instance_count"):
-			map_stats = "Гексы на экране: %d · Батчей рельефа: %d" % [
+			map_stats = "Разведано: %d · В окне: %d · Батч: %d · LOD: x%d" % [
+				CampaignState.get_explored_cell_count(),
+				int(map_renderer.call("get_source_cell_count")),
 				int(map_renderer.call("get_tile_instance_count")),
-				int(map_renderer.call("get_batched_draw_count")),
+				int(map_renderer.call("get_lod_chunk_size")),
 			]
 			break
 	_label.text = "FPS: %d · CPU: %.1f ms · Draw calls: %d\\nОбъекты: %d · Примитивы: %d\\nУзлы: %d · RAM: %s · GPU: %s\\n%s" % [

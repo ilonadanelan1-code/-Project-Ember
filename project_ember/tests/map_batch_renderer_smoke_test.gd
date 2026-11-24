@@ -27,11 +27,13 @@ func _run() -> void:
 
 	var centers := PackedVector2Array()
 	var colors := PackedColorArray()
+	var cells: Array[Vector2i] = []
 	for index in range(1024):
 		var column := index % 32
 		var row := int(index / 32)
 		centers.append(Vector2(float(column) * 52.0, float(row) * 45.0))
 		colors.append(Color(0.35 + float(index % 3) * 0.1, 0.55, 0.35, 1.0))
+		cells.append(Vector2i(column, row))
 	renderer.set_tiles(centers, colors, Vector2(56.0, 64.0), 0.9)
 
 	_check(renderer.get_tile_instance_count() == 1024, "1024 visible hexes use 1024 instances")
@@ -43,6 +45,15 @@ func _run() -> void:
 	renderer.set_tiles(small_centers, small_colors, Vector2(56.0, 64.0), 0.5)
 	_check(renderer.get_tile_instance_count() == 2, "renderer correctly resizes to a smaller visible region")
 	_check(renderer.get_batched_draw_count() == 1, "smaller view remains one batch")
+
+	renderer.set_map_tiles(cells, centers, colors, Vector2(56.0, 64.0), 0.9)
+	_check(renderer.get_lod_chunk_size() == 1, "close zoom keeps individual hex detail")
+	_check(renderer.get_tile_instance_count() == 1024, "close zoom renders every supplied discovered hex")
+
+	renderer.set_map_tiles(cells, centers, colors, Vector2(56.0, 64.0), 0.1)
+	_check(renderer.get_lod_chunk_size() == 6, "continent zoom activates six-hex LOD chunks")
+	_check(renderer.get_tile_instance_count() <= 36, "1,024 discovered tiles collapse into at most 36 LOD chunks")
+	_check(renderer.get_batched_draw_count() == 1, "LOD chunks remain a single terrain batch")
 
 	renderer.set_tiles(PackedVector2Array(), PackedColorArray(), Vector2(56.0, 64.0), 0.5)
 	_check(renderer.get_tile_instance_count() == 0, "renderer releases visible instances when no cells are visible")

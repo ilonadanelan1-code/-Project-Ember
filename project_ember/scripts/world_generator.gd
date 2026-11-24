@@ -52,6 +52,23 @@ static func cell_to_array(cell: Vector2i) -> Array[int]:
 	return [cell.x, cell.y]
 
 
+static func encode_cell(cell: Vector2i) -> int:
+	if not is_inside_world(cell):
+		return -1
+	var width := WORLD_RADIUS * 2 + 1
+	return (cell.x + WORLD_RADIUS) * width + (cell.y + WORLD_RADIUS)
+
+
+static func decode_cell(encoded: int) -> Vector2i:
+	var width := WORLD_RADIUS * 2 + 1
+	if encoded < 0 or encoded >= width * width:
+		return Vector2i(9999, 9999)
+	var q := floori(float(encoded) / float(width)) - WORLD_RADIUS
+	var r := posmod(encoded, width) - WORLD_RADIUS
+	var cell := Vector2i(q, r)
+	return cell if is_inside_world(cell) else Vector2i(9999, 9999)
+
+
 static func array_to_cell(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
 	if value is Array and value.size() >= 2:
 		return Vector2i(int(value[0]), int(value[1]))

@@ -1,5 +1,17 @@
 # Project Ember — Tasks
 
+## v0.10.2 — Fog of War & Chunked Map Streaming
+
+- [x] Add current vision around the player army, cities and active settler.
+- [x] Persist explored cells as sparse encoded IDs in campaign saves.
+- [x] Keep explored terrain dimmed when outside current vision; hide unknown terrain.
+- [x] Hide enemy field armies outside current vision and retain remembered enemy city markers.
+- [x] Stream only explored cells that intersect the viewport instead of scanning all 24,031 world coordinates.
+- [x] Aggregate discovered terrain into 6×6 chunks at continent zoom.
+- [x] Add fog discovery, persistence, save/load and LOD regression checks.
+- [ ] Validate fog edge quality and map readability on Android.
+- [ ] Measure actual FPS, CPU time and terrain instance count while zoomed out on the target device.
+
 ## v0.10.1 — Render Batch Performance Hotfix
 
 - [x] Replace thousands of per-hex terrain draw commands with one MultiMeshInstance2D batch.

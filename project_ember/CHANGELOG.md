@@ -1,3 +1,16 @@
+## v0.10.2 — Fog of War & Chunked Map Streaming
+
+- Added player vision: the field army reveals a radius of 9 hexes; player cities reveal a radius of 4; the active settler reveals a radius of 3.
+- Added persistent exploration state. Previously explored terrain remains on the map but is dimmed when it is outside current line of sight. Unknown cells are hidden behind a dark fog layer.
+- Enemy field armies are rendered only while inside current player vision. Enemy cities remain as remembered map locations after discovery.
+- Exploration is stored as sparse encoded cell IDs in the existing campaign JSON. Save version and existing fields are unchanged; older saves automatically reveal only the player's current army/city/settler vicinity.
+- The viewport map streamer now iterates only the explored-cell index rather than looping over the entire 24,031-cell world on every map redraw.
+- Added continent-scale LOD: when zoom is at or below 0.22, explored cells are aggregated into 6×6 axial chunks before being submitted to the single MultiMesh terrain batch.
+- Partially explored chunks receive a soft alpha so the fog boundary remains visually distinct without drawing individual terrain details at continent scale.
+- Added regression tests for fog radius, hidden/unvisited cells, movement-based discovery, persistent remembered terrain, save/load and 1,024-to-36-instance LOD reduction.
+- FPS overlay now reports explored cells, discovered cells in the viewport, actual terrain batch instances and active LOD chunk size.
+- Physical Android pan/zoom performance and fog readability still require target-device verification.
+
 ## v0.10.1 — Render Batch Performance Hotfix
 
 - Replaced per-hex drawing of terrain fills, shadows, outlines and grass/forest/hill/water details with one viewport-scoped `MultiMeshInstance2D` batch.

@@ -1,3 +1,13 @@
+Project Ember v0.10.2 — Fog of War & Chunked Map Streaming
+- Field army vision radius: 9 hexes; city vision radius: 4; settler vision radius: 3.
+- Newly discovered cells are saved. Previously explored terrain stays visible in a dimmed remembered state; unknown cells remain hidden by fog.
+- Enemy armies render only inside current vision; enemy cities remain remembered after discovery.
+- Existing campaign JSON version and fields are preserved. Older saves discover the area around current player sources automatically.
+- Strategic viewport streaming iterates only explored cell IDs, not all 24,031 world hexes.
+- At zoom <= 0.22, discovered terrain aggregates into 6×6 axial LOD chunks and remains one MultiMesh draw batch.
+- FPS overlay reports explored count, viewport-known cells, batch instances and LOD scale.
+- Includes fog/save/load regression checks and a renderer test confirming 1,024 cells collapse to at most 36 instances in LOD mode.
+
 Project Ember v0.10.1 — Render Batch Performance Hotfix
 - Strategic terrain draws through a single viewport-scoped MultiMeshInstance2D batch instead of thousands of per-hex CanvasItem draw commands.
 - The hex texture is generated once in memory; per-instance colors preserve terrain and territory tinting.

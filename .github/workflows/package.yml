@@ -324,7 +324,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.10.1-Render-Batch-Performance
+          name: Project-Ember-v0.10.2-Fog-of-War-LOD
           path: |
             project_ember/**
             !project_ember/.godot/**
