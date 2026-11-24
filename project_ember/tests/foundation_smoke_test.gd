@@ -54,7 +54,7 @@ func _test_theme() -> void:
 	_check(theme.get_stylebox("focus", "Button") != null, "Theme has a focus button style")
 	_check(theme.get_stylebox("panel", "PanelContainer") != null, "Theme has a shared panel style")
 	_check(theme.get_stylebox("fill", "ProgressBar") != null, "Theme has a progress bar fill style")
-	_check(theme.get_font_size("font_size", "Button") >= 14, "base button font size is at least 14 dp at default density")
+	_check(theme.default_font_size >= 14, "base button font size is at least 14 dp at default density")
 func _test_settings_persistence() -> void:
 	var settings := GameSettingsScript.new()
 	settings.name = "FoundationSettingsTest"
