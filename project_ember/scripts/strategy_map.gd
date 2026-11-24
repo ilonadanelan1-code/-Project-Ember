@@ -321,7 +321,7 @@ func _create_ui() -> void:
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
-	top_box.add_theme_constant_override("separation", 2)
+	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(2)))
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
@@ -401,7 +401,7 @@ func _create_city_panel(root: Control) -> void:
 	_city_panel.add_child(margin)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
 	margin.add_child(content)
 
 	var header := HBoxContainer.new()
@@ -421,7 +421,7 @@ func _create_city_panel(root: Control) -> void:
 	content.add_child(scroll)
 	var details := VBoxContainer.new()
 	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details.add_theme_constant_override("separation", 8)
+	details.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
 	scroll.add_child(details)
 
 	_city_overview_label = Label.new()
