@@ -16,6 +16,7 @@ func _run() -> void:
 	var metrics := UiMetricsScript.new()
 	metrics.name = "UiMetrics"
 	root.add_child(metrics)
+	metrics.configure_for_test(160.0, 1280.0, 1280.0, 1.0)
 	_test_visual_cache()
 	_test_theme()
 	_test_settings_persistence()
