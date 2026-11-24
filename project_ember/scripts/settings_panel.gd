@@ -101,7 +101,7 @@ func _add_slider(parent: VBoxContainer, title: String, minimum: float, maximum: 
 	parent.add_child(group)
 	var label := Label.new()
 	label.text = "%s · %d%%" % [title, roundi(initial * 100.0)]
-	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_font_size_override("font_size", int(UiMetrics.dp(14.0)))
 	group.add_child(label)
 	var slider := HSlider.new()
 	slider.min_value = minimum
