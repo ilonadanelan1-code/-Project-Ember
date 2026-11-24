@@ -1,3 +1,14 @@
+Project Ember v0.9.4 — Mobile UX Foundation (UI-1)
+- Adds UiMetrics dp conversion using screen DPI, viewport/window stretch ratio and UI scale; supports dp scale 0.8–1.6 and refreshes after resize/settings changes.
+- Adds a SafeAreaContainer that recalculates display safe insets when the window/viewport changes.
+- Adds TouchGestureRouter signals for tap, double-tap, long-press, drag, pinch and two-finger pan, with UI hit-testing and emulated-mouse duplicate suppression.
+- Adds Haptics, ToastManager/Toast, ConfirmDialog, BottomSheet and IconButton foundations plus initial SVG menu/settings/confirm/cancel icons.
+- Adds Android Back handling, background strategic autosave / battle autopause, Sensor Landscape orientation and confirmed one-second New Campaign reset.
+- Campaign writes now use a validated .tmp file and .bak rotation/recovery. Existing campaign JSON version and key schema are unchanged; saving during unfinished combat remains blocked.
+- Converts shared UI theme, SettingsPanel, existing strategy/battle HUD offsets/button targets and FPS overlay to dp calculations.
+- UI-1 does not yet replace the legacy battle/map layouts or route world commands through the new gesture signals. Those are UI-2/UI-3 work.
+- Godot 4.3 GL Compatibility remains the target. Safe-area insets, actual dp sizing, haptics and app lifecycle require physical Android validation.
+
 Project Ember v0.9.3 — Combat Effects & Sound
 - Connects pooled hit, charge, rally, death, muzzle and projectile trail effects to tactical combat events.
 - Adds original procedural combat sounds for melee, spear, cavalry, bow, arrow impact, death and commander rally.
