@@ -4,7 +4,7 @@ const Palette = preload("res://scripts/art_palette.gd")
 static func _dp(value: float) -> float:
 	var main_loop := Engine.get_main_loop()
 	if main_loop is SceneTree:
-		var metrics := main_loop.root.get_node_or_null("UiMetrics")
+		var metrics: Node = main_loop.root.get_node_or_null("UiMetrics")
 		if is_instance_valid(metrics) and metrics.has_method("dp"):
 			return float(metrics.call("dp", value))
 	return value
