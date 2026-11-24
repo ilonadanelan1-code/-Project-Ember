@@ -5,6 +5,10 @@ const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
 const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
 const Palette = preload("res://scripts/art_palette.gd")
 const BattlefieldBiomesScript = preload("res://scripts/battlefield_biomes.gd")
+const SafeAreaContainerScript = preload("res://scripts/safe_area_container.gd")
+const TouchGestureRouterScript = preload("res://scripts/touch_gesture_router.gd")
+const ToastManagerScript = preload("res://scripts/toast_manager.gd")
+const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
 
 ## First playable strategic-map slice: a compact axial-hex map, one player army,
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
@@ -46,9 +50,15 @@ var _hero_skill_buttons: Dictionary = {}
 var _city_building_buttons: Dictionary = {}
 var _city_recruit_buttons: Dictionary = {}
 var _message_text: String = "P — твоя армия, ! — враг. Выбери P и коснись соседнего гекса."
+var _safe_area: SafeAreaContainer
+var _gesture_router: TouchGestureRouter
+var _toast_manager: ToastManager
+var _restart_confirm_dialog: ConfirmDialog
+var _exit_confirm_dialog: ConfirmDialog
 
 
 func _ready() -> void:
+	get_tree().set_auto_accept_quit(false)
 	if not CampaignState.campaign_started:
 		CampaignState.new_campaign()
 	_build_map()
@@ -287,12 +297,17 @@ func _create_ui() -> void:
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 
-	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_safe_area = SafeAreaContainerScript.new()
+	layer.add_child(_safe_area)
+	var root := _safe_area.get_content_root()
 	root.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
-	UiThemeScript.apply_safe_area(root)
-	layer.add_child(root)
+	_gesture_router = TouchGestureRouterScript.new()
+	_gesture_router.name = "TouchGestureRouter"
+	_gesture_router.set_ui_root(root)
+	root.add_child(_gesture_router)
+	_toast_manager = ToastManagerScript.new()
+	_toast_manager.name = "ToastManager"
+	root.add_child(_toast_manager)
 
 	var top_panel := PanelContainer.new()
 	top_panel.anchor_left = 0.0
@@ -358,6 +373,14 @@ func _create_ui() -> void:
 	_settings_panel = SettingsPanelScript.new()
 	_settings_panel.pause_game_on_open = false
 	root.add_child(_settings_panel)
+	_restart_confirm_dialog = ConfirmDialogScript.new()
+	_restart_confirm_dialog.configure("Новая кампания", "Текущий прогресс будет стёрт. Удерживай красную кнопку одну секунду, чтобы начать заново.", "СТЕРЕТЬ ПРОГРЕСС", "ОТМЕНА", true)
+	_restart_confirm_dialog.confirmed.connect(_perform_restart_campaign)
+	root.add_child(_restart_confirm_dialog)
+	_exit_confirm_dialog = ConfirmDialogScript.new()
+	_exit_confirm_dialog.configure("Закрыть игру?", "Кампания сохранена. Закрыть Project Ember?", "ВЫЙТИ", "ОСТАТЬСЯ", false)
+	_exit_confirm_dialog.confirmed.connect(func() -> void: get_tree().quit())
+	root.add_child(_exit_confirm_dialog)
 	_refresh_ui()
 
 
@@ -660,6 +683,31 @@ func _open_settings() -> void:
 	if is_instance_valid(_settings_panel):
 		_settings_panel.open_panel()
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		_handle_system_back()
+	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if not CampaignState.battle_in_progress:
+			CampaignState.save_campaign()
+
+
+func _handle_system_back() -> void:
+	if is_instance_valid(_restart_confirm_dialog) and _restart_confirm_dialog.visible:
+		_restart_confirm_dialog.cancel()
+		return
+	if is_instance_valid(_exit_confirm_dialog) and _exit_confirm_dialog.visible:
+		_exit_confirm_dialog.cancel()
+		return
+	if is_instance_valid(_settings_panel) and _settings_panel.visible:
+		_settings_panel.close_panel()
+		return
+	if is_instance_valid(_city_panel) and _city_panel.visible:
+		_close_city()
+		return
+	# Until the dedicated map menu arrives in UI-3, Back opens the existing
+	# settings sheet rather than exiting the game or discarding campaign state.
+	_open_settings()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if CampaignState.campaign_lost or CampaignState.battle_in_progress:
 		return
@@ -817,13 +865,23 @@ func _enemy_take_turn() -> void:
 
 
 func _restart_campaign() -> void:
+	if is_instance_valid(_restart_confirm_dialog):
+		_restart_confirm_dialog.open()
+		Haptics.warn()
+
+
+func _perform_restart_campaign() -> void:
 	_close_city()
 	CampaignState.new_campaign()
 	_army_selected = false
+	_settler_selected = false
 	_message_text = "Новая кампания началась. Выбери синюю армию."
 	_build_map()
 	_refresh_ui()
 	queue_redraw()
+	if is_instance_valid(_toast_manager):
+		_toast_manager.show_toast("Начата новая кампания", 2.5, "✓")
+	Haptics.confirm()
 
 
 func _show_last_battle_report() -> void:
