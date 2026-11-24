@@ -1,8 +1,21 @@
-# Android Start — Project Ember v0.7.0
+# Android Start — Project Ember v0.9.4 (Godot 4.3)
 
 1. Extract the ZIP archive.
 2. Open Godot Android Editor and import the extracted `project.godot` file.
-3. Wait for project import, then press Play.
+3. Wait for filesystem scan and script import to finish, then press Play.
+4. Keep the previous ZIP until the new source has been imported and checked on the phone.
+
+## UI-1 mobile foundation
+
+- The project is configured for **Sensor Landscape**: rotate the phone 180° and it should remain in landscape, using the opposite side.
+- UI dimensions now use `UiMetrics.dp()`, calculated from screen DPI, viewport/window scaling and the selected UI scale (0.8–1.6).
+- The strategy, battle and FPS HUD roots use a `SafeAreaContainer` which refreshes after window/viewport size changes.
+- The shared `TouchGestureRouter` recognizes tap, double tap, long press, drag, pinch and two-finger pan and checks whether a touch began over a Control. During UI-1 the legacy world input is deliberately retained; the new router is the common foundation for the Battle HUD and Map HUD passes.
+- Godot's `emulate_mouse_from_touch` remains enabled so existing Buttons and ScrollContainers keep receiving input. The router suppresses duplicate world mouse events when configured to consume them; the current legacy screens still process the existing mouse-emulated world input.
+- Android Back closes the topmost dialog/panel. In battle it pauses the fight; on the map it closes the city/settings panel, or opens settings when no panel is open.
+- When the app is backgrounded, the map saves the strategic state. A tactical battle pauses and does **not** overwrite the last strategic save.
+- New Campaign requires holding the red **СТЕРЕТЬ ПРОГРЕСС** action for one second. A regular tap will not reset the campaign.
+- Campaign persistence writes a temporary JSON file, validates it and rotates the previous valid file to `.bak`. The original JSON v1 keys remain unchanged.
 
 ## Strategy, city and recruitment
 
@@ -22,7 +35,7 @@
 - Commander experience is earned from battle kills, damage and victory. Each level grants one skill point.
 - If the ruler is defeated, the commander returns wounded and recovers over subsequent campaign turns; the campaign save retains health and progression.
 
-## Tactical controls
+## Tactical controls (legacy layout retained in UI-1)
 
 - Tap a friendly unit to select it. Tap another friendly unit with **ДОБОР** enabled to add/remove it.
 - Drag across the battlefield to select all friendly units inside the rectangle.
@@ -33,8 +46,12 @@
 - Use **ЗАПИСЬ** and **ГР. 1–4** to save and recall groups on touch devices.
 - On a keyboard, use `A` for attack-move, `H` for hold, `S` for stop, `Q` for Battle Cry, `R` to restart the isolated battle, and arrow keys to pan.
 
-## Validation status
+## Optional Android immersive display
 
-GitHub Actions validates GDScript import, strategic/tactical scene startup, campaign economy/recruitment/persistence, the four-role unit roster and hero progression/commander abilities on Godot 4.3.
+To hide Android system bars, open **Project → Export**, select the Android export preset, then inspect **Options → Screen → Immersive Mode** and enable it if available in that preset/version of Godot. This is an optional export setting, not a dependency: Android/device policy may still reveal system bars for navigation, accessibility or security. Keep the interactive HUD clear of the physical screen edges even when immersive mode is enabled.
 
-The v0.6.0 source was previously confirmed to run on the target phone. This v0.7.0 update still needs a fresh Android Editor import and hands-on test of commander visuals, Battle Cry touch input, skill buttons, UI scaling and battle balance. Keep the previous ZIP until those checks are complete.
+## Validation and known limits
+
+GitHub Actions validates GDScript import, strategic/tactical startup, existing campaign/unit/hero/biome/combat-effect tests and the new UI-1 dp, gesture, component, atomic-save and campaign-reset tests.
+
+**Not verified on a physical Android device:** exact safe-area insets, actual 48 dp touch dimensions, reverse-landscape behavior on the target phone, vibration strength, app resume behavior after a real phone call, and visual readability at UI scale 1.6. The Battle HUD redesign, world gesture commands, left-handed layout mirroring and Map HUD/main menu are scheduled for UI-2 and UI-3. Keep the previous ZIP until the on-device checks pass.
