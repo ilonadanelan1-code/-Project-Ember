@@ -255,7 +255,7 @@ func _create_ui() -> void:
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
-	top_box.add_theme_constant_override("separation", 1)
+	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(1)))
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
@@ -269,7 +269,7 @@ func _create_ui() -> void:
 	top_box.add_child(_help_label)
 
 	var group_row := HBoxContainer.new()
-	group_row.add_theme_constant_override("separation", 5)
+	group_row.add_theme_constant_override("separation", int(UiMetrics.dp(5)))
 	top_box.add_child(group_row)
 	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ: ВЫКЛ", _toggle_group_store_mode)
 	_group_store_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
@@ -355,7 +355,7 @@ func _create_result_panel(parent: Control) -> void:
 	_result_panel.add_child(margin)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
 	margin.add_child(content)
 
 	_result_title = Label.new()
