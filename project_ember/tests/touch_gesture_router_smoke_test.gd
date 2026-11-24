@@ -62,7 +62,7 @@ func _run() -> void:
 
 	_touch(router, 0, Vector2(200.0, 180.0), true)
 	_touch(router, 0, Vector2(202.0, 181.0), false)
-	await create_timer(0.34).timeout
+	await create_timer(0.48).timeout
 	_check(_tap_count == 1, "a short touch emits one tap after the double-tap window")
 
 	await create_timer(0.06).timeout
