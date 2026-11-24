@@ -782,6 +782,7 @@ func load_campaign() -> bool:
 				_prevent_save_overwrite = true
 				push_warning("Project Ember: loaded the backup in memory; restoring the primary save failed.")
 	var player_cell_data: Variant = data.get("player_cell", [])
+	var enemy_cell_data: Variant = data.get("enemy_cell", [])
 	var loaded_player := _read_unit_records(data.get("player_units", []))
 	var loaded_enemy := _read_unit_records(data.get("enemy_units", []))
 	var lost := bool(data.get("campaign_lost", false))
