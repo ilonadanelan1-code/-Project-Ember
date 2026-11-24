@@ -8,20 +8,23 @@ var _elapsed: float = 0.0
 func _ready() -> void:
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var safe_area := SafeAreaContainer.new()
+	add_child(safe_area)
+	var root := safe_area.get_content_root()
 	var panel := PanelContainer.new()
 	panel.anchor_left = 0.0
 	panel.anchor_top = 0.0
 	panel.anchor_right = 0.0
 	panel.anchor_bottom = 0.0
-	panel.offset_left = 10.0
-	panel.offset_top = 10.0
-	panel.offset_right = 365.0
-	panel.offset_bottom = 126.0
+	panel.offset_left = UiMetrics.dp(4.0)
+	panel.offset_top = UiMetrics.dp(4.0)
+	panel.offset_right = UiMetrics.dp(365.0)
+	panel.offset_bottom = UiMetrics.dp(126.0)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.theme = UiThemeScript.create_theme(0.85)
-	add_child(panel)
+	panel.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
+	root.add_child(panel)
 	_label = Label.new()
-	_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
+	_label.add_theme_font_size_override("font_size", int(UiMetrics.dp(12.0)))
 	_label.add_theme_color_override("font_color", Palette.UI_TEXT)
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	panel.add_child(_label)
