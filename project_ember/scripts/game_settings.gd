@@ -39,7 +39,7 @@ func load_settings() -> bool:
 	master_volume = clampf(float(config.get_value("audio", "master", DEFAULT_MASTER_VOLUME)), 0.0, 1.0)
 	music_volume = clampf(float(config.get_value("audio", "music", DEFAULT_MUSIC_VOLUME)), 0.0, 1.0)
 	sfx_volume = clampf(float(config.get_value("audio", "sfx", DEFAULT_SFX_VOLUME)), 0.0, 1.0)
-	ui_scale = clampf(float(config.get_value("interface", "scale", 1.0)), 0.8, 1.3)
+	ui_scale = clampf(float(config.get_value("interface", "scale", 1.0)), 0.8, 1.6)
 	show_fps_overlay = bool(config.get_value("debug", "show_fps_overlay", false))
 	vibration_enabled = bool(config.get_value("accessibility", "vibration", true))
 	camera_speed = clampf(float(config.get_value("controls", "camera_speed", 1.0)), 0.5, 2.0)
@@ -77,7 +77,7 @@ func set_sfx_volume(value: float) -> void:
 	_apply_audio_settings()
 	_commit_change()
 func set_ui_scale(value: float) -> void:
-	ui_scale = clampf(value, 0.8, 1.3)
+	ui_scale = clampf(value, 0.8, 1.6)
 	_apply_ui_scale()
 	_commit_change()
 func set_show_fps_overlay(value: bool) -> void:
@@ -109,8 +109,12 @@ func _detect_initial_quality() -> int:
 		return GraphicsQuality.MEDIUM
 	return GraphicsQuality.HIGH
 func _apply_ui_scale() -> void:
-	if is_inside_tree() and get_tree().root is Window:
-		get_tree().root.content_scale_factor = ui_scale
+	# UiMetrics owns dp-to-reference-pixel conversion. Do not scale the root
+	# viewport again or the DPI conversion would be applied twice.
+	if is_inside_tree() and has_node("/root/UiMetrics"):
+		var metrics := get_node_or_null("/root/UiMetrics")
+		if is_instance_valid(metrics):
+			metrics.refresh_metrics()
 func _ensure_audio_buses() -> void:
 	_ensure_audio_bus("Music")
 	_ensure_audio_bus("SFX")
