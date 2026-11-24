@@ -1,3 +1,17 @@
+## v0.10.0 — Living World & Nine AI Kingdoms
+
+- Expanded the strategic world from the original 91-hex radius-5 map to a radius-89 hexagon containing exactly 24,031 hexes.
+- Added deterministic procedural terrain lookup. Hex terrain is generated from coordinates and a persisted world seed; the game does not allocate a scene node or save record for every tile.
+- Changed strategic rendering to generate and draw only the visible viewport cells. Added map navigation with one-finger drag, two-finger pan, pinch zoom, mouse-wheel zoom and keyboard panning.
+- Added nine independent AI kingdoms with named rulers, capitals, cities, armies, treasuries, food, production, buildings, build queues and military objectives.
+- Each campaign turn, all nine kingdoms collect city income, grow populations when food allows, progress construction, recruit role-specific troops, found additional cities when developed and move field armies.
+- Added faction-coloured territory/city/army map markers and a scrollable Kingdoms overview panel.
+- Tactical combat now targets whichever kingdom army the player selects; post-battle survivors, commander health and army position are written back to that kingdom.
+- Added additive save fields for world seed and kingdom states without changing SAVE_VERSION or removing existing JSON keys. Older v0.9.x saves preserve the player's city, army and enemy army as the first realm, then generate the remaining eight kingdoms.
+- Added CI smoke tests for exact world size, deterministic terrain, kingdom spawn safety, per-turn AI development, army aggregation and campaign save/load.
+- Procedural terrain is deterministic and currently visual/strategic passability only; biome combat still uses the local terrain sample. Advanced diplomacy, treaties, siege warfare and full AI-vs-AI battles remain future work.
+- Real-device performance and touch-navigation feel still require Android verification.
+
 ## v0.9.5 — Compact Mobile HUD Fix
 
 - Replaced the permanent multi-row strategic command grid with a compact dock: Army, City, Turn and More.

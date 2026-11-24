@@ -34,11 +34,14 @@ jobs:
           test -d project_ember/scenes
           test -d project_ember/scripts
           test -f project_ember/tests/campaign_smoke_test.gd
+          test -f project_ember/tests/world_campaign_smoke_test.gd
           test -f project_ember/tests/unit_roster_smoke_test.gd
           test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/tests/visual_overhaul_smoke_test.gd
           test -f project_ember/tests/foundation_smoke_test.gd
           test -f project_ember/scripts/art_palette.gd
+          test -f project_ember/scripts/world_generator.gd
+          test -f project_ember/scripts/kingdom_ai.gd
           test -f project_ember/scripts/ui_theme.gd
           test -f project_ember/scripts/game_settings.gd
           test -f project_ember/scripts/perf_overlay.gd
@@ -111,6 +114,20 @@ jobs:
           godot --headless --path project_ember --script res://tests/campaign_smoke_test.gd 2>&1 | tee "$log_file"
           if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
             echo "Campaign logic tests reported an error." >&2
+            exit 1
+          fi
+      - name: Test 24k-hex world, nine kingdoms and autonomous AI
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/world_campaign_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "World campaign tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All world campaign smoke tests passed." "$log_file"; then
+            echo "World campaign tests did not reach their success marker." >&2
             exit 1
           fi
       - name: Test unit roster, unlocks and combat profiles
@@ -291,7 +308,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.9.5-Mobile-HUD-Fix
+          name: Project-Ember-v0.10.0-Living-World
           path: |
             project_ember/**
             !project_ember/.godot/**

@@ -9,12 +9,15 @@ const SafeAreaContainerScript = preload("res://scripts/safe_area_container.gd")
 const TouchGestureRouterScript = preload("res://scripts/touch_gesture_router.gd")
 const ToastManagerScript = preload("res://scripts/toast_manager.gd")
 const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
+const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
 
 ## First playable strategic-map slice: a compact axial-hex map, one player army,
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
 
-const MAP_RADIUS := 5
+const MAP_RADIUS := WorldGeneratorScript.WORLD_RADIUS
 const HEX_SIZE := 30.0
+const MAP_ZOOM_MIN := 0.42
+const MAP_ZOOM_MAX := 1.25
 const PLAYER_TEAM_COLOR := Palette.PLAYER_TEAM
 const ENEMY_TEAM_COLOR := Palette.ENEMY_TEAM
 
@@ -28,7 +31,13 @@ const NEIGHBOR_OFFSETS: Array[Vector2i] = [
 ]
 
 var _cells: Array[Vector2i] = []
-var _terrain: Dictionary = {}
+var _camera_center_world: Vector2 = Vector2.ZERO
+var _map_zoom: float = 0.9
+var _map_mouse_pan: bool = false
+var _kingdoms_panel: PanelContainer
+var _kingdoms_list: VBoxContainer
+var _kingdoms_button: Button
+var _selected_kingdom_id: int = -1
 var _army_selected: bool = false
 var _status_label: Label
 var _message_label: Label
@@ -64,6 +73,7 @@ func _ready() -> void:
 	if not CampaignState.campaign_started:
 		CampaignState.new_campaign()
 	_build_map()
+	_camera_center_world = _hex_world_position(CampaignState.player_cell)
 	_create_ui()
 	add_child(PerfOverlayScript.new())
 	if CampaignState.last_battle_report_pending:
@@ -75,54 +85,127 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	_cells = _get_visible_map_cells()
 	for cell in _cells:
 		_draw_hex_tile(cell)
-
-	# Claimed borders, settlements, and travelling forces are drawn over the terrain.
-	for cell in _cells:
-		if CampaignState.get_city_owner_at(cell) >= 0:
-			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Palette.MAP_CLAIM_BORDER, 2.0, true)
+		var owner_id := CampaignState.get_world_owner_at(cell)
+		if owner_id == -2:
+			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Palette.MAP_CLAIM_BORDER, maxf(1.0, 2.0 * _map_zoom), true)
+		elif owner_id >= 0:
+			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), _kingdom_color(owner_id), maxf(1.0, 2.0 * _map_zoom), true)
 
 	for city_data in CampaignState.cities:
-		var xy: Array = city_data.get("cell", [])
-		if xy.size() >= 2:
-			_draw_city_marker(_hex_center(Vector2i(int(xy[0]), int(xy[1]))))
+		var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
+		var center := _hex_center(cell)
+		if _point_is_visible(center, 36.0 * _map_zoom):
+			_draw_city_marker(center, Palette.MAP_CITY_FLAG)
+
+	for kingdom_index in range(CampaignState.kingdoms.size()):
+		var kingdom: Dictionary = CampaignState.kingdoms[kingdom_index]
+		var faction_color := _kingdom_color(kingdom_index)
+		for city_data in kingdom.get("cities", []):
+			var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
+			var center := _hex_center(cell)
+			if _point_is_visible(center, 36.0 * _map_zoom):
+				_draw_city_marker(center, faction_color)
+		var army: Array = kingdom.get("army", [])
+		if not army.is_empty():
+			var army_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
+			var army_center := _hex_center(army_cell)
+			if _point_is_visible(army_center, 30.0 * _map_zoom):
+				_draw_army_marker(army_cell, faction_color, str(kingdom_index + 1))
 
 	if CampaignState.settler_active:
-		_draw_settler_marker(_hex_center(CampaignState.settler_cell))
-
-	if CampaignState.enemy_present and not CampaignState.enemy_units.is_empty():
-		_draw_army_marker(CampaignState.enemy_cell, ENEMY_TEAM_COLOR, "!")
+		var settler_center := _hex_center(CampaignState.settler_cell)
+		if _point_is_visible(settler_center, 24.0 * _map_zoom):
+			_draw_settler_marker(settler_center)
 	if not CampaignState.player_units.is_empty():
-		_draw_army_marker(CampaignState.player_cell, PLAYER_TEAM_COLOR, "P")
+		var player_center := _hex_center(CampaignState.player_cell)
+		if _point_is_visible(player_center, 30.0 * _map_zoom):
+			_draw_army_marker(CampaignState.player_cell, PLAYER_TEAM_COLOR, "P")
 
 	if _army_selected:
 		for offset in NEIGHBOR_OFFSETS:
 			var neighbor: Vector2i = CampaignState.player_cell + offset
-			if _is_traversable(neighbor) and neighbor != CampaignState.enemy_cell:
+			if _is_traversable(neighbor) and CampaignState.get_kingdom_index_at_army(neighbor) < 0:
 				draw_colored_polygon(_hex_points(_hex_center(neighbor)), Palette.MAP_MOVE_FILL)
-				draw_polyline(_closed_polygon(_hex_points(_hex_center(neighbor))), Palette.MAP_MOVE_BORDER, 2.3, true)
+				draw_polyline(_closed_polygon(_hex_points(_hex_center(neighbor))), Palette.MAP_MOVE_BORDER, maxf(1.0, 2.3 * _map_zoom), true)
+
+
+func _get_visible_map_cells() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var viewport_size := get_viewport_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return result
+	var half_world := viewport_size * (0.5 / _map_zoom) + Vector2(HEX_SIZE * 2.5, HEX_SIZE * 2.5)
+	var corners := [
+		_camera_center_world + Vector2(-half_world.x, -half_world.y),
+		_camera_center_world + Vector2(half_world.x, -half_world.y),
+		_camera_center_world + Vector2(half_world.x, half_world.y),
+		_camera_center_world + Vector2(-half_world.x, half_world.y),
+	]
+	var min_q := 9999.0
+	var max_q := -9999.0
+	var min_r := 9999.0
+	var max_r := -9999.0
+	for corner in corners:
+		var axial := _world_to_axial(corner)
+		min_q = minf(min_q, axial.x)
+		max_q = maxf(max_q, axial.x)
+		min_r = minf(min_r, axial.y)
+		max_r = maxf(max_r, axial.y)
+	var q_start := maxi(-MAP_RADIUS, floori(min_q) - 2)
+	var q_end := mini(MAP_RADIUS, ceili(max_q) + 2)
+	var r_start := maxi(-MAP_RADIUS, floori(min_r) - 2)
+	var r_end := mini(MAP_RADIUS, ceili(max_r) + 2)
+	for q in range(q_start, q_end + 1):
+		for r in range(r_start, r_end + 1):
+			var cell := Vector2i(q, r)
+			if not WorldGeneratorScript.is_inside_world(cell):
+				continue
+			var world_center := _hex_world_position(cell)
+			if absf(world_center.x - _camera_center_world.x) > half_world.x or absf(world_center.y - _camera_center_world.y) > half_world.y:
+				continue
+			result.append(cell)
+	return result
+
+
+func _world_to_axial(world_position: Vector2) -> Vector2:
+	var r := (2.0 / 3.0) * world_position.y / HEX_SIZE
+	var q := world_position.x / (sqrt(3.0) * HEX_SIZE) - r * 0.5
+	return Vector2(q, r)
+
+
+func _point_is_visible(point: Vector2, margin: float = 0.0) -> bool:
+	var size := get_viewport_rect().size
+	return point.x >= -margin and point.y >= -margin and point.x <= size.x + margin and point.y <= size.y + margin
+
+
+func _kingdom_color(index: int) -> Color:
+	return Color.from_hsv(float(posmod(index, WorldGeneratorScript.KINGDOM_COUNT)) / float(WorldGeneratorScript.KINGDOM_COUNT), 0.68, 0.92, 1.0)
 
 
 func _draw_hex_tile(cell: Vector2i) -> void:
 	var center := _hex_center(cell)
-	var kind := str(_terrain.get(cell, "plain"))
+	var kind := CampaignState.get_world_terrain(cell)
 	var points := _hex_points(center)
 	var shadow := PackedVector2Array()
 	var inner := PackedVector2Array()
 	for point in points:
-		shadow.append(point + Vector2(0.0, 4.0))
+		shadow.append(point + Vector2(0.0, 4.0 * _map_zoom))
 		inner.append(center + (point - center) * 0.91)
 	draw_colored_polygon(shadow, Palette.MAP_HEX_SHADOW)
 	draw_colored_polygon(points, Palette.MAP_HEX_BASE)
 	draw_colored_polygon(inner, _terrain_color(kind))
-	draw_polyline(_closed_polygon(points), Palette.MAP_HEX_OUTLINE, 1.4, true)
-
+	draw_polyline(_closed_polygon(points), Palette.MAP_HEX_OUTLINE, maxf(0.7, 1.4 * _map_zoom), true)
+	# On a continent-wide view, skip tiny decorative strokes and keep the terrain silhouette.
+	if _map_zoom < 0.58:
+		return
 	match kind:
 		"forest":
 			for index in range(3):
 				var offset := Vector2(float(posmod(cell.x * 13 + cell.y * 7 + index * 11, 17) - 8), float(posmod(cell.x * 5 - cell.y * 9 + index * 7, 15) - 7))
-				_draw_map_tree(center + offset * 0.72, 0.72 + float(index % 2) * 0.12)
+				_draw_map_tree(center + offset * (0.72 * _map_zoom), (0.72 + float(index % 2) * 0.12) * _map_zoom)
 		"hills":
 			_draw_map_hills(center, cell)
 		"water":
@@ -135,116 +218,87 @@ func _draw_map_grass(center: Vector2, cell: Vector2i) -> void:
 	for index in range(4):
 		var seed_value := cell.x * 37 + cell.y * 61 + index * 19
 		var offset := Vector2(float(posmod(seed_value, 17) - 8), float(posmod(seed_value * 3, 15) - 7))
-		var origin := center + offset
-		draw_line(origin, origin + Vector2(-2.0, -4.0), Palette.MAP_GRASS_STROKE, 1.3, true)
-		draw_line(origin, origin + Vector2(2.0, -5.0), Palette.MAP_GRASS_STROKE_LIGHT, 1.2, true)
+		var origin := center + offset * _map_zoom
+		draw_line(origin, origin + Vector2(-2.0, -4.0) * _map_zoom, Palette.MAP_GRASS_STROKE, maxf(0.7, 1.3 * _map_zoom), true)
+		draw_line(origin, origin + Vector2(2.0, -5.0) * _map_zoom, Palette.MAP_GRASS_STROKE_LIGHT, maxf(0.7, 1.2 * _map_zoom), true)
 
 
 func _draw_map_tree(position: Vector2, scale: float) -> void:
-	draw_line(position + Vector2(0.0, 2.0), position + Vector2(0.0, 9.0) * scale, Palette.MAP_TREE_TRUNK, 2.2, true)
+	draw_line(position + Vector2(0.0, 2.0 * _map_zoom), position + Vector2(0.0, 9.0 * _map_zoom) * scale, Palette.MAP_TREE_TRUNK, maxf(0.8, 2.2 * _map_zoom), true)
 	var crown := PackedVector2Array([
-		position + Vector2(0.0, -13.0) * scale,
-		position + Vector2(-8.5, 3.0) * scale,
-		position + Vector2(8.5, 3.0) * scale,
+		position + Vector2(0.0, -13.0 * _map_zoom) * scale,
+		position + Vector2(-8.5 * _map_zoom, 3.0 * _map_zoom) * scale,
+		position + Vector2(8.5 * _map_zoom, 3.0 * _map_zoom) * scale,
 	])
 	draw_colored_polygon(crown, Palette.MAP_TREE_CROWN)
 	var crown_light := PackedVector2Array([
-		position + Vector2(0.0, -12.0) * scale,
-		position + Vector2(-1.0, 1.0) * scale,
-		position + Vector2(7.0, 1.0) * scale,
+		position + Vector2(0.0, -12.0 * _map_zoom) * scale,
+		position + Vector2(-1.0 * _map_zoom, 1.0 * _map_zoom) * scale,
+		position + Vector2(7.0 * _map_zoom, 1.0 * _map_zoom) * scale,
 	])
 	draw_colored_polygon(crown_light, Palette.MAP_TREE_CROWN_LIGHT)
 
 
 func _draw_map_hills(center: Vector2, cell: Vector2i) -> void:
-	var shift := float(posmod(cell.x * 5 + cell.y * 7, 7)) - 3.0
-	var hill_back := PackedVector2Array([center + Vector2(-18.0, 6.0), center + Vector2(-3.0 + shift, -12.0), center + Vector2(12.0, 6.0)])
-	var hill_front := PackedVector2Array([center + Vector2(-10.0, 8.0), center + Vector2(5.0, -6.0), center + Vector2(19.0, 8.0)])
+	var shift := (float(posmod(cell.x * 5 + cell.y * 7, 7)) - 3.0) * _map_zoom
+	var hill_back := PackedVector2Array([center + Vector2(-18.0 * _map_zoom, 6.0 * _map_zoom), center + Vector2(-3.0 * _map_zoom + shift, -12.0 * _map_zoom), center + Vector2(12.0 * _map_zoom, 6.0 * _map_zoom)])
+	var hill_front := PackedVector2Array([center + Vector2(-10.0 * _map_zoom, 8.0 * _map_zoom), center + Vector2(5.0 * _map_zoom, -6.0 * _map_zoom), center + Vector2(19.0 * _map_zoom, 8.0 * _map_zoom)])
 	draw_colored_polygon(hill_back, Palette.MAP_HILL_BACK)
 	draw_colored_polygon(hill_front, Palette.MAP_HILL_FRONT)
-	draw_line(center + Vector2(-3.0 + shift, -12.0), center + Vector2(2.0 + shift, -3.0), Palette.MAP_HILL_EDGE, 1.5, true)
+	draw_line(center + Vector2(-3.0 * _map_zoom + shift, -12.0 * _map_zoom), center + Vector2(2.0 * _map_zoom + shift, -3.0 * _map_zoom), Palette.MAP_HILL_EDGE, maxf(0.7, 1.5 * _map_zoom), true)
 
 
 func _draw_map_water(center: Vector2, cell: Vector2i) -> void:
 	for index in range(3):
-		var y := float(index * 8 - 7)
-		var offset := float(posmod(cell.x * 9 + cell.y * 13 + index * 5, 9)) - 4.0
-		draw_line(center + Vector2(-13.0 + offset, y), center + Vector2(-3.0, y - 2.0), Palette.MAP_WATER_RIPPLE, 1.6, true)
-		draw_line(center + Vector2(1.0, y - 2.0), center + Vector2(13.0 - offset * 0.4, y), Palette.MAP_WATER_RIPPLE_LIGHT, 1.4, true)
+		var y := float(index * 8 - 7) * _map_zoom
+		var offset := (float(posmod(cell.x * 9 + cell.y * 13 + index * 5, 9)) - 4.0) * _map_zoom
+		draw_line(center + Vector2(-13.0 * _map_zoom + offset, y), center + Vector2(-3.0 * _map_zoom, y - 2.0 * _map_zoom), Palette.MAP_WATER_RIPPLE, maxf(0.7, 1.6 * _map_zoom), true)
+		draw_line(center + Vector2(1.0 * _map_zoom, y - 2.0 * _map_zoom), center + Vector2(13.0 * _map_zoom - offset * 0.4, y), Palette.MAP_WATER_RIPPLE_LIGHT, maxf(0.7, 1.4 * _map_zoom), true)
 
 
-func _draw_city_marker(center: Vector2) -> void:
-	draw_circle(center + Vector2(0.0, 3.0), 17.0, Palette.MAP_OBJECT_SHADOW)
-	draw_rect(Rect2(center + Vector2(-11.0, -7.0), Vector2(22.0, 17.0)), Palette.MAP_CITY_WALL)
-	draw_rect(Rect2(center + Vector2(-15.0, -12.0), Vector2(8.0, 18.0)), Palette.MAP_CITY_TOWER)
-	draw_rect(Rect2(center + Vector2(7.0, -12.0), Vector2(8.0, 18.0)), Palette.MAP_CITY_TOWER)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(-17.0, -12.0), center + Vector2(-11.0, -20.0), center + Vector2(-5.0, -12.0)]), Palette.MAP_CITY_ROOF)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(5.0, -12.0), center + Vector2(11.0, -20.0), center + Vector2(17.0, -12.0)]), Palette.MAP_CITY_ROOF)
-	draw_rect(Rect2(center + Vector2(-3.0, 1.0), Vector2(6.0, 9.0)), Palette.MAP_CITY_DOOR)
-	draw_line(center + Vector2(0.0, -19.0), center + Vector2(0.0, -29.0), Palette.MAP_CITY_FLAG_POLE, 2.0)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0), center + Vector2(12.0, -25.0), center + Vector2(1.0, -21.0)]), Palette.MAP_CITY_FLAG)
+func _draw_city_marker(center: Vector2, banner_color: Color = Palette.MAP_CITY_FLAG) -> void:
+	draw_circle(center + Vector2(0.0, 3.0 * _map_zoom), 17.0 * _map_zoom, Palette.MAP_OBJECT_SHADOW)
+	draw_rect(Rect2(center + Vector2(-11.0, -7.0) * _map_zoom, Vector2(22.0, 17.0) * _map_zoom), Palette.MAP_CITY_WALL)
+	draw_rect(Rect2(center + Vector2(-15.0, -12.0) * _map_zoom, Vector2(8.0, 18.0) * _map_zoom), Palette.MAP_CITY_TOWER)
+	draw_rect(Rect2(center + Vector2(7.0, -12.0) * _map_zoom, Vector2(8.0, 18.0) * _map_zoom), Palette.MAP_CITY_TOWER)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-17.0, -12.0) * _map_zoom, center + Vector2(-11.0, -20.0) * _map_zoom, center + Vector2(-5.0, -12.0) * _map_zoom]), banner_color.lightened(0.18))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(5.0, -12.0) * _map_zoom, center + Vector2(11.0, -20.0) * _map_zoom, center + Vector2(17.0, -12.0) * _map_zoom]), banner_color.lightened(0.18))
+	draw_rect(Rect2(center + Vector2(-3.0, 1.0) * _map_zoom, Vector2(6.0, 9.0) * _map_zoom), Palette.MAP_CITY_DOOR)
+	draw_line(center + Vector2(0.0, -19.0) * _map_zoom, center + Vector2(0.0, -29.0) * _map_zoom, Palette.MAP_CITY_FLAG_POLE, maxf(0.7, 2.0 * _map_zoom))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -28.0) * _map_zoom, center + Vector2(12.0, -25.0) * _map_zoom, center + Vector2(1.0, -21.0) * _map_zoom]), banner_color)
 
 
 func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> void:
 	var center := _hex_center(cell)
-	draw_circle(center + Vector2(0.0, 4.0), 18.0, Palette.MAP_ARMY_SHADOW)
-	draw_circle(center, 16.0, Palette.MAP_ARMY_BASE)
+	draw_circle(center + Vector2(0.0, 4.0 * _map_zoom), 18.0 * _map_zoom, Palette.MAP_ARMY_SHADOW)
+	draw_circle(center, 16.0 * _map_zoom, Palette.MAP_ARMY_BASE)
 	var shield := PackedVector2Array([
-		center + Vector2(-10.0, -9.0),
-		center + Vector2(10.0, -9.0),
-		center + Vector2(9.0, 5.0),
-		center + Vector2(0.0, 13.0),
-		center + Vector2(-9.0, 5.0),
+		center + Vector2(-10.0, -9.0) * _map_zoom,
+		center + Vector2(10.0, -9.0) * _map_zoom,
+		center + Vector2(9.0, 5.0) * _map_zoom,
+		center + Vector2(0.0, 13.0) * _map_zoom,
+		center + Vector2(-9.0, 5.0) * _map_zoom,
 	])
 	draw_colored_polygon(shield, marker_color)
-	draw_polyline(_closed_polygon(shield), Palette.MAP_SHIELD_OUTLINE, 1.4, true)
-	draw_line(center + Vector2(0.0, -12.0), center + Vector2(0.0, -24.0), Palette.MAP_ARMY_FLAG_POLE, 2.0)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -23.0), center + Vector2(13.0, -20.0), center + Vector2(1.0, -16.0)]), marker_color.lightened(0.22))
-	draw_string(ThemeDB.fallback_font, center + Vector2(-5.0, 4.5), letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, Palette.MAP_ARMY_TEXT)
+	draw_polyline(_closed_polygon(shield), Palette.MAP_SHIELD_OUTLINE, maxf(0.7, 1.4 * _map_zoom), true)
+	draw_line(center + Vector2(0.0, -12.0) * _map_zoom, center + Vector2(0.0, -24.0) * _map_zoom, Palette.MAP_ARMY_FLAG_POLE, maxf(0.7, 2.0 * _map_zoom))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(1.0, -23.0) * _map_zoom, center + Vector2(13.0, -20.0) * _map_zoom, center + Vector2(1.0, -16.0) * _map_zoom]), marker_color.lightened(0.22))
+	draw_string(ThemeDB.fallback_font, center + Vector2(-5.0, 4.5) * _map_zoom, letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(8, roundi(12.0 * _map_zoom)), Palette.MAP_ARMY_TEXT)
 
 
 func _draw_settler_marker(center: Vector2) -> void:
-	draw_circle(center + Vector2(0.0, 3.0), 13.0, Palette.MAP_SETTLER_SHADOW)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(-10.0, 5.0), center + Vector2(0.0, -9.0), center + Vector2(10.0, 5.0)]), Palette.MAP_SETTLER_BODY)
-	draw_line(center + Vector2(-10.0, 5.0), center + Vector2(10.0, 5.0), Palette.MAP_SETTLER_BASE, 2.0)
-	draw_circle(center, 3.5, Palette.MAP_SETTLER_ACCENT)
-
-
-
+	draw_circle(center + Vector2(0.0, 3.0 * _map_zoom), 13.0 * _map_zoom, Palette.MAP_SETTLER_SHADOW)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-10.0, 5.0) * _map_zoom, center + Vector2(0.0, -9.0) * _map_zoom, center + Vector2(10.0, 5.0) * _map_zoom]), Palette.MAP_SETTLER_BODY)
+	draw_line(center + Vector2(-10.0, 5.0) * _map_zoom, center + Vector2(10.0, 5.0) * _map_zoom, Palette.MAP_SETTLER_BASE, maxf(0.7, 2.0 * _map_zoom))
+	draw_circle(center, 3.5 * _map_zoom, Palette.MAP_SETTLER_ACCENT)
 
 
 func _build_map() -> void:
 	_cells.clear()
-	_terrain.clear()
-	for q in range(-MAP_RADIUS, MAP_RADIUS + 1):
-		for r in range(-MAP_RADIUS, MAP_RADIUS + 1):
-			var cell := Vector2i(q, r)
-			if _hex_distance(Vector2i.ZERO, cell) > MAP_RADIUS:
-				continue
-			_cells.append(cell)
-			_terrain[cell] = _generate_terrain(cell)
-
-	# Keep the initial approach between the armies open so the first campaign is playable.
-	for q in range(-2, 3):
-		_terrain[Vector2i(q, 0)] = "plain"
-	_terrain[CampaignState.player_cell] = "plain"
-	_terrain[CampaignState.enemy_cell] = "plain"
-	_terrain[CampaignState.city_cell] = "plain"
-	_terrain[CampaignState.city_cell + Vector2i(0, 1)] = "plain"
-	if CampaignState.settler_active:
-		_terrain[CampaignState.settler_cell] = "plain"
+	_camera_center_world = _hex_world_position(CampaignState.player_cell)
+	_map_zoom = 0.9
 
 
-func _generate_terrain(cell: Vector2i) -> String:
-	if cell.y != 0:
-		var value := absi(cell.x * 17 + cell.y * 29 + cell.x * cell.y * 7)
-		if value % 13 == 0:
-			return "water"
-		if value % 5 == 0:
-			return "forest"
-		if value % 7 == 0:
-			return "hills"
-	return "plain"
 
 
 func _terrain_color(kind: String) -> Color:
@@ -272,19 +326,64 @@ func _terrain_symbol(kind: String) -> String:
 
 
 func _hex_center(cell: Vector2i) -> Vector2:
-	var viewport_size := get_viewport_rect().size
-	var origin := Vector2(viewport_size.x * 0.5, viewport_size.y * 0.46)
+	var viewport_center := get_viewport_rect().size * 0.5
+	return viewport_center + (_hex_world_position(cell) - _camera_center_world) * _map_zoom
+
+
+func _hex_world_position(cell: Vector2i) -> Vector2:
 	var x := sqrt(3.0) * HEX_SIZE * (float(cell.x) + float(cell.y) * 0.5)
 	var y := 1.5 * HEX_SIZE * float(cell.y)
-	return origin + Vector2(x, y)
+	return Vector2(x, y)
+
+
+func _screen_to_world(screen_position: Vector2) -> Vector2:
+	return _camera_center_world + (screen_position - get_viewport_rect().size * 0.5) / _map_zoom
+
+
+func _center_map_on_cell(cell: Vector2i) -> void:
+	_camera_center_world = _hex_world_position(cell)
+	queue_redraw()
+
+
+func _pan_map(delta_screen: Vector2) -> void:
+	_camera_center_world -= delta_screen / _map_zoom
+	queue_redraw()
+
+
+func _zoom_map(factor: float, screen_anchor: Vector2) -> void:
+	var before := _screen_to_world(screen_anchor)
+	_map_zoom = clampf(_map_zoom * factor, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
+	var after := _screen_to_world(screen_anchor)
+	_camera_center_world += before - after
+	queue_redraw()
+
+
+func _on_mobile_map_drag(_position: Vector2, delta: Vector2) -> void:
+	_pan_map(delta)
+
+
+func _on_mobile_map_pinch(factor: float, center: Vector2) -> void:
+	_zoom_map(factor, center)
+
+
+func _on_mobile_map_two_finger_pan(delta: Vector2) -> void:
+	_pan_map(delta)
+
+
+func _on_mobile_map_double_tap(position: Vector2) -> void:
+	_zoom_map(1.2, position)
+
+
 
 
 func _hex_points(center: Vector2) -> PackedVector2Array:
 	var points := PackedVector2Array()
 	for index in range(6):
 		var angle := deg_to_rad(-30.0 + 60.0 * float(index))
-		points.append(center + Vector2(cos(angle), sin(angle)) * HEX_SIZE * 0.94)
+		points.append(center + Vector2(cos(angle), sin(angle)) * HEX_SIZE * 0.94 * _map_zoom)
 	return points
+
+
 
 
 func _closed_polygon(points: PackedVector2Array) -> PackedVector2Array:
@@ -306,6 +405,13 @@ func _create_ui() -> void:
 	_gesture_router = TouchGestureRouterScript.new()
 	_gesture_router.name = "TouchGestureRouter"
 	_gesture_router.set_ui_root(root)
+	if OS.has_feature("mobile"):
+		_gesture_router.consume_mouse_events = true
+		_gesture_router.tap.connect(_handle_map_tap)
+		_gesture_router.double_tap.connect(_on_mobile_map_double_tap)
+		_gesture_router.drag.connect(_on_mobile_map_drag)
+		_gesture_router.pinch.connect(_on_mobile_map_pinch)
+		_gesture_router.two_finger_pan.connect(_on_mobile_map_two_finger_pan)
 	root.add_child(_gesture_router)
 	_toast_manager = ToastManagerScript.new()
 	_toast_manager.name = "ToastManager"
@@ -348,7 +454,7 @@ func _create_ui() -> void:
 	_map_more_panel.anchor_right = 1.0
 	_map_more_panel.anchor_bottom = 1.0
 	_map_more_panel.offset_left = UiMetrics.dp(10.0)
-	_map_more_panel.offset_top = -UiMetrics.dp(216.0)
+	_map_more_panel.offset_top = -UiMetrics.dp(276.0)
 	_map_more_panel.offset_right = -UiMetrics.dp(10.0)
 	_map_more_panel.offset_bottom = -UiMetrics.dp(88.0)
 	_map_more_panel.visible = false
@@ -373,6 +479,7 @@ func _create_ui() -> void:
 	_add_button(more_grid, "НОВАЯ КАМПАНИЯ", _restart_campaign)
 	_found_city_button = _add_button(more_grid, "ОСНОВАТЬ ГОРОД", _found_city)
 	_add_button(more_grid, "НАСТРОЙКИ", _open_settings)
+	_kingdoms_button = _add_button(more_grid, "КОРОЛЕВСТВА", _open_kingdoms_panel)
 
 	var bottom_panel := PanelContainer.new()
 	bottom_panel.name = "MobileHudQuickDock"
@@ -394,6 +501,7 @@ func _create_ui() -> void:
 	_turn_button = _add_button(quick_row, "ХОД", _advance_turn)
 	_map_more_button = _add_button(quick_row, "ЕЩЁ", _toggle_map_commands)
 	_create_city_panel(root)
+	_create_kingdoms_panel(root)
 	_settings_panel = SettingsPanelScript.new()
 	_settings_panel.pause_game_on_open = false
 	root.add_child(_settings_panel)
@@ -406,6 +514,87 @@ func _create_ui() -> void:
 	_exit_confirm_dialog.confirmed.connect(func() -> void: get_tree().quit())
 	root.add_child(_exit_confirm_dialog)
 	_refresh_ui()
+
+
+func _create_kingdoms_panel(root: Control) -> void:
+	_kingdoms_panel = PanelContainer.new()
+	_kingdoms_panel.name = "KingdomsOverviewPanel"
+	_kingdoms_panel.anchor_left = 0.06
+	_kingdoms_panel.anchor_top = 0.10
+	_kingdoms_panel.anchor_right = 0.94
+	_kingdoms_panel.anchor_bottom = 0.90
+	_kingdoms_panel.visible = false
+	root.add_child(_kingdoms_panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(10.0)))
+	margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(8.0)))
+	margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(10.0)))
+	margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(8.0)))
+	_kingdoms_panel.add_child(margin)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(6.0)))
+	margin.add_child(content)
+	var header := HBoxContainer.new()
+	content.add_child(header)
+	var title := Label.new()
+	title.text = "ДЕРЖАВЫ МИРА"
+	title.add_theme_font_size_override("font_size", UiThemeScript.font_size(19))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_kingdoms_panel)
+	close_button.custom_minimum_size = Vector2(UiMetrics.dp(108.0), UiThemeScript.touch_target(48.0))
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(scroll)
+	_kingdoms_list = VBoxContainer.new()
+	_kingdoms_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_kingdoms_list.add_theme_constant_override("separation", int(UiMetrics.dp(5.0)))
+	scroll.add_child(_kingdoms_list)
+
+
+func _refresh_kingdoms_panel() -> void:
+	if not is_instance_valid(_kingdoms_list):
+		return
+	for child in _kingdoms_list.get_children():
+		child.queue_free()
+	for index in range(CampaignState.kingdoms.size()):
+		var kingdom: Dictionary = CampaignState.kingdoms[index]
+		var cities: Array = kingdom.get("cities", [])
+		var army: Array = kingdom.get("army", [])
+		var label := Label.new()
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+		label.add_theme_color_override("font_color", _kingdom_color(index))
+		label.text = "%d. %s — %s\nГородов: %d · Войск: %d\n%s" % [
+			index + 1,
+			str(kingdom.get("name", "Королевство")),
+			str(kingdom.get("ruler", "Правитель")),
+			cities.size(),
+			army.size(),
+			str(kingdom.get("last_action", "Развивается")),
+		]
+		_kingdoms_list.add_child(label)
+		_kingdoms_list.add_child(HSeparator.new())
+
+
+func _open_kingdoms_panel() -> void:
+	if is_instance_valid(_map_more_panel):
+		_map_more_panel.visible = false
+	if is_instance_valid(_map_more_button):
+		_map_more_button.text = "ЕЩЁ"
+	if is_instance_valid(_city_panel):
+		_city_panel.visible = false
+	_refresh_kingdoms_panel()
+	_kingdoms_panel.visible = true
+
+
+func _close_kingdoms_panel() -> void:
+	if is_instance_valid(_kingdoms_panel):
+		_kingdoms_panel.visible = false
 
 
 func _create_city_panel(root: Control) -> void:
@@ -592,8 +781,6 @@ func _queue_settler() -> void:
 
 func _found_city() -> void:
 	if CampaignState.found_city(CampaignState.settler_cell):
-		if _terrain.has(CampaignState.city_cell):
-			_terrain[CampaignState.city_cell] = "plain"
 		_settler_selected = false
 		_message_text = "Основан новый город: " + CampaignState.city_name
 		Haptics.confirm(30)
@@ -738,6 +925,9 @@ func _handle_system_back() -> void:
 	if is_instance_valid(_city_panel) and _city_panel.visible:
 		_close_city()
 		return
+	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
+		_close_kingdoms_panel()
+		return
 	if is_instance_valid(_map_more_panel) and _map_more_panel.visible:
 		_toggle_map_commands()
 		return
@@ -746,12 +936,33 @@ func _handle_system_back() -> void:
 	_open_settings()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if CampaignState.campaign_lost or CampaignState.battle_in_progress:
+	if CampaignState.campaign_lost or CampaignState.battle_in_progress or OS.has_feature("mobile"):
 		return
-	# Android touch is translated to mouse input by project.godot; using one
-	# event path prevents a single tap from being processed twice.
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_handle_map_tap(event.position)
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_handle_map_tap(event.position)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			_zoom_map(1.12, event.position)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			_zoom_map(0.89, event.position)
+		elif event.button_index == MOUSE_BUTTON_MIDDLE:
+			_map_mouse_pan = event.pressed
+	elif event is InputEventMouseMotion and _map_mouse_pan:
+		_pan_map(event.relative)
+	elif event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_LEFT:
+				_pan_map(Vector2(48.0, 0.0))
+			KEY_RIGHT:
+				_pan_map(Vector2(-48.0, 0.0))
+			KEY_UP:
+				_pan_map(Vector2(0.0, 48.0))
+			KEY_DOWN:
+				_pan_map(Vector2(0.0, -48.0))
+			KEY_PLUS, KEY_KP_ADD:
+				_zoom_map(1.12, get_viewport_rect().size * 0.5)
+			KEY_MINUS, KEY_KP_SUBTRACT:
+				_zoom_map(0.89, get_viewport_rect().size * 0.5)
 
 
 func _handle_map_tap(screen_position: Vector2) -> void:
@@ -787,6 +998,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 
 	if cell == CampaignState.player_cell:
 		_settler_selected = false
+		_selected_kingdom_id = -1
 		_army_selected = true
 		Haptics.tap(10)
 		_message_text = "Армия выбрана. Коснись соседнего гекса для перемещения."
@@ -794,11 +1006,17 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		queue_redraw()
 		return
 
-	if CampaignState.enemy_present and cell == CampaignState.enemy_cell:
-		if _hex_distance(CampaignState.player_cell, CampaignState.enemy_cell) <= 1:
-			_attack_enemy()
+	var target_kingdom_id := CampaignState.get_kingdom_index_at_army(cell)
+	if target_kingdom_id >= 0:
+		_selected_kingdom_id = target_kingdom_id
+		var target_kingdom: Dictionary = CampaignState.kingdoms[target_kingdom_id]
+		if _hex_distance(CampaignState.player_cell, cell) <= 1:
+			_attack_kingdom(target_kingdom_id)
 		else:
-			_message_text = "Вражеская армия далеко: подойди к ней по соседним гексам."
+			_message_text = "%s: армия в %d гексах. Подойди ближе, чтобы атаковать." % [
+				str(target_kingdom.get("name", "Враг")),
+				_hex_distance(CampaignState.player_cell, cell),
+			]
 		_refresh_ui()
 		return
 
@@ -831,35 +1049,69 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 
 
 func _screen_to_cell(screen_position: Vector2) -> Vector2i:
-	var closest_cell := Vector2i(9999, 9999)
-	var closest_distance := HEX_SIZE
-	for cell in _cells:
-		var distance := screen_position.distance_to(_hex_center(cell))
-		if distance < closest_distance:
-			closest_distance = distance
-			closest_cell = cell
-	return closest_cell
+	var axial := _world_to_axial(_screen_to_world(screen_position))
+	var cube_x := axial.x
+	var cube_z := axial.y
+	var cube_y := -cube_x - cube_z
+	var rounded_x := roundf(cube_x)
+	var rounded_y := roundf(cube_y)
+	var rounded_z := roundf(cube_z)
+	var x_diff := absf(rounded_x - cube_x)
+	var y_diff := absf(rounded_y - cube_y)
+	var z_diff := absf(rounded_z - cube_z)
+	if x_diff > y_diff and x_diff > z_diff:
+		rounded_x = -rounded_y - rounded_z
+	elif y_diff > z_diff:
+		rounded_y = -rounded_x - rounded_z
+	else:
+		rounded_z = -rounded_x - rounded_y
+	var cell := Vector2i(roundi(rounded_x), roundi(rounded_z))
+	if not WorldGeneratorScript.is_inside_world(cell):
+		return Vector2i(9999, 9999)
+	if screen_position.distance_to(_hex_center(cell)) > HEX_SIZE * _map_zoom:
+		return Vector2i(9999, 9999)
+	return cell
+
+
 
 
 func _select_player_army() -> void:
 	_settler_selected = false
+	_selected_kingdom_id = -1
 	_army_selected = true
 	_message_text = "Армия выбрана. Коснись соседнего гекса для перемещения."
+	_center_map_on_cell(CampaignState.player_cell)
 	_refresh_ui()
 	queue_redraw()
 
 
 func _attack_enemy() -> void:
-	if not CampaignState.enemy_present:
-		_message_text = "Вражеского отряда больше нет."
+	var target_id := _selected_kingdom_id
+	if target_id < 0:
+		target_id = CampaignState.get_kingdom_index_at_army(CampaignState.enemy_cell)
+	if target_id < 0:
+		_message_text = "Выбери вражескую армию на карте."
 		_refresh_ui()
 		return
-	if _hex_distance(CampaignState.player_cell, CampaignState.enemy_cell) > 1:
-		_message_text = "Чтобы начать бой, подойди к вражеской армии вплотную."
+	_attack_kingdom(target_id)
+
+
+func _attack_kingdom(kingdom_id: int) -> void:
+	if kingdom_id < 0 or kingdom_id >= CampaignState.kingdoms.size():
+		return
+	var kingdom: Dictionary = CampaignState.kingdoms[kingdom_id]
+	var target_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
+	if _hex_distance(CampaignState.player_cell, target_cell) > 1:
+		_message_text = "Чтобы начать бой с %s, подойди к армии вплотную." % str(kingdom.get("name", "королевства"))
 		_refresh_ui()
 		return
-	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(_terrain, CampaignState.player_cell)
-	if CampaignState.begin_battle(biome_id):
+	var local_terrain: Dictionary = {}
+	local_terrain[CampaignState.player_cell] = CampaignState.get_world_terrain(CampaignState.player_cell)
+	for offset in NEIGHBOR_OFFSETS:
+		var nearby := CampaignState.player_cell + offset
+		local_terrain[nearby] = CampaignState.get_world_terrain(nearby)
+	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(local_terrain, CampaignState.player_cell)
+	if CampaignState.begin_battle(biome_id, kingdom_id):
 		get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
 
 
@@ -868,41 +1120,32 @@ func _advance_turn() -> void:
 		return
 	# A turn can be ended early; any unused movement point is simply forfeited.
 	CampaignState.advance_campaign_turn()
-	if CampaignState.settler_active and _terrain.has(CampaignState.settler_cell):
-		_terrain[CampaignState.settler_cell] = "plain"
-	_enemy_take_turn()
 	CampaignState.save_campaign()
 	Haptics.confirm(15)
-	if CampaignState.enemy_present and _hex_distance(CampaignState.player_cell, CampaignState.enemy_cell) <= 1:
-		_message_text = "Вражеская армия приблизилась! Нажми АТАКОВАТЬ, чтобы начать бой."
+	var nearest_kingdom := -1
+	var nearest_distance := 9999
+	for index in range(CampaignState.kingdoms.size()):
+		var kingdom: Dictionary = CampaignState.kingdoms[index]
+		if kingdom.get("army", []).is_empty():
+			continue
+		var distance := _hex_distance(CampaignState.player_cell, WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", [])))
+		if distance < nearest_distance:
+			nearest_distance = distance
+			nearest_kingdom = index
+	if nearest_kingdom >= 0 and nearest_distance <= 2:
+		var nearest: Dictionary = CampaignState.kingdoms[nearest_kingdom]
+		_message_text = "%s приблизило армию. Она в %d гексах от тебя." % [str(nearest.get("name", "Вражеское королевство")), nearest_distance]
 	else:
-		_message_text = "Наступил ход %d. Твоя армия может переместиться на один гекс." % CampaignState.turn_number
+		_message_text = "Ход %d. Девять держав продолжают развиваться." % CampaignState.turn_number
+	if not CampaignState.last_kingdom_events.is_empty():
+		_message_text += " " + CampaignState.last_kingdom_events[0]
 	if not CampaignState.city_last_event.is_empty():
 		_message_text += " Город: " + CampaignState.city_last_event
 	_refresh_city_panel()
+	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
+		_refresh_kingdoms_panel()
 	_refresh_ui()
 	queue_redraw()
-
-
-func _enemy_take_turn() -> void:
-	if not CampaignState.enemy_present:
-		return
-	var current_distance := _hex_distance(CampaignState.enemy_cell, CampaignState.player_cell)
-	if current_distance <= 1:
-		return
-
-	var best_cell: Vector2i = CampaignState.enemy_cell
-	var best_distance: int = current_distance
-	for offset in NEIGHBOR_OFFSETS:
-		var candidate: Vector2i = CampaignState.enemy_cell + offset
-		if not _is_traversable(candidate) or candidate == CampaignState.player_cell or CampaignState.get_city_index_at(candidate) >= 0:
-			continue
-		var candidate_distance := _hex_distance(candidate, CampaignState.player_cell)
-		if candidate_distance < best_distance:
-			best_distance = candidate_distance
-			best_cell = candidate
-	if best_cell != CampaignState.enemy_cell:
-		CampaignState.enemy_cell = best_cell
 
 
 func _restart_campaign() -> void:
@@ -943,19 +1186,17 @@ func _show_last_battle_report() -> void:
 func _refresh_ui() -> void:
 	if not is_instance_valid(_status_label):
 		return
-	var enemy_count: int = CampaignState.enemy_units.size() if CampaignState.enemy_present else 0
-	var hero_name := str(CampaignState.player_hero.get("name", "Правитель"))
-	_status_label.text = "ХОД %d · АРМИЯ %d · ВРАГ %d · ЗОЛОТО %d · %s УР.%d" % [
+	_status_label.text = "ХОД %d · ДЕРЖАВ: %d · ВРАЖЕСКИХ ВОЙСК: %d · ЗОЛОТО: %d" % [
 		CampaignState.turn_number,
-		CampaignState.player_units.size(),
-		enemy_count,
+		CampaignState.kingdoms.size(),
+		CampaignState.get_total_enemy_units(),
 		CampaignState.city_gold,
-		hero_name,
-		int(CampaignState.player_hero.get("level", 1)),
 	]
 	_message_label.text = _message_text
 	if is_instance_valid(_attack_button):
-		_attack_button.disabled = not CampaignState.enemy_present or _hex_distance(CampaignState.player_cell, CampaignState.enemy_cell) > 1 or CampaignState.player_units.is_empty()
+		var selected_kingdom_valid := _selected_kingdom_id >= 0 and _selected_kingdom_id < CampaignState.kingdoms.size()
+		var selected_army_cell := WorldGeneratorScript.array_to_cell(CampaignState.kingdoms[_selected_kingdom_id].get("army_cell", [])) if selected_kingdom_valid else CampaignState.enemy_cell
+		_attack_button.disabled = not selected_kingdom_valid or _hex_distance(CampaignState.player_cell, selected_army_cell) > 1 or CampaignState.player_units.is_empty()
 	if is_instance_valid(_turn_button):
 		_turn_button.disabled = CampaignState.campaign_lost
 	if is_instance_valid(_selection_button):
@@ -966,10 +1207,12 @@ func _refresh_ui() -> void:
 		_found_city_button.disabled = not CampaignState.settler_active or not CampaignState.can_found_city(CampaignState.settler_cell) or not _is_traversable(CampaignState.settler_cell)
 	if is_instance_valid(_city_panel) and _city_panel.visible:
 		_refresh_city_panel()
+	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
+		_refresh_kingdoms_panel()
 
 
 func _is_traversable(cell: Vector2i) -> bool:
-	return _terrain.has(cell) and str(_terrain[cell]) != "water"
+	return WorldGeneratorScript.is_inside_world(cell) and CampaignState.get_world_terrain(cell) != "water"
 
 
 func _hex_distance(a: Vector2i, b: Vector2i) -> int:

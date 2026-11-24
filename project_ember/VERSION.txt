@@ -1,3 +1,14 @@
+Project Ember v0.10.0 — Living World & Nine AI Kingdoms
+- World radius 89: 24,031 hexes. Terrain is deterministic, generated on demand from axial coordinates and a saved world seed.
+- Strategic map draws visible viewport cells only; it does not instantiate or persist 24,031 tile nodes.
+- Nine AI kingdoms have independent capitals, rulers, cities, economies, armies and building/recruitment queues.
+- Each turn every kingdom earns income, processes city development and recruitment, can expand and moves its army toward an objective.
+- Added faction map markers and a kingdom overview panel.
+- Strategic touch navigation supports drag, two-finger pan and pinch zoom; desktop supports middle-drag, wheel zoom and arrow keys.
+- Battles can be started against any selected kingdom army and persist its survivors.
+- Save JSON remains version 1 with additive world_seed and kingdoms fields; v0.9.x saves are migrated without discarding the player's city/army.
+- Godot 4.3 GL Compatibility remains the target.
+
 Project Ember v0.9.5 — Compact Mobile HUD Fix
 - Replaces permanent map and battle button grids with compact quick-action docks.
 - Moves secondary strategy and tactical commands into collapsible drawers; the battle drawer is scrollable.

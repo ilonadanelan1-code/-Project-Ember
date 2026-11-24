@@ -1,4 +1,4 @@
-# Android Start — Project Ember v0.9.5 (Godot 4.3)
+# Android Start — Project Ember v0.10.0 (Godot 4.3)
 
 1. Extract the ZIP archive.
 2. Open Godot Android Editor and import the extracted `project.godot` file.
@@ -24,6 +24,16 @@
 - Tactical combat opens with a compact dock: **ВСЕ**, **МАРШ**, **ПАУЗА**, **КОМАНДЫ**.
 - Tap **КОМАНДЫ** for selection mode, Hold, Stop, Clear, Formation, Retreat, Speed, Zoom, Battle Cry, control groups and Settings. Scroll inside the drawer if every command does not fit at once.
 - The secondary command panels are collapsed by default so they do not cover the strategic map or battlefield. Their buttons keep the existing touch-target sizing.
+
+## Expanded world and kingdoms (v0.10.0)
+
+- The world contains **24,031 hexes**. Terrain is generated as the map is viewed; the game does not load all tiles as scene nodes.
+- Drag one finger across empty map space to pan. Use two fingers to pan/zoom. On desktop, middle-mouse drag pans, the wheel zooms, and arrow keys move the map.
+- The **КОРОЛЕВСТВА** entry is inside the **ЕЩЁ** drawer. It lists all nine AI realms, their rulers, city/army counts and latest recorded action.
+- Tap an enemy army marker to select that kingdom. When your army is adjacent, use **АТАКОВАТЬ** from the **ЕЩЁ** drawer.
+- Every player turn also advances all nine AI kingdoms: income, population, construction, recruitment, settlement expansion and army movement are processed automatically.
+- AI armies use faction-coloured numbered markers; your army remains marked **P**. Cities and nearby claimed cells use their kingdom's colour.
+- Existing v0.9.x campaign saves are migrated additively. The player's current capital, city economy and army are retained; the old enemy becomes the first AI kingdom.
 
 ## Strategy, city and recruitment
 

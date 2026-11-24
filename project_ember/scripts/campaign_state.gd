@@ -5,6 +5,8 @@ extends Node
 
 const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
 const BattlefieldBiomesScript = preload("res://scripts/battlefield_biomes.gd")
+const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
+const KingdomAIScript = preload("res://scripts/kingdom_ai.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -14,6 +16,9 @@ const SAVE_PATH := "user://project_ember_campaign.json"
 const SAVE_TEMP_PATH := SAVE_PATH + ".tmp"
 const SAVE_BACKUP_PATH := SAVE_PATH + ".bak"
 const SAVE_VERSION := 1
+const WORLD_RADIUS := WorldGeneratorScript.WORLD_RADIUS
+const WORLD_HEX_COUNT := WorldGeneratorScript.WORLD_HEX_COUNT
+const KINGDOM_COUNT := WorldGeneratorScript.KINGDOM_COUNT
 
 const CITY_BUILDINGS := {
 	"farm": {
@@ -65,6 +70,10 @@ var player_units: Array[Dictionary] = []
 var enemy_units: Array[Dictionary] = []
 var player_hero: Dictionary = {}
 var enemy_hero: Dictionary = {}
+var world_seed: int = WorldGeneratorScript.DEFAULT_SEED
+var kingdoms: Array[Dictionary] = []
+var last_kingdom_events: Array[String] = []
+var battle_kingdom_id: int = -1
 
 # First playable city: the capital exists from the start. Settler-based expansion
 # is deliberately deferred until the basic city -> army -> battle loop is stable.
@@ -128,12 +137,13 @@ func new_campaign(persist: bool = true) -> void:
 	turn_number = 1
 	player_moves_left = 1
 	player_cell = Vector2i(-2, 0)
-	enemy_cell = Vector2i(2, 0)
-	enemy_present = true
+	world_seed = WorldGeneratorScript.DEFAULT_SEED
 	player_units = _make_starting_army()
-	enemy_units = _make_starting_army()
 	player_hero = _make_hero_record("Эдрик", "Правитель Каменного Брода")
-	enemy_hero = _make_hero_record("Варг", "Воевода Красного Отряда")
+	kingdoms = KingdomAIScript.create_initial_kingdoms(world_seed)
+	last_kingdom_events.clear()
+	battle_kingdom_id = -1
+	_sync_primary_kingdom()
 	city_founded = true
 	city_name = "Каменный Брод"
 	city_cell = Vector2i(-3, 1)
@@ -278,11 +288,25 @@ func _recover_campaign_heroes() -> void:
 			hero["health"] = minf(max_health, current_health + max_health * 0.18)
 
 
-func begin_battle(biome_id: String = "") -> bool:
-	if battle_in_progress or campaign_lost or not enemy_present:
+func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
+	if battle_in_progress or campaign_lost or player_units.is_empty():
 		return false
-	if player_units.is_empty() or enemy_units.is_empty():
+	if kingdom_id < 0:
+		kingdom_id = get_kingdom_index_at_army(enemy_cell)
+	if kingdom_id < 0 or kingdom_id >= kingdoms.size():
 		return false
+	var target_kingdom: Dictionary = kingdoms[kingdom_id]
+	var target_army: Array[Dictionary] = _read_unit_records(target_kingdom.get("army", []))
+	if target_army.is_empty():
+		return false
+	battle_kingdom_id = kingdom_id
+	enemy_units = target_army
+	enemy_cell = WorldGeneratorScript.array_to_cell(target_kingdom.get("army_cell", []))
+	var default_enemy_hero := _make_hero_record(
+		str(target_kingdom.get("ruler", "Воевода")),
+		"Правитель " + str(target_kingdom.get("name", "Королевства"))
+	)
+	enemy_hero = _read_hero_record(target_kingdom.get("hero", default_enemy_hero), default_enemy_hero)
 	battle_origin_cell = player_cell
 	battle_enemy_cell = enemy_cell
 	battlefield_biome_id = biome_id if BattlefieldBiomesScript.biome_ids().has(biome_id) else BattlefieldBiomesScript.resolve_for_cell(battle_origin_cell)
@@ -304,7 +328,23 @@ func complete_battle(
 
 	player_units = _copy_unit_records(player_survivors)
 	enemy_units = _copy_unit_records(enemy_survivors)
+	var defeated_kingdom_name := "Вражеское королевство"
+	if battle_kingdom_id >= 0 and battle_kingdom_id < kingdoms.size():
+		var defeated_kingdom: Dictionary = kingdoms[battle_kingdom_id]
+		defeated_kingdom_name = str(defeated_kingdom.get("name", defeated_kingdom_name))
+		defeated_kingdom["army"] = _copy_unit_records(enemy_survivors)
+		defeated_kingdom["army_cell"] = WorldGeneratorScript.cell_to_array(battle_enemy_cell)
+		if enemy_commander_health >= 0.0:
+			var kingdom_hero: Dictionary = defeated_kingdom.get("hero", {})
+			kingdom_hero["health"] = clampf(enemy_commander_health, 0.0, 210.0)
+			if enemy_commander_health <= 0.0:
+				kingdom_hero["wounded_turns"] = 2
+			defeated_kingdom["hero"] = kingdom_hero
+		defeated_kingdom["last_action"] = "Армия потерпела поражение" if victory else "Армия удержала позиции"
+		kingdoms[battle_kingdom_id] = defeated_kingdom
 	last_battle_result = stats.duplicate(true)
+	last_battle_result["kingdom_id"] = battle_kingdom_id
+	last_battle_result["kingdom_name"] = defeated_kingdom_name
 	last_battle_result["victory"] = victory
 	last_battle_result["player_survivors"] = player_units.size()
 	last_battle_result["enemy_survivors"] = enemy_units.size()
@@ -327,15 +367,15 @@ func complete_battle(
 	last_battle_report_pending = true
 
 	if victory:
-		enemy_present = false
 		player_cell = battle_enemy_cell
 	else:
-		enemy_present = not enemy_units.is_empty()
 		player_cell = battle_origin_cell
 
 	campaign_lost = player_units.is_empty()
 	battle_in_progress = false
+	battle_kingdom_id = -1
 	player_moves_left = 0
+	_sync_primary_kingdom()
 	save_campaign()
 
 
@@ -429,8 +469,16 @@ func queue_settler() -> bool:
 	return true
 
 func can_found_city(cell: Vector2i) -> bool:
-	if not settler_active or get_city_index_at(cell) >= 0 or cities.size() >= 5 or cell == player_cell or (enemy_present and cell == enemy_cell):
+	if not settler_active or not WorldGeneratorScript.is_inside_world(cell) or WorldGeneratorScript.terrain_at(cell, world_seed) == "water":
 		return false
+	if get_city_index_at(cell) >= 0 or cities.size() >= 5 or cell == player_cell or cell == enemy_cell:
+		return false
+	for kingdom in kingdoms:
+		for ai_city in kingdom.get("cities", []):
+			if WorldGeneratorScript.array_to_cell(ai_city.get("cell", [])) == cell:
+				return false
+		if WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", [])) == cell:
+			return false
 	for c in cities:
 		var xy: Array = c.get("cell", [])
 		if xy.size() < 2:
@@ -439,6 +487,11 @@ func can_found_city(cell: Vector2i) -> bool:
 		var d := int((absi(cell.x-other.x)+absi(cell.y-other.y)+absi((cell.x+cell.y)-(other.x+other.y)))/2)
 		if d < 3:
 			return false
+	for kingdom in kingdoms:
+		for ai_city in kingdom.get("cities", []):
+			var other_cell := WorldGeneratorScript.array_to_cell(ai_city.get("cell", []))
+			if WorldGeneratorScript.hex_distance(cell, other_cell) < 3:
+				return false
 	return true
 
 func found_city(cell: Vector2i) -> bool:
@@ -596,11 +649,69 @@ func advance_campaign_turn() -> void:
 		_save_active_city()
 	active_city_id = previous_city_id
 	_load_active_city()
+	var player_city_cells: Array[Vector2i] = []
+	for city_record in cities:
+		player_city_cells.append(WorldGeneratorScript.array_to_cell(city_record.get("cell", [])))
+	last_kingdom_events = KingdomAIScript.process_turns(
+		kingdoms,
+		turn_number,
+		player_cell,
+		player_city_cells,
+		world_seed
+	)
+	_sync_primary_kingdom()
+
+
+func get_world_terrain(cell: Vector2i) -> String:
+	return WorldGeneratorScript.terrain_at(cell, world_seed)
+
+
+func get_kingdom_index_at_army(cell: Vector2i) -> int:
+	for index in range(kingdoms.size()):
+		var kingdom: Dictionary = kingdoms[index]
+		if not bool(kingdom.get("alive", true)) or kingdom.get("army", []).is_empty():
+			continue
+		if WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", [])) == cell:
+			return index
+	return -1
+
+
+func get_total_enemy_units() -> int:
+	var total := 0
+	for kingdom in kingdoms:
+		total += kingdom.get("army", []).size()
+	return total
+
+
+func get_world_owner_at(cell: Vector2i) -> int:
+	for city_record in cities:
+		var city_cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
+		if WorldGeneratorScript.hex_distance(cell, city_cell) <= 1:
+			return -2
+	for index in range(kingdoms.size()):
+		var kingdom: Dictionary = kingdoms[index]
+		for city_record in kingdom.get("cities", []):
+			var city_cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
+			if WorldGeneratorScript.hex_distance(cell, city_cell) <= 1:
+				return index
+	return -1
+
+
+func _sync_primary_kingdom() -> void:
+	if kingdoms.is_empty():
+		enemy_present = false
+		enemy_units.clear()
+		return
+	var primary: Dictionary = kingdoms[0]
+	enemy_cell = WorldGeneratorScript.array_to_cell(primary.get("army_cell", [2, 0]))
+	enemy_units = _read_unit_records(primary.get("army", []))
+	enemy_present = not enemy_units.is_empty()
+	var fallback := _make_hero_record(str(primary.get("ruler", "Варг")), "Правитель " + str(primary.get("name", "Королевства")))
+	enemy_hero = _read_hero_record(primary.get("hero", fallback), fallback)
 
 
 func _find_settler_spawn_cell(origin: Vector2i) -> Vector2i:
-	# Keep settlers on the playable 91-hex map, including when a new city is
-	# founded at the map edge. StrategyMap will make the selected tile passable.
+	# Find a nearby passable spawn anywhere in the expanded world.
 	var offsets: Array[Vector2i] = [
 		Vector2i(0, 1),
 		Vector2i(1, 0),
@@ -611,10 +722,18 @@ func _find_settler_spawn_cell(origin: Vector2i) -> Vector2i:
 	]
 	for offset in offsets:
 		var candidate: Vector2i = origin + offset
-		var radius_distance := int((absi(candidate.x) + absi(candidate.y) + absi(candidate.x + candidate.y)) / 2)
-		if radius_distance > 5 or get_city_index_at(candidate) >= 0:
+		if not WorldGeneratorScript.is_inside_world(candidate) or WorldGeneratorScript.terrain_at(candidate, world_seed) == "water" or get_city_index_at(candidate) >= 0:
 			continue
-		if candidate == player_cell or (enemy_present and candidate == enemy_cell):
+		if candidate == player_cell or candidate == enemy_cell:
+			continue
+		var occupied_by_kingdom := false
+		for kingdom in kingdoms:
+			if WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", [])) == candidate:
+				occupied_by_kingdom = true
+			for ai_city in kingdom.get("cities", []):
+				if WorldGeneratorScript.array_to_cell(ai_city.get("cell", [])) == candidate:
+					occupied_by_kingdom = true
+		if occupied_by_kingdom:
 			continue
 		return candidate
 	return origin
@@ -670,6 +789,8 @@ func save_campaign() -> bool:
 	_save_active_city()
 	var save_data := {
 		"version": SAVE_VERSION,
+		"world_seed": world_seed,
+		"kingdoms": kingdoms,
 		"campaign_lost": campaign_lost,
 		"turn_number": turn_number,
 		"player_moves_left": player_moves_left,
@@ -812,6 +933,28 @@ func load_campaign() -> bool:
 	player_hero = _read_hero_record(data.get("player_hero", player_hero_fallback), player_hero_fallback)
 	enemy_hero = _read_hero_record(data.get("enemy_hero", enemy_hero_fallback), enemy_hero_fallback)
 	enemy_present = bool(data.get("enemy_present", true)) and not enemy_units.is_empty()
+	world_seed = int(data.get("world_seed", WorldGeneratorScript.DEFAULT_SEED))
+	var default_kingdoms := KingdomAIScript.create_initial_kingdoms(world_seed)
+	kingdoms.clear()
+	var saved_kingdoms: Variant = data.get("kingdoms", [])
+	if saved_kingdoms is Array and saved_kingdoms.size() >= KINGDOM_COUNT:
+		for index in range(KINGDOM_COUNT):
+			var fallback: Dictionary = default_kingdoms[index]
+			if saved_kingdoms[index] is Dictionary:
+				kingdoms.append(KingdomAIScript.normalize_kingdom(saved_kingdoms[index], fallback))
+			else:
+				kingdoms.append(fallback.duplicate(true))
+	else:
+		# v0.9.x saves have no kingdom data. Preserve the existing enemy army
+		# as realm zero and create the remaining realms around the current campaign.
+		kingdoms = default_kingdoms
+		var migrated_primary: Dictionary = kingdoms[0]
+		migrated_primary["army_cell"] = WorldGeneratorScript.cell_to_array(enemy_cell)
+		migrated_primary["army"] = _copy_unit_records(enemy_units) if enemy_present else []
+		migrated_primary["hero"] = enemy_hero.duplicate(true)
+		kingdoms[0] = migrated_primary
+	battle_kingdom_id = -1
+	last_kingdom_events.clear()
 	var loaded_result: Variant = data.get("last_battle_result", {})
 	if loaded_result is Dictionary:
 		last_battle_result = loaded_result
@@ -862,6 +1005,10 @@ func load_campaign() -> bool:
 		settler_cell = Vector2i(int(settler_xy[0]), int(settler_xy[1]))
 	settler_moves_left = clampi(int(data.get("settler_moves_left", 1)), 0, 1)
 	_load_active_city()
+	# Old saves predate the world map. Their player capital and army remain in place;
+	# the new world and the eight additional realms are generated around them.
+	if kingdoms.size() == KINGDOM_COUNT:
+		_sync_primary_kingdom()
 	battle_in_progress = false
 	return true
 

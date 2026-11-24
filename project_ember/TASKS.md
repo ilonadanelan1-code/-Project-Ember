@@ -1,5 +1,21 @@
 # Project Ember — Tasks
 
+## v0.10.0 — Living World & Nine AI Kingdoms
+
+- [x] Expand the map to a radius-89 world with exactly 24,031 hexes.
+- [x] Generate terrain deterministically by coordinate and world seed; avoid per-hex scene nodes and save records.
+- [x] Render viewport-visible tiles only and add pan/zoom navigation for mobile and desktop.
+- [x] Add nine independent AI kingdoms with capitals, rulers, cities, resources and field armies.
+- [x] Advance AI economy, building queues, recruitment, population and expansion every player turn.
+- [x] Give AI armies strategic movement objectives and block army/city cell overlap.
+- [x] Add faction markers and the scrollable Kingdoms overview panel.
+- [x] Allow tactical battles against any selected AI kingdom and save its post-battle survivors.
+- [x] Preserve v0.9.x campaigns through additive world/kingdom save migration.
+- [x] Add CI tests for world size, terrain determinism, AI turns and save/load.
+- [ ] Verify large-map pan/zoom performance on the target Android phone.
+- [ ] Verify kingdom panel readability and enemy army selection on device.
+- [ ] Balance AI expansion, army sizes and movement aggression through longer campaigns.
+
 ## v0.9.5 — Compact Mobile HUD Fix
 
 - [x] Replace the permanent strategic command grid with a compact quick dock.
