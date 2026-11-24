@@ -314,10 +314,10 @@ func _create_ui() -> void:
 	top_panel.anchor_top = 0.0
 	top_panel.anchor_right = 1.0
 	top_panel.anchor_bottom = 0.0
-	top_panel.offset_left = 10.0
-	top_panel.offset_top = 8.0
-	top_panel.offset_right = -10.0
-	top_panel.offset_bottom = 92.0
+	top_panel.offset_left = UiMetrics.dp(10.0)
+	top_panel.offset_top = UiMetrics.dp(8.0)
+	top_panel.offset_right = -UiMetrics.dp(10.0)
+	top_panel.offset_bottom = UiMetrics.dp(92.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
@@ -340,10 +340,10 @@ func _create_ui() -> void:
 	bottom_panel.anchor_top = 1.0
 	bottom_panel.anchor_right = 1.0
 	bottom_panel.anchor_bottom = 1.0
-	bottom_panel.offset_left = 10.0
-	bottom_panel.offset_top = -180.0
-	bottom_panel.offset_right = -10.0
-	bottom_panel.offset_bottom = -8.0
+	bottom_panel.offset_left = UiMetrics.dp(10.0)
+	bottom_panel.offset_top = -UiMetrics.dp(180.0)
+	bottom_panel.offset_right = -UiMetrics.dp(10.0)
+	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
 	root.add_child(bottom_panel)
 
 	var margin := MarginContainer.new()
@@ -499,7 +499,7 @@ func _create_city_panel(root: Control) -> void:
 		var recruit_data: Dictionary = CampaignState.get_recruit_data(role_id)
 		var button_text := "%s\n%d зол. · %d пр." % [str(recruit_data.get("name", "Отряд")), int(recruit_data.get("gold_cost", 0)), int(recruit_data.get("production_cost", 0))]
 		var recruit_button := _add_button(recruit_grid, button_text, _queue_recruit.bind(role_id))
-		recruit_button.custom_minimum_size = Vector2(0.0, 58.0)
+		recruit_button.custom_minimum_size = Vector2(UiMetrics.dp(0.0), UiMetrics.dp(58.0))
 		recruit_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 		_city_recruit_buttons[role_id] = recruit_button
 
