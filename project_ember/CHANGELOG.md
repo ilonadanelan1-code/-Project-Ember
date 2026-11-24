@@ -1,3 +1,19 @@
+## v0.9.4 — Mobile UX Foundation (UI-1)
+
+- Added DPI-aware `UiMetrics` with physical-pixel-to-reference-pixel dp conversion, 120–640 dpi clamping, 160 dpi fallback, live resize/UI-scale refresh and the 0.8–1.6 scale range.
+- Added a resize-aware `SafeAreaContainer` and placed the strategy, battle and FPS overlay HUD roots inside safe content bounds.
+- Added a shared `TouchGestureRouter` foundation for indexed touch, tap/double-tap/long-press, drag, pinch, two-finger pan and Control hit-testing. Raw touch is separated from emulated mouse input; existing Control buttons and legacy world input remain active.
+- Added reusable `Haptics`, `ToastManager`/`Toast`, `ConfirmDialog`, `BottomSheet` and `IconButton` components with a starter SVG icon set.
+- Connected vibration feedback to army/settler selection, orders, group recording and Battle Cry, respecting the existing vibration setting and an 80 ms rate limit.
+- Added Android Back handling: closes the top modal/panel first; battle Back pauses the fight, while map Back opens the existing settings panel rather than quitting.
+- Added app-background handling: the map saves its strategic state; tactical combat pauses and leaves the previous strategic checkpoint unchanged, matching the existing no-save-during-battle guard.
+- Changed handheld orientation to Sensor Landscape (both landscape directions) and disabled automatic exit on Back.
+- Protected New Campaign with a one-second hold confirmation; a normal tap no longer resets the campaign.
+- Changed campaign persistence to write/flush/validate `.tmp`, rotate the previous valid save to `.bak`, then replace the primary. Loading can recover from `.bak` and still uses the existing `.corrupt` preservation path. JSON v1 keys are unchanged.
+- Converted shared theme, settings, strategy/battle panel offsets, touch targets and FPS overlay dimensions to dp-based values.
+- Added CI smoke tests for dp calculation, touch routing, UI components, destructive reset confirmation, atomic saves and backup recovery.
+- Existing map/battle layouts and legacy mouse-world interactions are retained for this foundation pass; full gesture-driven HUD replacement remains UI-2/UI-3. Physical Android verification is still required.
+
 ## v0.9.3 — Combat Effects & Sound
 
 - Connected pooled combat feedback to melee, spear, cavalry and ranged hits, projectile launches and trails, unit deaths, and the commander's Battle Cry.
