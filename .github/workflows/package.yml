@@ -48,6 +48,8 @@ jobs:
           test -f project_ember/scripts/battle_unit_visuals.gd
           test -f project_ember/scripts/battlefield_biomes.gd
           test -f project_ember/tests/battlefield_biome_smoke_test.gd
+          test -f project_ember/scripts/combat_effects.gd
+          test -f project_ember/tests/combat_effects_smoke_test.gd
           test -f project_ember/scripts/unit_catalog.gd
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
@@ -171,10 +173,24 @@ jobs:
             echo "Foundation tests reported an error." >&2
             exit 1
           fi
+      - name: Test pooled combat feedback, generated audio and quality budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/combat_effects_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file" | grep -Fv 'ERROR: Parameter "m" is null.'; then
+            echo "Combat effects tests reported an unexpected error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All combat effects smoke tests passed." "$log_file"; then
+            echo "Combat effects tests did not reach their success marker." >&2
+            exit 1
+          fi
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.9.2-Biomes-Terrain
+          name: Project-Ember-v0.9.3-Combat-Effects-Sound
           path: |
             project_ember/**
             !project_ember/.godot/**
