@@ -206,6 +206,7 @@ func _activate_commander_rally() -> void:
 				var activated := unit.activate_rally()
 				_refresh_ui()
 				if activated:
+					Haptics.confirm(40)
 					_help_label.text = "БОЕВОЙ КЛИЧ! Ближайшие отряды восстановили силы и получили боевой бонус."
 				else:
 					_help_label.text = "Боевой клич пока недоступен или рядом нет союзных отрядов."
@@ -557,6 +558,9 @@ func _save_control_group(group_id: int) -> void:
 	if saved.is_empty():
 		return
 	_control_groups[group_id] = saved
+	Haptics.confirm(30)
+	if is_instance_valid(_toast_manager):
+		_toast_manager.show_toast("Группа %d сохранена" % group_id, 2.0, "✓")
 
 
 func _select_control_group(group_id: int) -> void:
@@ -567,6 +571,7 @@ func _select_control_group(group_id: int) -> void:
 		if is_instance_valid(unit) and not unit.is_queued_for_deletion():
 			_selected_units.append(unit)
 			unit.set_selected(true)
+	Haptics.tap(10)
 
 
 func _handle_primary_tap(screen_position: Vector2, add_to_selection: bool) -> void:
@@ -631,11 +636,13 @@ func _issue_command(screen_position: Vector2) -> void:
 					unit.order_attack(target)
 			_attack_move_enabled = false
 			_refresh_ui()
+			Haptics.confirm(15)
 		return
 
 	_clear_focused_target()
 	var destination: Vector3 = hit.get("position", Vector3.ZERO)
 	_issue_formation_order(destination)
+	Haptics.confirm(15)
 
 
 func _issue_formation_order(destination: Vector3) -> void:
@@ -804,6 +811,8 @@ func _select_all_player_units() -> void:
 			if unit.team == PLAYER_TEAM:
 				_selected_units.append(unit)
 				unit.set_selected(true)
+	if not _selected_units.is_empty():
+		Haptics.tap(10)
 	_refresh_ui()
 
 
