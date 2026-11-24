@@ -31,6 +31,7 @@ var _pinch_center: Vector2 = Vector2.ZERO
 var _last_drag_delta: Vector2 = Vector2.ZERO
 var _suppressed_until_all_released: bool = false
 var _last_raw_touch_msec: int = -10000
+var _last_raw_touch_over_ui: bool = false
 var _pending_tap: bool = false
 var _pending_tap_position: Vector2 = Vector2.ZERO
 var _pending_tap_msec: int = -10000
@@ -43,6 +44,11 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		handle_touch_event(event)
+	elif OS.has_feature("mobile") and consume_mouse_events and event is InputEventMouse:
+		# Godot can synthesize mouse events from a raw touch. Suppress that
+		# second world event only when the original touch began outside the UI.
+		if Time.get_ticks_msec() - _last_raw_touch_msec <= DOUBLE_TAP_MSEC and not _last_raw_touch_over_ui:
+			get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -72,7 +78,8 @@ func handle_touch_event(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var touch := event as InputEventScreenTouch
 		if touch.pressed:
-			_start_pointer(touch.index, touch.position, _is_ui_position(touch.position))
+			_last_raw_touch_over_ui = _is_ui_position(touch.position)
+			_start_pointer(touch.index, touch.position, _last_raw_touch_over_ui)
 		else:
 			_finish_pointer(touch.index, touch.position)
 	elif event is InputEventScreenDrag:
@@ -250,5 +257,6 @@ func reset_gesture_state() -> void:
 	gesture_state = GestureState.IDLE
 	_suppressed_until_all_released = false
 	_pending_tap = false
+	_last_raw_touch_over_ui = false
 	_pinch_distance = 0.0
 	_pinch_center = Vector2.ZERO
