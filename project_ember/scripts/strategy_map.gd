@@ -10,13 +10,14 @@ const TouchGestureRouterScript = preload("res://scripts/touch_gesture_router.gd"
 const ToastManagerScript = preload("res://scripts/toast_manager.gd")
 const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
 const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
+const HexMapBatchRendererScript = preload("res://scripts/hex_map_batch_renderer.gd")
 
 ## First playable strategic-map slice: a compact axial-hex map, one player army,
 ## one neutral enemy army, turn-based movement and transition to tactical combat.
 
 const MAP_RADIUS := WorldGeneratorScript.WORLD_RADIUS
 const HEX_SIZE := 30.0
-const MAP_ZOOM_MIN := 0.42
+const MAP_ZOOM_MIN := 0.075
 const MAP_ZOOM_MAX := 1.25
 const PLAYER_TEAM_COLOR := Palette.PLAYER_TEAM
 const ENEMY_TEAM_COLOR := Palette.ENEMY_TEAM
@@ -31,6 +32,8 @@ const NEIGHBOR_OFFSETS: Array[Vector2i] = [
 ]
 
 var _cells: Array[Vector2i] = []
+var _terrain_renderer: HexMapBatchRenderer
+var _owner_lookup: Dictionary = {}
 var _camera_center_world: Vector2 = Vector2.ZERO
 var _map_zoom: float = 0.9
 var _map_mouse_pan: bool = false
@@ -74,6 +77,9 @@ func _ready() -> void:
 		CampaignState.new_campaign()
 	_build_map()
 	_camera_center_world = _hex_world_position(CampaignState.player_cell)
+	_terrain_renderer = HexMapBatchRendererScript.new()
+	_terrain_renderer.name = "BatchedWorldTerrain"
+	add_child(_terrain_renderer)
 	_create_ui()
 	add_child(PerfOverlayScript.new())
 	if CampaignState.last_battle_report_pending:
@@ -86,14 +92,26 @@ func _ready() -> void:
 
 func _draw() -> void:
 	_cells = _get_visible_map_cells()
-	for cell in _cells:
-		_draw_hex_tile(cell)
-		var owner_id := CampaignState.get_world_owner_at(cell)
+	_refresh_owner_lookup()
+	var centers := PackedVector2Array()
+	var colors := PackedColorArray()
+	centers.resize(_cells.size())
+	colors.resize(_cells.size())
+	for index in range(_cells.size()):
+		var cell: Vector2i = _cells[index]
+		centers[index] = _hex_center(cell)
+		var tint := _terrain_color(CampaignState.get_world_terrain(cell))
+		var owner_id := int(_owner_lookup.get(cell, -1))
 		if owner_id == -2:
-			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), Palette.MAP_CLAIM_BORDER, maxf(1.0, 2.0 * _map_zoom), true)
+			tint = tint.lerp(PLAYER_TEAM_COLOR, 0.22)
 		elif owner_id >= 0:
-			draw_polyline(_closed_polygon(_hex_points(_hex_center(cell))), _kingdom_color(owner_id), maxf(1.0, 2.0 * _map_zoom), true)
+			tint = tint.lerp(_kingdom_color(owner_id), 0.20)
+		colors[index] = tint
+	if is_instance_valid(_terrain_renderer):
+		_terrain_renderer.set_tiles(centers, colors, Vector2(56.0, 64.0), _map_zoom)
 
+	# Only strategic entities use individual drawing commands. The thousands of
+	# terrain hexes above are submitted by one MultiMesh draw batch.
 	for city_data in CampaignState.cities:
 		var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 		var center := _hex_center(cell)
@@ -130,6 +148,24 @@ func _draw() -> void:
 			if _is_traversable(neighbor) and CampaignState.get_kingdom_index_at_army(neighbor) < 0:
 				draw_colored_polygon(_hex_points(_hex_center(neighbor)), Palette.MAP_MOVE_FILL)
 				draw_polyline(_closed_polygon(_hex_points(_hex_center(neighbor))), Palette.MAP_MOVE_BORDER, maxf(1.0, 2.3 * _map_zoom), true)
+
+
+func _refresh_owner_lookup() -> void:
+	_owner_lookup.clear()
+	var claim_offsets: Array[Vector2i] = [Vector2i.ZERO]
+	claim_offsets.append_array(NEIGHBOR_OFFSETS)
+	for city_data in CampaignState.cities:
+		var capital_cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
+		for offset in claim_offsets:
+			_owner_lookup[capital_cell + offset] = -2
+	for kingdom_index in range(CampaignState.kingdoms.size()):
+		var kingdom: Dictionary = CampaignState.kingdoms[kingdom_index]
+		for city_data in kingdom.get("cities", []):
+			var city_cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
+			for offset in claim_offsets:
+				var claimed_cell := city_cell + offset
+				if not _owner_lookup.has(claimed_cell):
+					_owner_lookup[claimed_cell] = kingdom_index
 
 
 func _get_visible_map_cells() -> Array[Vector2i]:
@@ -185,78 +221,10 @@ func _kingdom_color(index: int) -> Color:
 	return Color.from_hsv(float(posmod(index, WorldGeneratorScript.KINGDOM_COUNT)) / float(WorldGeneratorScript.KINGDOM_COUNT), 0.68, 0.92, 1.0)
 
 
-func _draw_hex_tile(cell: Vector2i) -> void:
-	var center := _hex_center(cell)
-	var kind := CampaignState.get_world_terrain(cell)
-	var points := _hex_points(center)
-	var shadow := PackedVector2Array()
-	var inner := PackedVector2Array()
-	for point in points:
-		shadow.append(point + Vector2(0.0, 4.0 * _map_zoom))
-		inner.append(center + (point - center) * 0.91)
-	draw_colored_polygon(shadow, Palette.MAP_HEX_SHADOW)
-	draw_colored_polygon(points, Palette.MAP_HEX_BASE)
-	draw_colored_polygon(inner, _terrain_color(kind))
-	draw_polyline(_closed_polygon(points), Palette.MAP_HEX_OUTLINE, maxf(0.7, 1.4 * _map_zoom), true)
-	# On a continent-wide view, skip tiny decorative strokes and keep the terrain silhouette.
-	if _map_zoom < 0.58:
-		return
-	match kind:
-		"forest":
-			for index in range(3):
-				var offset := Vector2(float(posmod(cell.x * 13 + cell.y * 7 + index * 11, 17) - 8), float(posmod(cell.x * 5 - cell.y * 9 + index * 7, 15) - 7))
-				_draw_map_tree(center + offset * (0.72 * _map_zoom), (0.72 + float(index % 2) * 0.12) * _map_zoom)
-		"hills":
-			_draw_map_hills(center, cell)
-		"water":
-			_draw_map_water(center, cell)
-		_:
-			_draw_map_grass(center, cell)
-
-
-func _draw_map_grass(center: Vector2, cell: Vector2i) -> void:
-	for index in range(4):
-		var seed_value := cell.x * 37 + cell.y * 61 + index * 19
-		var offset := Vector2(float(posmod(seed_value, 17) - 8), float(posmod(seed_value * 3, 15) - 7))
-		var origin := center + offset * _map_zoom
-		draw_line(origin, origin + Vector2(-2.0, -4.0) * _map_zoom, Palette.MAP_GRASS_STROKE, maxf(0.7, 1.3 * _map_zoom), true)
-		draw_line(origin, origin + Vector2(2.0, -5.0) * _map_zoom, Palette.MAP_GRASS_STROKE_LIGHT, maxf(0.7, 1.2 * _map_zoom), true)
-
-
-func _draw_map_tree(position: Vector2, scale: float) -> void:
-	draw_line(position + Vector2(0.0, 2.0 * _map_zoom), position + Vector2(0.0, 9.0 * _map_zoom) * scale, Palette.MAP_TREE_TRUNK, maxf(0.8, 2.2 * _map_zoom), true)
-	var crown := PackedVector2Array([
-		position + Vector2(0.0, -13.0 * _map_zoom) * scale,
-		position + Vector2(-8.5 * _map_zoom, 3.0 * _map_zoom) * scale,
-		position + Vector2(8.5 * _map_zoom, 3.0 * _map_zoom) * scale,
-	])
-	draw_colored_polygon(crown, Palette.MAP_TREE_CROWN)
-	var crown_light := PackedVector2Array([
-		position + Vector2(0.0, -12.0 * _map_zoom) * scale,
-		position + Vector2(-1.0 * _map_zoom, 1.0 * _map_zoom) * scale,
-		position + Vector2(7.0 * _map_zoom, 1.0 * _map_zoom) * scale,
-	])
-	draw_colored_polygon(crown_light, Palette.MAP_TREE_CROWN_LIGHT)
-
-
-func _draw_map_hills(center: Vector2, cell: Vector2i) -> void:
-	var shift := (float(posmod(cell.x * 5 + cell.y * 7, 7)) - 3.0) * _map_zoom
-	var hill_back := PackedVector2Array([center + Vector2(-18.0 * _map_zoom, 6.0 * _map_zoom), center + Vector2(-3.0 * _map_zoom + shift, -12.0 * _map_zoom), center + Vector2(12.0 * _map_zoom, 6.0 * _map_zoom)])
-	var hill_front := PackedVector2Array([center + Vector2(-10.0 * _map_zoom, 8.0 * _map_zoom), center + Vector2(5.0 * _map_zoom, -6.0 * _map_zoom), center + Vector2(19.0 * _map_zoom, 8.0 * _map_zoom)])
-	draw_colored_polygon(hill_back, Palette.MAP_HILL_BACK)
-	draw_colored_polygon(hill_front, Palette.MAP_HILL_FRONT)
-	draw_line(center + Vector2(-3.0 * _map_zoom + shift, -12.0 * _map_zoom), center + Vector2(2.0 * _map_zoom + shift, -3.0 * _map_zoom), Palette.MAP_HILL_EDGE, maxf(0.7, 1.5 * _map_zoom), true)
-
-
-func _draw_map_water(center: Vector2, cell: Vector2i) -> void:
-	for index in range(3):
-		var y := float(index * 8 - 7) * _map_zoom
-		var offset := (float(posmod(cell.x * 9 + cell.y * 13 + index * 5, 9)) - 4.0) * _map_zoom
-		draw_line(center + Vector2(-13.0 * _map_zoom + offset, y), center + Vector2(-3.0 * _map_zoom, y - 2.0 * _map_zoom), Palette.MAP_WATER_RIPPLE, maxf(0.7, 1.6 * _map_zoom), true)
-		draw_line(center + Vector2(1.0 * _map_zoom, y - 2.0 * _map_zoom), center + Vector2(13.0 * _map_zoom - offset * 0.4, y), Palette.MAP_WATER_RIPPLE_LIGHT, maxf(0.7, 1.4 * _map_zoom), true)
-
-
 func _draw_city_marker(center: Vector2, banner_color: Color = Palette.MAP_CITY_FLAG) -> void:
+	if _map_zoom < 0.28:
+		draw_circle(center, maxf(2.5, 9.0 * _map_zoom), banner_color)
+		return
 	draw_circle(center + Vector2(0.0, 3.0 * _map_zoom), 17.0 * _map_zoom, Palette.MAP_OBJECT_SHADOW)
 	draw_rect(Rect2(center + Vector2(-11.0, -7.0) * _map_zoom, Vector2(22.0, 17.0) * _map_zoom), Palette.MAP_CITY_WALL)
 	draw_rect(Rect2(center + Vector2(-15.0, -12.0) * _map_zoom, Vector2(8.0, 18.0) * _map_zoom), Palette.MAP_CITY_TOWER)
@@ -270,6 +238,10 @@ func _draw_city_marker(center: Vector2, banner_color: Color = Palette.MAP_CITY_F
 
 func _draw_army_marker(cell: Vector2i, marker_color: Color, letter: String) -> void:
 	var center := _hex_center(cell)
+	if _map_zoom < 0.22:
+		draw_circle(center, maxf(3.0, 10.0 * _map_zoom), marker_color)
+		draw_string(ThemeDB.fallback_font, center + Vector2(-3.0, 3.0) * _map_zoom, letter, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Palette.MAP_ARMY_TEXT)
+		return
 	draw_circle(center + Vector2(0.0, 4.0 * _map_zoom), 18.0 * _map_zoom, Palette.MAP_ARMY_SHADOW)
 	draw_circle(center, 16.0 * _map_zoom, Palette.MAP_ARMY_BASE)
 	var shield := PackedVector2Array([

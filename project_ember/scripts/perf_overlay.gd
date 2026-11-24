@@ -19,7 +19,7 @@ func _ready() -> void:
 	panel.offset_left = UiMetrics.dp(4.0)
 	panel.offset_top = UiMetrics.dp(4.0)
 	panel.offset_right = UiMetrics.dp(365.0)
-	panel.offset_bottom = UiMetrics.dp(126.0)
+	panel.offset_bottom = UiMetrics.dp(150.0)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
 	root.add_child(panel)
@@ -49,8 +49,18 @@ func _update_text() -> void:
 	var video_memory := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED)
 	var static_memory := Performance.get_monitor(Performance.MEMORY_STATIC)
 	var node_count := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
-	_label.text = "FPS: %d · Draw calls: %d\nОбъекты: %d · Примитивы: %d\nУзлы: %d · RAM: %s · GPU: %s" % [
-		fps, draw_calls, objects, primitives, node_count,
+	var process_ms := float(Performance.get_monitor(Performance.TIME_PROCESS)) * 1000.0
+	var map_stats := "Карта: —"
+	for map_renderer in get_tree().get_nodes_in_group("map_batch_renderer"):
+		if is_instance_valid(map_renderer) and map_renderer.has_method("get_tile_instance_count"):
+			map_stats = "Гексы на экране: %d · Батчей рельефа: %d" % [
+				int(map_renderer.call("get_tile_instance_count")),
+				int(map_renderer.call("get_batched_draw_count")),
+			]
+			break
+	_label.text = "FPS: %d · CPU: %.1f ms · Draw calls: %d\\nОбъекты: %d · Примитивы: %d\\nУзлы: %d · RAM: %s · GPU: %s\\n%s" % [
+		fps, process_ms, draw_calls, objects, primitives, node_count,
 		"—" if static_memory <= 0.0 else "%.1f MB" % (float(static_memory) / 1048576.0),
-		"—" if video_memory <= 0 else "%.1f MB" % (float(video_memory) / 1048576.0),
+		"—" if video_memory <= 0 else "%.1f MB" % (video_memory / 1048576.0),
+		map_stats,
 	]

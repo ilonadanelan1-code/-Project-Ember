@@ -1,3 +1,11 @@
+Project Ember v0.10.1 — Render Batch Performance Hotfix
+- Strategic terrain draws through a single viewport-scoped MultiMeshInstance2D batch instead of thousands of per-hex CanvasItem draw commands.
+- The hex texture is generated once in memory; per-instance colors preserve terrain and territory tinting.
+- City ownership tinting uses a compact claim lookup rather than repeatedly scanning every kingdom for every visible hex.
+- Performance overlay now reports CPU process ms, visible map hexes and terrain batch count.
+- Includes a renderer smoke test verifying 1,024 tile instances are submitted in one batch.
+- The 24,031-hex world, nine AI kingdoms, map navigation, save compatibility and existing tactical gameplay are retained.
+
 Project Ember v0.10.0 — Living World & Nine AI Kingdoms
 - World radius 89: 24,031 hexes. Terrain is deterministic, generated on demand from axial coordinates and a saved world seed.
 - Strategic map draws visible viewport cells only; it does not instantiate or persist 24,031 tile nodes.

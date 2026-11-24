@@ -1,3 +1,14 @@
+## v0.10.1 — Render Batch Performance Hotfix
+
+- Replaced per-hex drawing of terrain fills, shadows, outlines and grass/forest/hill/water details with one viewport-scoped `MultiMeshInstance2D` batch.
+- The batch uses a single compact procedural hex texture and per-instance terrain/faction tinting; visible map cells remain generated on demand.
+- Removed the high-frequency per-tile CanvasItem drawing methods from the strategic map.
+- Replaced repeated per-cell city ownership scans with a compact local lookup built from city claim rings.
+- Added a renderer smoke test that populates 1,024 tile instances and verifies that they are submitted as one terrain batch.
+- Extended the performance overlay with CPU process time, visible hex count and terrain batch count.
+- Preserved map coordinates, terrain generation, player movement, AI turns, city ownership, campaign saves and the nine-kingdom simulation.
+- Android device FPS and real GPU draw-call reduction still require physical validation; CI verifies the renderer's one-batch contract but cannot emulate the target phone's GPU.
+
 ## v0.10.0 — Living World & Nine AI Kingdoms
 
 - Expanded the strategic world from the original 91-hex radius-5 map to a radius-89 hexagon containing exactly 24,031 hexes.

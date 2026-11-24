@@ -1,4 +1,4 @@
-# Android Start — Project Ember v0.10.0 (Godot 4.3)
+# Android Start — Project Ember v0.10.1 (Godot 4.3)
 
 1. Extract the ZIP archive.
 2. Open Godot Android Editor and import the extracted `project.godot` file.
@@ -24,6 +24,13 @@
 - Tactical combat opens with a compact dock: **ВСЕ**, **МАРШ**, **ПАУЗА**, **КОМАНДЫ**.
 - Tap **КОМАНДЫ** for selection mode, Hold, Stop, Clear, Formation, Retreat, Speed, Zoom, Battle Cry, control groups and Settings. Scroll inside the drawer if every command does not fit at once.
 - The secondary command panels are collapsed by default so they do not cover the strategic map or battlefield. Their buttons keep the existing touch-target sizing.
+
+## Render performance hotfix (v0.10.1)
+
+- Strategic terrain uses a single MultiMesh draw batch for all visible hexes, rather than separate drawing commands for each tile.
+- Turn on the FPS overlay to inspect **CPU ms**, **Draw calls**, **Гексы на экране** and **Батчей рельефа**.
+- On the strategic map, the terrain batch count should show **1** whenever hexes are visible.
+- Compare draw calls and FPS at the default view and while zoomed far out. Please report both the FPS and the draw-call count; the CI test cannot measure actual Android GPU performance.
 
 ## Expanded world and kingdoms (v0.10.0)
 

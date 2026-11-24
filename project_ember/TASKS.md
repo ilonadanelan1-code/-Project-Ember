@@ -1,5 +1,16 @@
 # Project Ember — Tasks
 
+## v0.10.1 — Render Batch Performance Hotfix
+
+- [x] Replace thousands of per-hex terrain draw commands with one MultiMeshInstance2D batch.
+- [x] Preserve terrain colors and faction territory tinting through per-instance colors.
+- [x] Replace repeated city-ownership scans with a compact claim lookup.
+- [x] Extend the FPS overlay with CPU time, visible hexes and terrain batch count.
+- [x] Add CI coverage for 1,024 hex instances in one batch.
+- [ ] Confirm Android draw calls fall sharply on the target device.
+- [ ] Measure FPS and CPU time at default, close and continent-wide zoom.
+- [ ] Verify visual tile edges and faction tints on device.
+
 ## v0.10.0 — Living World & Nine AI Kingdoms
 
 - [x] Expand the map to a radius-89 world with exactly 24,031 hexes.

@@ -35,6 +35,7 @@ jobs:
           test -d project_ember/scripts
           test -f project_ember/tests/campaign_smoke_test.gd
           test -f project_ember/tests/world_campaign_smoke_test.gd
+          test -f project_ember/tests/map_batch_renderer_smoke_test.gd
           test -f project_ember/tests/unit_roster_smoke_test.gd
           test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/tests/visual_overhaul_smoke_test.gd
@@ -42,6 +43,7 @@ jobs:
           test -f project_ember/scripts/art_palette.gd
           test -f project_ember/scripts/world_generator.gd
           test -f project_ember/scripts/kingdom_ai.gd
+          test -f project_ember/scripts/hex_map_batch_renderer.gd
           test -f project_ember/scripts/ui_theme.gd
           test -f project_ember/scripts/game_settings.gd
           test -f project_ember/scripts/perf_overlay.gd
@@ -128,6 +130,20 @@ jobs:
           fi
           if ! grep -Fq "All world campaign smoke tests passed." "$log_file"; then
             echo "World campaign tests did not reach their success marker." >&2
+            exit 1
+          fi
+      - name: Test batched strategic hex renderer (1 terrain batch)
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/map_batch_renderer_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file"; then
+            echo "Map batch renderer tests reported an error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All map batch renderer tests passed." "$log_file"; then
+            echo "Map batch renderer tests did not reach their success marker." >&2
             exit 1
           fi
       - name: Test unit roster, unlocks and combat profiles
@@ -308,7 +324,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.10.0-Living-World
+          name: Project-Ember-v0.10.1-Render-Batch-Performance
           path: |
             project_ember/**
             !project_ember/.godot/**
