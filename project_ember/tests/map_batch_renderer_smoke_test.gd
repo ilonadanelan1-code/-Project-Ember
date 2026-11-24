@@ -42,7 +42,7 @@ func _run() -> void:
 		if index < 4:
 			styles.append(Color(float(index), 0.0, 0.0, 1.0))
 		else:
-			var terrain_name := ["grass", "forest", "hills", "water"][index % 4]
+			var terrain_name: String = ["grass", "forest", "hills", "water"][index % 4]
 			styles.append(RendererScript.make_instance_data(cell, terrain_name))
 
 	renderer.set_tiles(centers, colors, Vector2(56.0, 64.0), 0.9, styles)
