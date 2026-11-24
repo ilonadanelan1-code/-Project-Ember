@@ -11,6 +11,6 @@ Current source release: **v0.9.4 — Mobile UX Foundation (UI-1)**.
 - [Art Bible](project_ember/ART_BIBLE.md)
 - [Hero progression and commander abilities](project_ember/HERO_PROGRESSION.md)
 
-v0.9.3 connects pooled hit sparks, cavalry charge bursts, commander rally pulses, death dust, muzzle flashes and projectile trails to combat events. Seven original procedural sound cues play through the existing SFX settings. Effect/audio pools scale with graphics quality and reuse fixed nodes (8/4 on Low, 14/6 on Medium, 18/8 on High). This release also includes four deterministic battlefield biomes, merged role-specific unit visuals and the Foundation settings/cache work. Campaign saves, role IDs, combat formulas, collision and tactical input remain compatible with earlier releases.
+v0.9.4 adds the UI-1 mobile foundation: DPI-aware dp metrics, live safe-area handling, indexed multitouch routing, haptics/toasts/confirmation and bottom-sheet/icon components, Android Back/background handling, Sensor Landscape and atomic campaign save recovery. The existing JSON v1 campaign schema and combat/campaign rules are preserved. The legacy battle/map layouts and world input remain in place for this foundation pass; their full mobile redesign and gesture commands are the next UI-2/UI-3 stages. The package also contains v0.9.3 combat effects/sound, four tactical biomes and merged role-specific unit visuals.
 
 The archive is a Godot source project, not an APK. Import `project_ember/project.godot` in Godot 4.3 Android Editor.
