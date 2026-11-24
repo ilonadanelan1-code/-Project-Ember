@@ -13,14 +13,19 @@ func _check(condition: bool, description: String) -> void:
 		_failures += 1
 		push_error("TEST FAILED: " + description)
 func _run() -> void:
-	var metrics := UiMetricsScript.new()
-	metrics.name = "UiMetrics"
-	root.add_child(metrics)
-	metrics.configure_for_test(160.0, 1280.0, 1280.0, 1.0)
+	var metrics: Node = root.get_node_or_null("UiMetrics")
+	var owns_metrics := false
+	if not is_instance_valid(metrics):
+		metrics = UiMetricsScript.new()
+		metrics.name = "UiMetrics"
+		root.add_child(metrics)
+		owns_metrics = true
+	metrics.call("configure_for_test", 160.0, 1280.0, 1280.0, 1.0)
 	_test_visual_cache()
 	_test_theme()
 	_test_settings_persistence()
-	metrics.queue_free()
+	if owns_metrics:
+		metrics.queue_free()
 	if _failures > 0:
 		printerr("Foundation smoke tests failed: %d" % _failures)
 		quit(1)
