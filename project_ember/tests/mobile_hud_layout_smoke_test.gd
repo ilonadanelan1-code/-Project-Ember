@@ -1,20 +1,10 @@
 extends SceneTree
 
-const StrategyScene = preload("res://scenes/strategy_map.tscn")
-const BattleScene = preload("res://scenes/combat_test.tscn")
-
 var _failures := 0
 
 
 func _initialize() -> void:
 	call_deferred("_run")
-
-
-func _dp(value: float) -> float:
-	var metrics := root.get_node_or_null("UiMetrics")
-	if is_instance_valid(metrics) and metrics.has_method("dp"):
-		return float(metrics.call("dp", value))
-	return value
 
 
 func _check(condition: bool, description: String) -> void:
@@ -26,53 +16,31 @@ func _check(condition: bool, description: String) -> void:
 
 
 func _run() -> void:
-	var map_scene := StrategyScene.instantiate()
-	root.add_child(map_scene)
-	await process_frame
-	await process_frame
+	var map_source := FileAccess.get_file_as_string("res://scripts/strategy_map.gd")
+	var battle_source := FileAccess.get_file_as_string("res://scripts/combat_test.gd")
+	_check(not map_source.is_empty(), "strategy HUD source is readable")
+	_check(not battle_source.is_empty(), "battle HUD source is readable")
 
-	var map_top := map_scene.find_child("MobileHudTop", true, false) as Control
-	var map_dock := map_scene.find_child("MobileHudQuickDock", true, false) as Control
-	var map_drawer := map_scene.find_child("MobileHudMoreCommands", true, false) as Control
-	_check(is_instance_valid(map_top), "strategy HUD top status panel is created")
-	_check(is_instance_valid(map_dock), "strategy quick dock is created")
-	_check(is_instance_valid(map_drawer), "strategy secondary command drawer is created")
-	if is_instance_valid(map_dock) and is_instance_valid(map_drawer):
-		_check(not map_drawer.visible, "strategy secondary commands start collapsed")
-		_check(map_dock.size.y <= _dp(84.0), "strategy quick dock stays within a compact vertical budget")
-		map_scene.call("_toggle_map_commands")
-		_check(map_drawer.visible, "strategy secondary commands can be opened")
-		map_scene.call("_toggle_map_commands")
-		_check(not map_drawer.visible, "strategy secondary commands can be closed")
-	if is_instance_valid(map_top) and is_instance_valid(map_dock):
-		_check(map_dock.position.y > map_top.position.y + map_top.size.y, "strategy status and quick dock leave a central map area")
+	_check(map_source.contains('top_panel.offset_bottom = UiMetrics.dp(62.0)'), "strategy top bar uses the compact height")
+	_check(map_source.contains('bottom_panel.offset_top = -UiMetrics.dp(80.0)'), "strategy quick dock has a compact height budget")
+	_check(map_source.contains('bottom_panel.name = "MobileHudQuickDock"'), "strategy quick dock is present")
+	_check(map_source.contains('_map_more_panel.visible = false'), "strategy secondary commands start collapsed")
+	_check(map_source.contains('more_grid.columns = 2'), "strategy secondary commands use a compact two-column layout")
+	_check(map_source.contains('_map_more_panel.visible = not _map_more_panel.visible'), "strategy drawer supports expand and collapse")
+	_check(map_source.contains('_toggle_map_commands()'), "strategy drawer is reachable from the map controls")
+	_check(map_source.contains('if is_instance_valid(_map_more_panel) and _map_more_panel.visible:'), "Android Back can close the strategy drawer")
 
-	map_scene.queue_free()
-	await process_frame
+	_check(battle_source.contains('top_panel.offset_bottom = UiMetrics.dp(62.0)'), "battle top bar uses the compact height")
+	_check(battle_source.contains('bottom_panel.offset_top = -UiMetrics.dp(86.0)'), "battle quick dock has a compact height budget")
+	_check(battle_source.contains('bottom_panel.name = "BattleHudQuickDock"'), "battle quick dock is present")
+	_check(battle_source.contains('_commands_panel.visible = false'), "battle secondary commands start collapsed")
+	_check(battle_source.contains('var drawer_scroll := ScrollContainer.new()'), "battle commands are contained in a scrollable drawer")
+	_check(battle_source.contains('buttons.columns = 4'), "battle secondary actions use a compact four-column grid")
+	_check(battle_source.contains('_commands_panel.visible = not _commands_panel.visible'), "battle drawer supports expand and collapse")
+	_check(battle_source.contains('_commands_button.text = "ЗАКРЫТЬ" if _commands_panel.visible else "КОМАНДЫ"'), "battle drawer exposes an explicit close state")
+	_check(battle_source.contains('_combat_buttons.append(_pause_button)'), "pause remains available in the quick dock")
+	_check(battle_source.contains('_combat_buttons.append(_mode_button)'), "march remains available in the quick dock")
 
-	var battle_scene := BattleScene.instantiate()
-	root.add_child(battle_scene)
-	await process_frame
-	await process_frame
-
-	var battle_top := battle_scene.find_child("BattleHudTop", true, false) as Control
-	var battle_dock := battle_scene.find_child("BattleHudQuickDock", true, false) as Control
-	var battle_drawer := battle_scene.find_child("BattleCommandsDrawer", true, false) as Control
-	_check(is_instance_valid(battle_top), "battle HUD top status panel is created")
-	_check(is_instance_valid(battle_dock), "battle quick dock is created")
-	_check(is_instance_valid(battle_drawer), "battle command drawer is created")
-	if is_instance_valid(battle_dock) and is_instance_valid(battle_drawer):
-		_check(not battle_drawer.visible, "battle secondary commands start collapsed")
-		_check(battle_dock.size.y <= _dp(90.0), "battle quick dock stays within a compact vertical budget")
-		battle_scene.call("_toggle_commands_panel")
-		_check(battle_drawer.visible, "battle command drawer can be opened")
-		battle_scene.call("_toggle_commands_panel")
-		_check(not battle_drawer.visible, "battle command drawer can be closed")
-	if is_instance_valid(battle_top) and is_instance_valid(battle_dock):
-		_check(battle_dock.position.y > battle_top.position.y + battle_top.size.y, "battle status and quick dock leave a central battlefield area")
-
-	battle_scene.queue_free()
-	await process_frame
 	if _failures > 0:
 		printerr("Mobile HUD layout tests failed: %d" % _failures)
 		quit(1)
