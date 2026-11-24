@@ -31,18 +31,11 @@ func _ready() -> void:
 
 func configure(title: String, message: String, confirm_text: String = "ПОДТВЕРДИТЬ", cancel_text: String = "ОТМЕНА", require_hold: bool = false) -> void:
 	destructive_hold = require_hold
+	_pending_title = title
+	_pending_message = message
+	_cancel_button_text = cancel_text
 	_confirm_label = confirm_text
-	if is_instance_valid(_title_label):
-		_title_label.text = title
-		_message_label.text = message
-		_confirm_button.text = confirm_text
-		_cancel_button_text = cancel_text
-		_refresh_text()
-	else:
-		_pending_title = title
-		_pending_message = message
-		_cancel_button_text = cancel_text
-		_confirm_label = confirm_text
+	_refresh_text()
 
 
 var _pending_title: String = ""
