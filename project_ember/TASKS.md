@@ -1,5 +1,27 @@
 # Project Ember — Tasks
 
+## v0.9.4 — Mobile UX Foundation (UI-1)
+
+- [x] Add dp conversion from screen DPI and reference viewport/window ratio; clamp DPI and support UI scale 0.8–1.6.
+- [x] Refresh UI metrics on window/viewport resize and settings scale changes.
+- [x] Add SafeAreaContainer with live inset recalculation and use it for strategy, battle and FPS HUD roots.
+- [x] Add TouchGestureRouter with indexed multitouch, tap/double/long/drag/pinch/two-finger pan and UI input exclusion.
+- [x] Retain Control-based button input and suppress duplicate emulated mouse world input in the router.
+- [x] Add Haptics, Toast/ToastManager, ConfirmDialog, BottomSheet and IconButton base components.
+- [x] Add initial menu, settings, confirmation and cancel SVG icons.
+- [x] Handle Android Back on strategy and battle screens; handle background pause/save without writing an unfinished battle.
+- [x] Set Sensor Landscape and disable automatic quit on Back.
+- [x] Protect New Campaign behind a one-second destructive hold.
+- [x] Add atomic .tmp/.bak campaign save replacement and backup recovery without changing JSON v1 keys.
+- [x] Extend UI scale to 0.8–1.6 and migrate shared theme, SettingsPanel, legacy HUD geometry and FPS overlay dimensions to dp.
+- [x] Add CI tests for dp calculation, gesture routing, UI components, destructive reset and atomic backup recovery.
+- [ ] Import v0.9.4 in Godot Android Editor and verify landscape + reverse-landscape rotation.
+- [ ] Verify real safe-area insets on a notched device and actual 48 dp targets at each UI scale.
+- [ ] Verify one-hand right/left interaction; full left-handed mirroring is scheduled for UI-2.
+- [ ] Test Back in battle/map/city, app background during battle, haptic feedback and backup recovery on device.
+- [ ] Inspect UI screenshots and FPS overlay on 2400×1080, 1280×720 and 800×480 physical/emulated layouts.
+- [ ] Capture and share a screenshot of battle with selected units and FPS readings.
+
 ## v0.9.3 — Combat Effects & Sound
 
 - [x] Connect impact feedback to melee, spear, cavalry and ranged damage events.
