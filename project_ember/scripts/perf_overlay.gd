@@ -182,7 +182,7 @@ func _build_snapshot() -> Dictionary:
 		"godot_version": str(engine_version.get("string", "unknown")),
 		"platform": OS.get_name(),
 		"os_version": OS.get_version(),
-		"viewport": get_viewport_rect().size.round(),
+		"viewport": Vector2i(get_viewport().get_visible_rect().size),
 		"fps_current": fps_current,
 		"fps_average": fps_average,
 		"fps_min": fps_min,
