@@ -29,10 +29,13 @@ func _run() -> void:
 		var settings := GameSettingsScript.new()
 		settings.name = "GameSettings"
 		root.add_child(settings)
-	if root.get_node_or_null("UiMetrics") == null:
-		var metrics := UiMetricsScript.new()
+	var metrics: Node = root.get_node_or_null("UiMetrics")
+	var owns_metrics := false
+	if not is_instance_valid(metrics):
+		metrics = UiMetricsScript.new()
 		metrics.name = "UiMetrics"
 		root.add_child(metrics)
+		owns_metrics = true
 	var haptics := root.get_node_or_null("Haptics")
 	if not is_instance_valid(haptics):
 		haptics = HapticsScript.new()
@@ -64,7 +67,7 @@ func _run() -> void:
 	icon_button.label_text = "Настройки"
 	root.add_child(icon_button)
 	await process_frame
-	_check(icon_button.custom_minimum_size.y >= UiMetrics.dp(48.0), "IconButton enforces a 48 dp target")
+	_check(icon_button.custom_minimum_size.y >= float(metrics.call("dp", 48.0)), "IconButton enforces a 48 dp target")
 
 	var toast_manager := ToastManagerScript.new()
 	root.add_child(toast_manager)
@@ -78,8 +81,12 @@ func _run() -> void:
 	_check(not haptics.can_vibrate_at(1079), "Haptics rate limit blocks calls before 80 ms")
 	_check(haptics.can_vibrate_at(1080), "Haptics permits the next call at the 80 ms boundary")
 
-	for node in [dialog, sheet, icon_button, toast_manager, haptics]:
+	for node in [dialog, sheet, icon_button, toast_manager]:
 		node.queue_free()
+	if is_instance_valid(haptics) and haptics.name != "Haptics":
+		haptics.queue_free()
+	if owns_metrics:
+		metrics.queue_free()
 	await process_frame
 	if _failures > 0:
 		printerr("UI foundation tests failed: %d" % _failures)
