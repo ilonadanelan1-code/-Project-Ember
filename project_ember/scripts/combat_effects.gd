@@ -4,9 +4,9 @@ class_name CombatEffects
 const Palette = preload("res://scripts/art_palette.gd")
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 
-const EFFECT_POOL_SIZE := 18
-const AUDIO_POOL_SIZE := 8
 const SAMPLE_RATE := 22050
+const EFFECT_COUNTS := [8, 14, 18]
+const AUDIO_COUNTS := [4, 6, 8]
 
 var _effects: Array[Dictionary] = []
 var _audio_players: Array[AudioStreamPlayer3D] = []
@@ -18,13 +18,17 @@ var _next_audio_index: int = 0
 
 func _ready() -> void:
 	add_to_group("battle_effects")
-	_create_effect_pool()
-	_create_audio_pool()
+	var quality := 1
+	var settings_node := get_node_or_null("/root/GameSettings")
+	if is_instance_valid(settings_node):
+		quality = clampi(int(settings_node.get("graphics_quality")), 0, 2)
+	_create_effect_pool(EFFECT_COUNTS[quality])
+	_create_audio_pool(AUDIO_COUNTS[quality])
 	_build_sound_library()
 
 
-func _create_effect_pool() -> void:
-	for index in range(EFFECT_POOL_SIZE):
+func _create_effect_pool(pool_size: int) -> void:
+	for index in range(pool_size):
 		var instance := MeshInstance3D.new()
 		instance.name = "EffectSlot_%02d" % index
 		instance.visible = false
@@ -42,9 +46,9 @@ func _create_effect_pool() -> void:
 		})
 
 
-func _create_audio_pool() -> void:
+func _create_audio_pool(pool_size: int) -> void:
 	var output_bus := "SFX" if AudioServer.get_bus_index("SFX") >= 0 else "Master"
-	for index in range(AUDIO_POOL_SIZE):
+	for index in range(pool_size):
 		var player := AudioStreamPlayer3D.new()
 		player.name = "SFX_%02d" % index
 		player.bus = output_bus
@@ -88,12 +92,14 @@ func get_active_effect_count() -> int:
 func spawn_effect(effect_id: String, world_position: Vector3, team: int = 0, direction: Vector3 = Vector3.ZERO) -> void:
 	if _effects.is_empty():
 		return
+	if effect_id not in ["muzzle", "impact", "hit", "charge", "rally", "death", "dust", "trail"]:
+		return
+
 	var slot_index := _next_effect_index
 	_next_effect_index = (_next_effect_index + 1) % _effects.size()
 	var slot: Dictionary = _effects[slot_index]
 	var instance := slot["node"] as MeshInstance3D
-	var burst := effect_id != "dust" and effect_id != "death"
-	instance.mesh = _get_burst_mesh() if burst else _get_dust_mesh()
+	instance.mesh = _get_burst_mesh() if effect_id not in ["dust", "death"] else _get_dust_mesh()
 	instance.material_override = _get_effect_material(effect_id, team)
 
 	var duration := 0.22
@@ -134,6 +140,11 @@ func spawn_effect(effect_id: String, world_position: Vector3, team: int = 0, dir
 			start_scale = 0.2
 			end_scale = 1.15
 			rise = 0.22
+		"trail":
+			duration = 0.13
+			start_scale = 0.07
+			end_scale = 0.30
+			spin = 0.4
 
 	instance.global_position = world_position
 	instance.scale = Vector3.ONE * start_scale
@@ -158,6 +169,7 @@ func play_sound(sound_id: String, world_position: Vector3) -> void:
 		return
 	if float(_sound_cooldowns.get(sound_id, 0.0)) > 0.0:
 		return
+
 	var selected_player: AudioStreamPlayer3D
 	for player in _audio_players:
 		if not player.playing:
@@ -242,7 +254,7 @@ func _get_effect_material(effect_id: String, team: int) -> Material:
 	var color := Palette.FX_SPARK
 	var glow := Palette.FX_SPARK_GLOW
 	match effect_id:
-		"muzzle":
+		"muzzle", "trail":
 			color = Palette.FX_MUZZLE
 			glow = Palette.FX_MUZZLE_GLOW
 		"rally":
@@ -258,7 +270,12 @@ func _get_effect_material(effect_id: String, team: int) -> Material:
 			if team == 1:
 				color = Palette.FX_ENEMY_SPARK
 				glow = Palette.FX_ENEMY_SPARK_GLOW
-	var key := "combat:fx:material:%s:%d" % [effect_id if effect_id in ["muzzle", "rally", "death", "dust", "charge"] else "impact", team]
+	var material_kind := "impact"
+	if effect_id in ["muzzle", "trail"]:
+		material_kind = "muzzle"
+	elif effect_id in ["rally", "death", "dust", "charge"]:
+		material_kind = effect_id
+	var key := "combat:fx:material:%s:%d" % [material_kind, team]
 	return VisualCacheScript.get_material(key, func() -> Material:
 		var material := StandardMaterial3D.new()
 		material.albedo_color = Color(color.r, color.g, color.b, 0.88)
@@ -320,7 +337,6 @@ func _build_sound_stream(sound_id: String) -> AudioStreamWAV:
 	for sample_index in range(sample_count):
 		var time := float(sample_index) / float(SAMPLE_RATE)
 		var progress := time / duration
-		var frequency := lerpf(frequency_start, frequency_end, progress)
 		var phase := TAU * (frequency_start * time + (frequency_end - frequency_start) * time * progress * 0.5)
 		var envelope := pow(1.0 - progress, 1.8)
 		var tone := sin(phase) * (0.34 if sound_id != "rally" else 0.24)
