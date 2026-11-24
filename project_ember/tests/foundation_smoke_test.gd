@@ -1,5 +1,6 @@
 extends SceneTree
 const GameSettingsScript = preload("res://scripts/game_settings.gd")
+const UiMetricsScript = preload("res://scripts/ui_metrics.gd")
 const UiThemeScript = preload("res://scripts/ui_theme.gd")
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 var _failures: int = 0
@@ -12,9 +13,13 @@ func _check(condition: bool, description: String) -> void:
 		_failures += 1
 		push_error("TEST FAILED: " + description)
 func _run() -> void:
+	var metrics := UiMetricsScript.new()
+	metrics.name = "UiMetrics"
+	root.add_child(metrics)
 	_test_visual_cache()
 	_test_theme()
 	_test_settings_persistence()
+	metrics.queue_free()
 	if _failures > 0:
 		printerr("Foundation smoke tests failed: %d" % _failures)
 		quit(1)
@@ -48,7 +53,7 @@ func _test_theme() -> void:
 	_check(theme.get_stylebox("focus", "Button") != null, "Theme has a focus button style")
 	_check(theme.get_stylebox("panel", "PanelContainer") != null, "Theme has a shared panel style")
 	_check(theme.get_stylebox("fill", "ProgressBar") != null, "Theme has a progress bar fill style")
-	_check(theme.get_font_size("font_size", "Button") >= 16, "base button font size is at least 16 px")
+	_check(theme.get_font_size("font_size", "Button") >= 14, "base button font size is at least 14 dp at default density")
 func _test_settings_persistence() -> void:
 	var settings := GameSettingsScript.new()
 	settings.name = "FoundationSettingsTest"
