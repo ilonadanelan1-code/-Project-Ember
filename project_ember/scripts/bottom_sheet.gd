@@ -8,6 +8,13 @@ var _drag_start_y: float = 0.0
 var _content: Control
 
 
+func _dp(value: float) -> float:
+	var metrics := get_node_or_null("/root/UiMetrics")
+	if is_instance_valid(metrics) and metrics.has_method("dp"):
+		return float(metrics.call("dp", value))
+	return value
+
+
 func _ready() -> void:
 	anchor_left = 0.02
 	anchor_right = 0.98
@@ -16,7 +23,7 @@ func _ready() -> void:
 	offset_left = 0.0
 	offset_right = 0.0
 	offset_top = 0.0
-	offset_bottom = -UiMetrics.dp(12.0)
+	offset_bottom = -_dp(12.0)
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_content = VBoxContainer.new()
@@ -36,7 +43,7 @@ func open() -> void:
 	visible = true
 	_is_open = true
 	var tween := create_tween()
-	tween.tween_property(self, "offset_top", -UiMetrics.dp(8.0), 0.18)
+	tween.tween_property(self, "offset_top", -_dp(8.0), 0.18)
 
 
 func close() -> void:
@@ -51,5 +58,5 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_drag_start_y = event.position.y
-		elif event.position.y - _drag_start_y > UiMetrics.dp(72.0):
+		elif event.position.y - _drag_start_y > _dp(72.0):
 			close()
