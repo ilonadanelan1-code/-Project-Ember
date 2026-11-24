@@ -774,13 +774,19 @@ func load_campaign() -> bool:
 			if not _preserve_unreadable_save():
 				_prevent_save_overwrite = true
 		if not _prevent_save_overwrite:
-			var restore_error: Error = DirAccess.copy_absolute(
-				ProjectSettings.globalize_path(SAVE_BACKUP_PATH),
-				ProjectSettings.globalize_path(SAVE_PATH)
-			)
-			if restore_error != OK:
-				_prevent_save_overwrite = true
-				push_warning("Project Ember: loaded the backup in memory; restoring the primary save failed.")
+			var primary_absolute := ProjectSettings.globalize_path(SAVE_PATH)
+			if FileAccess.file_exists(SAVE_PATH):
+				var remove_primary_error: Error = DirAccess.remove_absolute(primary_absolute)
+				if remove_primary_error != OK:
+					_prevent_save_overwrite = true
+			if not _prevent_save_overwrite:
+				var restore_error: Error = DirAccess.copy_absolute(
+					ProjectSettings.globalize_path(SAVE_BACKUP_PATH),
+					primary_absolute
+				)
+				if restore_error != OK:
+					_prevent_save_overwrite = true
+					push_warning("Project Ember: loaded the backup in memory; restoring the primary save failed.")
 	var player_cell_data: Variant = data.get("player_cell", [])
 	var enemy_cell_data: Variant = data.get("enemy_cell", [])
 	var loaded_player := _read_unit_records(data.get("player_units", []))
