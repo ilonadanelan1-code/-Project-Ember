@@ -5,6 +5,7 @@ const Palette = preload("res://scripts/art_palette.gd")
 const UiThemeScript = preload("res://scripts/ui_theme.gd")
 const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
 const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
+const CombatEffectsScript = preload("res://scripts/combat_effects.gd")
 
 const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 
@@ -65,6 +66,9 @@ func _ready() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	_create_environment()
+	var combat_effects := CombatEffectsScript.new()
+	combat_effects.name = "CombatEffects"
+	add_child(combat_effects)
 	_spawn_armies()
 	_create_ui()
 	add_child(PerfOverlayScript.new())
