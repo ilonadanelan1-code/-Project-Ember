@@ -46,6 +46,7 @@ func _dp(value: float) -> float:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_process(true)
 
 
 func _input(event: InputEvent) -> void:
