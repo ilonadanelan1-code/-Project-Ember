@@ -66,6 +66,8 @@ var _rally_button: Button
 var _safe_area: SafeAreaContainer
 var _gesture_router: TouchGestureRouter
 var _toast_manager: ToastManager
+var _commands_panel: PanelContainer
+var _commands_button: Button
 
 
 func _ready() -> void:
@@ -244,6 +246,7 @@ func _create_ui() -> void:
 	_create_selection_marquee(root)
 
 	var top_panel := PanelContainer.new()
+	top_panel.name = "BattleHudTop"
 	top_panel.anchor_left = 0.0
 	top_panel.anchor_top = 0.0
 	top_panel.anchor_right = 1.0
@@ -251,74 +254,71 @@ func _create_ui() -> void:
 	top_panel.offset_left = UiMetrics.dp(10.0)
 	top_panel.offset_top = UiMetrics.dp(8.0)
 	top_panel.offset_right = -UiMetrics.dp(10.0)
-	top_panel.offset_bottom = UiMetrics.dp(128.0)
+	top_panel.offset_bottom = UiMetrics.dp(62.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
-	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(1)))
+	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(1.0)))
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
+	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
 	_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
+	_status_label.clip_text = true
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	top_box.add_child(_status_label)
 
 	_help_label = Label.new()
-	_help_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_help_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(11))
 	_help_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
+	_help_label.clip_text = true
+	_help_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	top_box.add_child(_help_label)
 
-	var group_row := HBoxContainer.new()
-	group_row.add_theme_constant_override("separation", int(UiMetrics.dp(5)))
-	top_box.add_child(group_row)
-	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ: ВЫКЛ", _toggle_group_store_mode)
-	_group_store_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
-	_group_store_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for group_id in range(1, 5):
-		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
-		group_button.custom_minimum_size = Vector2(UiMetrics.dp(0.0), UiMetrics.dp(40.0))
-		group_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_control_group_buttons[group_id] = group_button
-	var settings_button := _add_action_button(group_row, "НАСТРОЙКИ", _open_settings)
-	settings_button.custom_minimum_size = Vector2(120.0, UiThemeScript.touch_target(48.0))
+	_commands_panel = PanelContainer.new()
+	_commands_panel.name = "BattleCommandsDrawer"
+	_commands_panel.anchor_left = 0.0
+	_commands_panel.anchor_top = 1.0
+	_commands_panel.anchor_right = 1.0
+	_commands_panel.anchor_bottom = 1.0
+	_commands_panel.offset_left = UiMetrics.dp(8.0)
+	_commands_panel.offset_top = -UiMetrics.dp(254.0)
+	_commands_panel.offset_right = -UiMetrics.dp(8.0)
+	_commands_panel.offset_bottom = -UiMetrics.dp(94.0)
+	_commands_panel.visible = false
+	root.add_child(_commands_panel)
 
-	# Four compact rows: selection/orders, formation/retreat, battle controls and commander ability.
-	var bottom_panel := Panel.new()
-	bottom_panel.anchor_left = 0.0
-	bottom_panel.anchor_top = 1.0
-	bottom_panel.anchor_right = 1.0
-	bottom_panel.anchor_bottom = 1.0
-	bottom_panel.offset_left = UiMetrics.dp(8.0)
-	bottom_panel.offset_top = -UiMetrics.dp(258.0)
-	bottom_panel.offset_right = -UiMetrics.dp(8.0)
-	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
-	root.add_child(bottom_panel)
+	var drawer_margin := MarginContainer.new()
+	drawer_margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(6.0)))
+	drawer_margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(5.0)))
+	drawer_margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(6.0)))
+	drawer_margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(5.0)))
+	_commands_panel.add_child(drawer_margin)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 7)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 7)
-	bottom_panel.add_child(margin)
+	var drawer_scroll := ScrollContainer.new()
+	drawer_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drawer_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	drawer_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	drawer_margin.add_child(drawer_scroll)
+
+	var drawer_content := VBoxContainer.new()
+	drawer_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drawer_content.add_theme_constant_override("separation", int(UiMetrics.dp(5.0)))
+	drawer_scroll.add_child(drawer_content)
 
 	var buttons := GridContainer.new()
 	buttons.columns = 4
-	buttons.add_theme_constant_override("h_separation", 7)
-	buttons.add_theme_constant_override("v_separation", 5)
+	buttons.add_theme_constant_override("h_separation", int(UiMetrics.dp(5.0)))
+	buttons.add_theme_constant_override("v_separation", int(UiMetrics.dp(4.0)))
 	buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buttons.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(buttons)
+	drawer_content.add_child(buttons)
 
-	_add_action_button(buttons, "ВСЕ", _select_all_player_units)
 	_add_button = _add_action_button(buttons, "ДОБОР: ВЫКЛ", _toggle_additive_selection)
-	_mode_button = _add_action_button(buttons, "МАРШ: ВЫКЛ", _toggle_order_mode)
 	_add_action_button(buttons, "ДЕРЖАТЬ", _hold_selected_units)
 	_add_action_button(buttons, "СТОП", _stop_selected_units)
 	_add_action_button(buttons, "СНЯТЬ", _clear_selection_from_button)
 	_formation_button = _add_action_button(buttons, "СТРОЙ: ЛИНИЯ", _cycle_formation_mode)
 	_add_action_button(buttons, "ОТСТУП", _retreat_selected_units)
-	_pause_button = _add_action_button(buttons, "ПАУЗА", _toggle_pause)
 	_speed_button = _add_action_button(buttons, "СКОРОСТЬ: 1x", _cycle_speed)
 	_add_action_button(buttons, "ЗУМ +", _zoom_in)
 	_add_action_button(buttons, "ЗУМ -", _zoom_out)
@@ -327,6 +327,40 @@ func _create_ui() -> void:
 		if child is Button:
 			_combat_buttons.append(child as Button)
 
+	var group_row := HBoxContainer.new()
+	group_row.add_theme_constant_override("separation", int(UiMetrics.dp(4.0)))
+	drawer_content.add_child(group_row)
+	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ", _toggle_group_store_mode)
+	_group_store_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	for group_id in range(1, 5):
+		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
+		group_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+		_control_group_buttons[group_id] = group_button
+	var settings_button := _add_action_button(group_row, "НАСТРОЙКИ", _open_settings)
+	settings_button.custom_minimum_size = Vector2(UiMetrics.dp(100.0), UiThemeScript.touch_target(48.0))
+
+	var bottom_panel := PanelContainer.new()
+	bottom_panel.name = "BattleHudQuickDock"
+	bottom_panel.anchor_left = 0.0
+	bottom_panel.anchor_top = 1.0
+	bottom_panel.anchor_right = 1.0
+	bottom_panel.anchor_bottom = 1.0
+	bottom_panel.offset_left = UiMetrics.dp(8.0)
+	bottom_panel.offset_top = -UiMetrics.dp(86.0)
+	bottom_panel.offset_right = -UiMetrics.dp(8.0)
+	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
+	root.add_child(bottom_panel)
+
+	var quick_row := HBoxContainer.new()
+	quick_row.add_theme_constant_override("separation", int(UiMetrics.dp(5.0)))
+	bottom_panel.add_child(quick_row)
+	var select_all_button := _add_action_button(quick_row, "ВСЕ", _select_all_player_units)
+	_combat_buttons.append(select_all_button)
+	_mode_button = _add_action_button(quick_row, "МАРШ", _toggle_order_mode)
+	_combat_buttons.append(_mode_button)
+	_pause_button = _add_action_button(quick_row, "ПАУЗА", _toggle_pause)
+	_combat_buttons.append(_pause_button)
+	_commands_button = _add_action_button(quick_row, "КОМАНДЫ", _toggle_commands_panel)
 	_create_result_panel(root)
 	_settings_panel = SettingsPanelScript.new()
 	_settings_panel.pause_game_on_open = true
@@ -761,7 +795,16 @@ func _issue_order_to_slot(unit: BattleUnit, slot: Vector3) -> void:
 		unit.order_move(slot)
 
 
+func _toggle_commands_panel() -> void:
+	if not is_instance_valid(_commands_panel) or not is_instance_valid(_commands_button):
+		return
+	_commands_panel.visible = not _commands_panel.visible
+	_commands_button.text = "ЗАКРЫТЬ" if _commands_panel.visible else "КОМАНДЫ"
+
+
 func _open_settings() -> void:
+	if is_instance_valid(_commands_panel) and _commands_panel.visible:
+		_toggle_commands_panel()
 	if is_instance_valid(_settings_panel):
 		_settings_panel.open_panel()
 
@@ -1106,7 +1149,7 @@ func _refresh_ui() -> void:
 			_camera.size,
 		]
 	if is_instance_valid(_mode_button):
-		_mode_button.text = "МАРШ: ВКЛ" if _attack_move_enabled else "МАРШ: ВЫКЛ"
+		_mode_button.text = "МАРШ ВКЛ" if _attack_move_enabled else "МАРШ"
 	if is_instance_valid(_add_button):
 		_add_button.text = "ДОБОР: ВКЛ" if _additive_selection else "ДОБОР: ВЫКЛ"
 	if is_instance_valid(_formation_button):

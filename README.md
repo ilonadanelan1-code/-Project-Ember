@@ -2,7 +2,7 @@
 
 Godot 4 fantasy 4X strategy with real-time tactical combat.
 
-Current source release: **v0.9.4 — Mobile UX Foundation (UI-1)**.
+Current source release: **v0.9.5 — Compact Mobile HUD Fix**.
 
 - [Design source of truth](project_ember/DESIGN.md)
 - [Android import and play guide](project_ember/ANDROID_START.md)
@@ -11,6 +11,6 @@ Current source release: **v0.9.4 — Mobile UX Foundation (UI-1)**.
 - [Art Bible](project_ember/ART_BIBLE.md)
 - [Hero progression and commander abilities](project_ember/HERO_PROGRESSION.md)
 
-v0.9.4 adds the UI-1 mobile foundation: DPI-aware dp metrics, live safe-area handling, indexed multitouch routing, haptics/toasts/confirmation and bottom-sheet/icon components, Android Back/background handling, Sensor Landscape and atomic campaign save recovery. The existing JSON v1 campaign schema and combat/campaign rules are preserved. The legacy battle/map layouts and world input remain in place for this foundation pass; their full mobile redesign and gesture commands are the next UI-2/UI-3 stages. The package also contains v0.9.3 combat effects/sound, four tactical biomes and merged role-specific unit visuals.
+v0.9.5 repairs the mobile HUD layout: map and battle screens now show a compact quick-action dock by default, while secondary commands open in a separate scrollable drawer. The battlefield/map is no longer covered by a permanent multi-row button grid. v0.9.4 mobile foundations remain included: DPI-aware metrics, safe-area handling, multitouch routing, haptics, Android lifecycle/Back handling and atomic save recovery. Campaign schema and combat rules are preserved. The package also includes combat effects/sound, four tactical biomes and role-specific unit visuals.
 
 The archive is a Godot source project, not an APK. Import `project_ember/project.godot` in Godot 4.3 Android Editor.

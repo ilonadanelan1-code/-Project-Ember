@@ -1,3 +1,15 @@
+## v0.9.5 — Compact Mobile HUD Fix
+
+- Replaced the permanent multi-row strategic command grid with a compact dock: Army, City, Turn and More.
+- Moved Attack, New Campaign, Found City and Settings into a secondary panel that is collapsed by default.
+- Reduced the strategic top status panel and clipped long status/help strings to a single line so the map remains visible.
+- Replaced the permanent tactical 4×3 command grid with a compact dock: Select All, March, Pause and Commands.
+- Moved selection/order/formation/retreat/speed/zoom/Battle Cry, group controls and Settings into a scrollable command drawer, collapsed by default.
+- Android Back closes an open command drawer before navigating other panels.
+- Preserved the existing callbacks, campaign rules, combat orders, control groups and touch target sizes.
+- Added CI smoke coverage for collapsed/expanded drawers, dock height budgets and the clear central map/battlefield area.
+- Physical Android testing is still required for actual touch reach, drawer scroll feel and different screen aspect ratios.
+
 ## v0.9.4 — Mobile UX Foundation (UI-1)
 
 - Added DPI-aware `UiMetrics` with physical-pixel-to-reference-pixel dp conversion, 120–640 dpi clamping, 160 dpi fallback, live resize/UI-scale refresh and the 0.8–1.6 scale range.

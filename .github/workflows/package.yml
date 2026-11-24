@@ -62,6 +62,7 @@ jobs:
           test -f project_ember/tests/ui_metrics_smoke_test.gd
           test -f project_ember/tests/touch_gesture_router_smoke_test.gd
           test -f project_ember/tests/ui_foundation_smoke_test.gd
+          test -f project_ember/tests/mobile_hud_layout_smoke_test.gd
           test -f project_ember/tests/atomic_save_smoke_test.gd
           test -f project_ember/tests/new_campaign_confirm_smoke_test.gd
           test -f project_ember/ui/icons/menu.svg
@@ -245,6 +246,20 @@ jobs:
             echo "UI foundation tests did not reach their success marker." >&2
             exit 1
           fi
+      - name: Test compact mobile HUD layout and command drawers
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          godot --headless --path project_ember --script res://tests/mobile_hud_layout_smoke_test.gd 2>&1 | tee "$log_file"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|ERROR:|TEST FAILED:' "$log_file" | grep -Fv 'ERROR: Parameter "m" is null.'; then
+            echo "Mobile HUD layout tests reported an unexpected error." >&2
+            exit 1
+          fi
+          if ! grep -Fq "All mobile HUD layout smoke tests passed." "$log_file"; then
+            echo "Mobile HUD layout tests did not reach their success marker." >&2
+            exit 1
+          fi
       - name: Test atomic campaign save and backup recovery
         shell: bash
         run: |
@@ -276,7 +291,7 @@ jobs:
       - name: Upload ready-to-open Godot project
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.9.4-Metrics-Input
+          name: Project-Ember-v0.9.5-Mobile-HUD-Fix
           path: |
             project_ember/**
             !project_ember/.godot/**

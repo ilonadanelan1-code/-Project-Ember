@@ -1,5 +1,16 @@
 # Project Ember — Tasks
 
+## v0.9.5 — Compact Mobile HUD Fix
+
+- [x] Replace the permanent strategic command grid with a compact quick dock.
+- [x] Move secondary strategic actions into a collapsed-by-default drawer.
+- [x] Replace the permanent tactical command grid with a compact quick dock.
+- [x] Move tactical orders, control groups and settings into a scrollable command drawer.
+- [x] Make Android Back close the open command drawer.
+- [x] Add CI coverage for drawer default state, expand/collapse and central play-area space.
+- [ ] Verify map and battlefield visibility on the target Android phone.
+- [ ] Verify command drawer scrolling and one-handed access in both screen orientations.
+
 ## v0.9.4 — Mobile UX Foundation (UI-1)
 
 - [x] Add dp conversion from screen DPI and reference viewport/window ratio; clamp DPI and support UI scale 0.8–1.6.

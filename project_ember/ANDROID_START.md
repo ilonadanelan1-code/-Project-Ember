@@ -1,4 +1,4 @@
-# Android Start — Project Ember v0.9.4 (Godot 4.3)
+# Android Start — Project Ember v0.9.5 (Godot 4.3)
 
 1. Extract the ZIP archive.
 2. Open Godot Android Editor and import the extracted `project.godot` file.
@@ -16,6 +16,14 @@
 - When the app is backgrounded, the map saves the strategic state. A tactical battle pauses and does **not** overwrite the last strategic save.
 - New Campaign requires holding the red **СТЕРЕТЬ ПРОГРЕСС** action for one second. A regular tap will not reset the campaign.
 - Campaign persistence writes a temporary JSON file, validates it and rotates the previous valid file to `.bak`. The original JSON v1 keys remain unchanged.
+
+## Compact HUD controls (v0.9.5)
+
+- The strategic map opens with a short top status bar and a compact bottom dock: **АРМИЯ**, **ГОРОД**, **ХОД**, **ЕЩЁ**.
+- Tap **ЕЩЁ** to reveal Attack, New Campaign, Found City and Settings. Tap **ЗАКРЫТЬ** or Android Back to collapse the drawer.
+- Tactical combat opens with a compact dock: **ВСЕ**, **МАРШ**, **ПАУЗА**, **КОМАНДЫ**.
+- Tap **КОМАНДЫ** for selection mode, Hold, Stop, Clear, Formation, Retreat, Speed, Zoom, Battle Cry, control groups and Settings. Scroll inside the drawer if every command does not fit at once.
+- The secondary command panels are collapsed by default so they do not cover the strategic map or battlefield. Their buttons keep the existing touch-target sizing.
 
 ## Strategy, city and recruitment
 

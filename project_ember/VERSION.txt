@@ -1,3 +1,11 @@
+Project Ember v0.9.5 — Compact Mobile HUD Fix
+- Replaces permanent map and battle button grids with compact quick-action docks.
+- Moves secondary strategy and tactical commands into collapsible drawers; the battle drawer is scrollable.
+- Shortens the top status panels and keeps the map/battlefield visible when command drawers are closed.
+- Android Back closes the active command drawer first.
+- Preserves campaign save schema, tactical orders, group controls, combat rules and 48+ dp touch targets.
+- Adds automated mobile HUD layout smoke tests for drawer state, dock height and free central play area.
+
 Project Ember v0.9.4 — Mobile UX Foundation (UI-1)
 - Adds UiMetrics dp conversion using screen DPI, viewport/window stretch ratio and UI scale; supports dp scale 0.8–1.6 and refreshes after resize/settings changes.
 - Adds a SafeAreaContainer that recalculates display safe insets when the window/viewport changes.

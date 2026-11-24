@@ -55,6 +55,8 @@ var _gesture_router: TouchGestureRouter
 var _toast_manager: ToastManager
 var _restart_confirm_dialog: ConfirmDialog
 var _exit_confirm_dialog: ConfirmDialog
+var _map_more_panel: PanelContainer
+var _map_more_button: Button
 
 
 func _ready() -> void:
@@ -310,6 +312,7 @@ func _create_ui() -> void:
 	root.add_child(_toast_manager)
 
 	var top_panel := PanelContainer.new()
+	top_panel.name = "MobileHudTop"
 	top_panel.anchor_left = 0.0
 	top_panel.anchor_top = 0.0
 	top_panel.anchor_right = 1.0
@@ -317,58 +320,79 @@ func _create_ui() -> void:
 	top_panel.offset_left = UiMetrics.dp(10.0)
 	top_panel.offset_top = UiMetrics.dp(8.0)
 	top_panel.offset_right = -UiMetrics.dp(10.0)
-	top_panel.offset_bottom = UiMetrics.dp(92.0)
+	top_panel.offset_bottom = UiMetrics.dp(62.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
-	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(2)))
+	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(1.0)))
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
+	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
 	_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
+	_status_label.clip_text = true
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	top_box.add_child(_status_label)
 
 	_message_label = Label.new()
-	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_message_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_message_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_message_label.clip_text = true
+	_message_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(11))
 	_message_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
 	top_box.add_child(_message_label)
 
+	_map_more_panel = PanelContainer.new()
+	_map_more_panel.name = "MobileHudMoreCommands"
+	_map_more_panel.anchor_left = 0.0
+	_map_more_panel.anchor_top = 1.0
+	_map_more_panel.anchor_right = 1.0
+	_map_more_panel.anchor_bottom = 1.0
+	_map_more_panel.offset_left = UiMetrics.dp(10.0)
+	_map_more_panel.offset_top = -UiMetrics.dp(216.0)
+	_map_more_panel.offset_right = -UiMetrics.dp(10.0)
+	_map_more_panel.offset_bottom = -UiMetrics.dp(88.0)
+	_map_more_panel.visible = false
+	root.add_child(_map_more_panel)
+
+	var more_margin := MarginContainer.new()
+	more_margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(5.0)))
+	more_margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(4.0)))
+	more_margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(5.0)))
+	more_margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(4.0)))
+	_map_more_panel.add_child(more_margin)
+
+	var more_grid := GridContainer.new()
+	more_grid.columns = 2
+	more_grid.add_theme_constant_override("h_separation", int(UiMetrics.dp(6.0)))
+	more_grid.add_theme_constant_override("v_separation", int(UiMetrics.dp(4.0)))
+	more_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	more_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	more_margin.add_child(more_grid)
+
+	_attack_button = _add_button(more_grid, "АТАКОВАТЬ", _attack_enemy)
+	_add_button(more_grid, "НОВАЯ КАМПАНИЯ", _restart_campaign)
+	_found_city_button = _add_button(more_grid, "ОСНОВАТЬ ГОРОД", _found_city)
+	_add_button(more_grid, "НАСТРОЙКИ", _open_settings)
+
 	var bottom_panel := PanelContainer.new()
+	bottom_panel.name = "MobileHudQuickDock"
 	bottom_panel.anchor_left = 0.0
 	bottom_panel.anchor_top = 1.0
 	bottom_panel.anchor_right = 1.0
 	bottom_panel.anchor_bottom = 1.0
 	bottom_panel.offset_left = UiMetrics.dp(10.0)
-	bottom_panel.offset_top = -UiMetrics.dp(180.0)
+	bottom_panel.offset_top = -UiMetrics.dp(80.0)
 	bottom_panel.offset_right = -UiMetrics.dp(10.0)
 	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
 	root.add_child(bottom_panel)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 7)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_right", 7)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	bottom_panel.add_child(margin)
-
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 5)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(grid)
-
-	_selection_button = _add_button(grid, "ВЫБРАТЬ АРМИЮ", _select_player_army)
-	_city_button = _add_button(grid, "ОТКРЫТЬ ГОРОД", _open_city)
-	_turn_button = _add_button(grid, "СЛЕДУЮЩИЙ ХОД", _advance_turn)
-	_attack_button = _add_button(grid, "АТАКОВАТЬ", _attack_enemy)
-	_add_button(grid, "НОВАЯ КАМПАНИЯ", _restart_campaign)
-	_found_city_button = _add_button(grid, "ОСНОВАТЬ ГОРОД", _found_city)
-	_add_button(grid, "НАСТРОЙКИ", _open_settings)
+	var quick_row := HBoxContainer.new()
+	quick_row.add_theme_constant_override("separation", int(UiMetrics.dp(5.0)))
+	bottom_panel.add_child(quick_row)
+	_selection_button = _add_button(quick_row, "АРМИЯ", _select_player_army)
+	_city_button = _add_button(quick_row, "ГОРОД", _open_city)
+	_turn_button = _add_button(quick_row, "ХОД", _advance_turn)
+	_map_more_button = _add_button(quick_row, "ЕЩЁ", _toggle_map_commands)
 	_create_city_panel(root)
 	_settings_panel = SettingsPanelScript.new()
 	_settings_panel.pause_game_on_open = false
@@ -680,7 +704,16 @@ func _add_button(parent: Container, text_value: String, callback: Callable) -> B
 	return button
 
 
+func _toggle_map_commands() -> void:
+	if not is_instance_valid(_map_more_panel) or not is_instance_valid(_map_more_button):
+		return
+	_map_more_panel.visible = not _map_more_panel.visible
+	_map_more_button.text = "ЗАКРЫТЬ" if _map_more_panel.visible else "ЕЩЁ"
+
+
 func _open_settings() -> void:
+	if is_instance_valid(_map_more_panel) and _map_more_panel.visible:
+		_toggle_map_commands()
 	if is_instance_valid(_settings_panel):
 		_settings_panel.open_panel()
 
@@ -704,6 +737,9 @@ func _handle_system_back() -> void:
 		return
 	if is_instance_valid(_city_panel) and _city_panel.visible:
 		_close_city()
+		return
+	if is_instance_valid(_map_more_panel) and _map_more_panel.visible:
+		_toggle_map_commands()
 		return
 	# Until the dedicated map menu arrives in UI-3, Back opens the existing
 	# settings sheet rather than exiting the game or discarding campaign state.
