@@ -1,3 +1,14 @@
+## v0.9.3 — Combat Effects & Sound
+
+- Connected pooled combat feedback to melee, spear, cavalry and ranged hits, projectile launches and trails, unit deaths, and the commander's Battle Cry.
+- Added reusable low-poly impact sparks, cavalry charge bursts, rally pulses, death dust and bow muzzle flashes.
+- Added seven original procedurally generated mono PCM sound cues: melee, spear, cavalry, bow, arrow impact, death and rally. No external audio files or licensed tracks are required.
+- Scales fixed effect/audio pools by graphics quality: Low 8/4, Medium 14/6, High 18/8.
+- Caches projectile mesh/material and effect meshes/materials; hit feedback reuses fixed slots rather than allocating scene nodes per strike.
+- Preserves campaign saves, unit roles, damage/armor formulas, movement, formations, collision and tactical controls. The existing SFX volume setting remains in control.
+- Adds CI coverage for generated sound data, quality-tier pool sizes, slot reuse and stable node budgets.
+- Android sound balance, effect readability and FPS still require device validation.
+
 ## v0.9.2 — Battlefield Biomes & Terrain
 
 - Added four tactical battlefield biomes: grassland, woodland, highlands and marsh.
