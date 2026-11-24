@@ -8,6 +8,13 @@ const DEFAULT_DURATION := 2.6
 var _toasts: Array[Dictionary] = []
 
 
+func _dp(value: float) -> float:
+	var metrics := get_node_or_null("/root/UiMetrics")
+	if is_instance_valid(metrics) and metrics.has_method("dp"):
+		return float(metrics.call("dp", value))
+	return value
+
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -29,28 +36,28 @@ func show_toast(message: String, duration: float = DEFAULT_DURATION, icon_text: 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(Palette.UI_BRONZE_DARK.r, Palette.UI_BRONZE_DARK.g, Palette.UI_BRONZE_DARK.b, 0.92)
 	style.border_color = Palette.UI_GOLD
-	style.set_border_width_all(int(UiMetrics.dp(1.5)))
-	style.set_corner_radius_all(int(UiMetrics.dp(8.0)))
-	style.content_margin_left = UiMetrics.dp(12.0)
-	style.content_margin_right = UiMetrics.dp(12.0)
-	style.content_margin_top = UiMetrics.dp(8.0)
-	style.content_margin_bottom = UiMetrics.dp(8.0)
+	style.set_border_width_all(int(_dp(1.5)))
+	style.set_corner_radius_all(int(_dp(8.0)))
+	style.content_margin_left = _dp(12.0)
+	style.content_margin_right = _dp(12.0)
+	style.content_margin_top = _dp(8.0)
+	style.content_margin_bottom = _dp(8.0)
 	panel.add_theme_stylebox_override("panel", style)
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	row.add_theme_constant_override("separation", int(_dp(8.0)))
 	panel.add_child(row)
 	var icon := Label.new()
 	icon.text = icon_text
-	icon.add_theme_font_size_override("font_size", int(UiMetrics.dp(18.0)))
+	icon.add_theme_font_size_override("font_size", int(_dp(18.0)))
 	icon.add_theme_color_override("font_color", Palette.UI_GOLD)
 	row.add_child(icon)
 	var label := Label.new()
 	label.text = message
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override("font_size", int(UiMetrics.dp(14.0)))
+	label.add_theme_font_size_override("font_size", int(_dp(14.0)))
 	label.add_theme_color_override("font_color", Palette.UI_TEXT)
-	label.custom_minimum_size.x = UiMetrics.dp(180.0)
+	label.custom_minimum_size.x = _dp(180.0)
 	row.add_child(label)
 	add_child(panel)
 	_toasts.append({"panel": panel, "remaining": maxf(0.5, duration)})
@@ -82,11 +89,11 @@ func _relayout() -> void:
 		panel.anchor_right = 0.5
 		panel.anchor_top = 0.0
 		panel.anchor_bottom = 0.0
-		panel.offset_left = -UiMetrics.dp(160.0)
-		panel.offset_right = UiMetrics.dp(160.0)
-		var top := UiMetrics.dp(12.0 + float(index) * 64.0)
+		panel.offset_left = -_dp(160.0)
+		panel.offset_right = _dp(160.0)
+		var top := _dp(12.0 + float(index) * 64.0)
 		panel.offset_top = top
-		panel.offset_bottom = top + UiMetrics.dp(56.0)
+		panel.offset_bottom = top + _dp(56.0)
 
 
 func get_toast_count() -> int:
