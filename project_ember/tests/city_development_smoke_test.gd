@@ -29,7 +29,7 @@ func _run() -> void:
 	_check(CityDevelopmentScript.get_city_level(14) == 3, "population fourteen unlocks city level three")
 	_check(CityDevelopmentScript.get_province_slots(1) == 1 and CityDevelopmentScript.get_province_slots(2) == 3 and CityDevelopmentScript.get_province_slots(3) == 5, "city levels grant one, three and five province slots")
 	_check(CityDevelopmentScript.SPECIALIZATIONS.size() == 4, "four mutually exclusive city specializations exist")
-	_check(CityDevelopmentScript.PROVINCE_IMPROVEMENTS.size() == 4, "four data-driven province improvements exist")
+	_check(CityDevelopmentScript.PROVINCE_IMPROVEMENTS.size() == 5, "five data-driven province improvements exist")
 	_check(CityDevelopmentScript.BUILDING_UPGRADES.size() == 6, "all six existing buildings have upgrade data")
 
 	var state: Variant = CampaignStateScript.new()
@@ -64,6 +64,10 @@ func _run() -> void:
 	_check(state.city_province_improvements.size() == 1, "completed province project is stored in the city record")
 	var developed_income: Dictionary = state.get_city_income()
 	_check(int(developed_income.get("production", 0)) == 6, "quarry contributes two additional production per turn")
+	var normalized_watchtower := CityDevelopmentScript.normalize_province_improvements([{"id": "watchtower", "cell": [-2, 1]}])
+	_check(normalized_watchtower.size() == 1 and str(normalized_watchtower[0].get("id", "")) == "watchtower", "watchtower is accepted by province improvement normalization")
+	var watchtower_income := CityDevelopmentScript.get_city_income([], {}, normalized_watchtower, "")
+	_check(int(watchtower_income.get("production", 0)) == 5, "watchtower adds one production per turn")
 
 	_check(state.get_army_upkeep_per_turn() == 4, "starting army costs four gold per turn")
 	var old_gold: int = state.city_gold

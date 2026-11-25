@@ -133,7 +133,7 @@ city_development_test_path = ROOT / "tests/city_development_smoke_test.gd"
 check(city_development_path.is_file(), "city development data catalog exists")
 check(all(token in city_development_text for token in ["population_min", "population_max", "province_slots", "get_city_level", "get_province_slots"]), "three city levels define population thresholds and province capacity")
 check(all(token in city_development_text for token in ['"agriculture"', '"commerce"', '"industry"', '"military"']), "four city specializations are data-driven")
-check(all(token in city_development_text for token in ['"farm_plot"', '"trade_post"', '"woodland_camp"', '"stone_quarry"']), "four terrain-bound province improvements are catalogued")
+check(all(token in city_development_text for token in ['"farm_plot"', '"trade_post"', '"woodland_camp"', '"stone_quarry"', '"watchtower"']), "five terrain-bound province improvements are catalogued")
 check(all(token in city_development_text for token in ['"farm"', '"market"', '"workshop"', '"barracks"', '"archery_range"', '"stable"']) and "2: {" in city_development_text and "3: {" in city_development_text, "all six existing buildings have level-two and level-three upgrades")
 check("get_city_income" in city_development_text and "food_multiplier" in city_development_text and "gold_multiplier" in city_development_text and "production_multiplier" in city_development_text, "city specialization and province improvements modify only the three existing incomes")
 check("static func get_army_upkeep" in unit_catalog_text and "ceili(total)" in unit_catalog_text, "army upkeep is calculated in the unit catalog and rounded up to whole gold")
@@ -397,6 +397,21 @@ check(all(token in strategic_ai_text for token in ["net_gold_per_turn", "desired
 check(all(token in kingdom_ai_text for token in ["StrategicAI.evaluate_kingdom", "StrategicAI.select_war_target", "StrategicAI.score_expansion_cell", "strategic_plan.get(\"expansion_allowed\""]), "AI turn loop consumes strategic plans for city orders, movement and settlement placement")
 check(strategic_ai_test_path.is_file() and all(token in strategic_ai_test_text for token in ["low treasury", "active war", "expansion scoring", "save schema version one"]), "strategic AI smoke test covers economy, war, expansion and save compatibility")
 check("const SAVE_VERSION := 1" in campaign_state_text and "const ARMY_CAPACITY := 24" in campaign_state_text, "strategic AI preserves campaign schema and army capacity")
+
+# Territorial control: deterministic city/army influence, disputed borders and frontier watchtowers.
+territory_path = ROOT / "scripts/territory_catalog.gd"
+territory_text = territory_path.read_text(encoding="utf-8") if territory_path.is_file() else ""
+territory_test_path = ROOT / "tests/territory_control_smoke_test.gd"
+territory_test_text = territory_test_path.read_text(encoding="utf-8") if territory_test_path.is_file() else ""
+check(territory_path.is_file(), "deterministic territorial control catalog exists")
+check(all(token in territory_text for token in ["build_owner_lookup", "get_owner_at", "OWNER_DISPUTED", "CONTEST_MARGIN"]), "territory catalog resolves owners and contested borders deterministically")
+check(all(token in territory_text for token in ["_append_city_sources", "_append_army_source", "watchtower", "get_defensive_armor_bonus"]), "city, field army and frontier fortifications project territorial influence")
+check(all(token in campaign_state_text for token in ["TerritoryCatalogScript.get_owner_at", "get_world_owner_at", "OWNER_DISPUTED", "battle_territory_armor_bonus"]), "campaign city founding and tactical battles consume territorial ownership")
+check(all(token in strategy_map_text for token in ["TerritoryCatalogScript.build_owner_lookup", "OWNER_DISPUTED", "watchtower"]), "strategic map renders dynamic ownership, contested borders and watchtowers")
+check(all(token in kingdom_ai_text for token in ["prefer_fortification", "has_watchtower", '"watchtower"']), "AI kingdoms build frontier watchtowers when their territory is threatened")
+check(all(token in battle_unit_text for token in ["territory_armor_bonus", "armor += territory_armor_bonus"]), "tactical units apply the territorial fortification armour bonus")
+check(territory_test_path.is_file() and all(token in territory_test_text for token in ["OWNER_DISPUTED", "watchtower", "field army", "SAVE_VERSION"]), "territory smoke tests cover ownership, disputed land, armies, forts and save compatibility")
+check("const SAVE_VERSION := 1" in campaign_state_text, "territorial control keeps legacy campaign saves at version one")
 
 print(f"\nStatic QA: {checks - len(failures)}/{checks} checks passed")
 if failures:
