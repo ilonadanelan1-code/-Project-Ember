@@ -323,7 +323,7 @@ func _draw_city_marker(
 
 
 func _draw_hex_grid() -> void:
-	if _cells.is_empty():
+	if _cells.is_empty() or _map_zoom < 1.15:
 		return
 	var grid_segments := PackedVector2Array()
 	for cell in _cells:
