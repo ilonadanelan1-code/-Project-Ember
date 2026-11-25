@@ -18,34 +18,30 @@ if [[ ${#TESTS[@]} -eq 0 ]]; then
   exit 2
 fi
 
+# Parse scripts from a normal project scene. A --check-only --script invocation
+# does not register project autoload singletons, so it reports false errors for
+# valid scripts that reference CampaignState, GameSettings, UiMetrics or Haptics.
+parser_log="$LOG_ROOT/gdscript-parser.log"
+parser_home="$(mktemp -d)"
+set +e
+timeout 120s env HOME="$parser_home" \
+  XDG_CONFIG_HOME="$parser_home/.config" \
+  XDG_DATA_HOME="$parser_home/.local/share" \
+  GODOT_SILENCE_ROOT_WARNING=1 \
+  "$GODOT_BIN" --headless --audio-driver Dummy --path "$PROJECT_ROOT" \
+    res://tools/qa/parse_all_scripts.tscn 2>&1 | tee "$parser_log"
+parser_status=${PIPESTATUS[0]}
+set -e
+rm -rf "$parser_home"
+if [[ $parser_status -ne 0 ]] || grep -Eq 'SCRIPT ERROR:|Parse Error:|GDScript parser failed:' "$parser_log"; then
+  echo "Project-context GDScript parser reported errors." >&2
+  exit 1
+fi
+echo "PASS parser checks" | tee "$ARTIFACT_ROOT/smoke-test-summary.txt"
+
 passed=0
 failed=0
 summary="$ARTIFACT_ROOT/smoke-test-summary.txt"
-: > "$summary"
-
-# Parse every GDScript file independently before executing behavioral tests.
-while IFS= read -r source_file; do
-  rel_path="${source_file#"$PROJECT_ROOT/"}"
-  resource_path="res://${rel_path}"
-  parse_log="$LOG_ROOT/parse-${rel_path//\//_}.log"
-  parse_home="$(mktemp -d)"
-  set +e
-  timeout 90s env HOME="$parse_home" \
-    XDG_CONFIG_HOME="$parse_home/.config" \
-    XDG_DATA_HOME="$parse_home/.local/share" \
-    GODOT_SILENCE_ROOT_WARNING=1 \
-    "$GODOT_BIN" --headless --audio-driver Dummy --path "$PROJECT_ROOT" \
-      --check-only --script "$resource_path" 2>&1 | tee "$parse_log"
-  parse_status=${PIPESTATUS[0]}
-  set -e
-  rm -rf "$parse_home"
-  if [[ $parse_status -ne 0 ]] || grep -Eq 'SCRIPT ERROR:|Parse Error:' "$parse_log"; then
-    echo "FAIL parser $rel_path" | tee -a "$summary"
-    exit 1
-  fi
-done < <(find "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/tests" "$PROJECT_ROOT/tools/qa" -maxdepth 1 -type f -name '*.gd' | sort)
-
-echo "PASS parser checks" | tee -a "$summary"
 
 for test_file in "${TESTS[@]}"; do
   test_name="$(basename "$test_file" .gd)"
