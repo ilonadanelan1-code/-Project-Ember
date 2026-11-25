@@ -74,12 +74,14 @@ func _run() -> void:
 	_check(loaded_roles.has(UnitCatalogScript.ROLE_CAVALRY), "save/load round-trip preserves cavalry")
 
 	var spear: Variant = BattleUnitScript.new()
+	root.add_child(spear)
 	spear.role = 2
 	spear._apply_role_stats()
 	_check(is_equal_approx(spear.max_health, 108.0), "spearman receives its role-specific health")
 	_check(spear.attack_range > 2.0, "spearman has an extended melee reach")
 	_check(spear.armor > 0.0, "spearman receives armor")
 	var cavalry: Variant = BattleUnitScript.new()
+	root.add_child(cavalry)
 	cavalry.role = 3
 	cavalry._apply_role_stats()
 	_check(cavalry.move_speed > 5.0, "cavalry is the fastest unit role")
@@ -91,6 +93,7 @@ func _run() -> void:
 	spear.free()
 
 	var armored_target: Variant = BattleUnitScript.new()
+	root.add_child(armored_target)
 	armored_target.role = 2
 	armored_target._apply_role_stats()
 	armored_target.health = armored_target.max_health
