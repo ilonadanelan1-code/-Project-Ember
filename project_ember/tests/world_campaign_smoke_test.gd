@@ -106,10 +106,14 @@ func _run() -> void:
 	_check(initial_explored_count > 250 and initial_explored_count < 450, "initial vision reveals only a compact local region")
 
 	var first_army_before := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
+	# Isolate the war-only behavior from the new peaceful neutral-site expedition system.
+	var saved_neutral_locations: Array[Dictionary] = state.neutral_locations.duplicate(true)
+	state.neutral_locations.clear()
 	state.advance_campaign_turn()
 	_check(state.turn_number == 2, "campaign turn advances")
 	var first_army_after := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
-	_check(first_army_after == first_army_before, "peaceful AI kingdom keeps its army in place without a war treaty")
+	_check(first_army_after == first_army_before, "peaceful AI kingdom does not pursue a war target without a war treaty")
+	state.neutral_locations = saved_neutral_locations
 	DiplomacyCatalogScript.set_treaty(
 		state.diplomacy_relations,
 		DiplomacyCatalogScript.PLAYER_ID,
