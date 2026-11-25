@@ -51,8 +51,9 @@ func _run() -> void:
 
 	var capital_gold_before: int = int(state.cities[0].get("gold", 0))
 	var new_city_gold_before: int = int(state.cities[1].get("gold", 0))
+	var upkeep_due: int = state.get_army_upkeep_per_turn()
 	state.advance_campaign_turn()
-	_check(int(state.cities[0].get("gold", 0)) == capital_gold_before + 4, "capital receives its own turn income")
+	_check(int(state.cities[0].get("gold", 0)) == capital_gold_before + 4 - upkeep_due, "capital receives its income before paying army upkeep")
 	_check(int(state.cities[1].get("gold", 0)) == new_city_gold_before + 4, "new city receives independent turn income")
 
 	_check(state.save_campaign(), "campaign saves successfully")
