@@ -1,1 +1,1 @@
-Project Ember v0.29.0 — Diplomacy & AI Kingdoms
+Project Ember v0.30.0 — Neutral Sites & Exploration Expansion

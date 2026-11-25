@@ -313,6 +313,8 @@ check(all(token in strategy_map_text for token in ["_draw_neutral_locations", "g
 check(all(token in strategy_map_text for token in ["_create_world_event_panel", "_refresh_world_event_panel", "_resolve_world_event_choice", "touch_target(52.0)"]), "mobile map includes two large event choice buttons")
 check((ROOT / "tests/world_location_smoke_test.gd").is_file(), "neutral location smoke test is included")
 check((ROOT / "tests/world_event_smoke_test.gd").is_file(), "campaign event smoke test is included")
+check('"reveal_distance": 12' in world_event_text and "_find_scout_reveal_origin" in campaign_state_text, "scouting events reveal a distant region beyond the army's normal vision")
+check(all(token in campaign_state_text for token in ["_apply_neutral_location_special_reward", "_apply_neutral_mine_income", "abandoned_mine", "forgotten_shrine", "mercenary_camp"]), "neutral location types provide distinct victory rewards and persistent mine income")
 
 # Cleared points remain visible as map history even when the winning army occupies their hex.
 location_test_text = (ROOT / "tests/world_location_smoke_test.gd").read_text(encoding="utf-8")

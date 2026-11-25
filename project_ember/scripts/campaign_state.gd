@@ -537,21 +537,30 @@ func begin_location_battle(location_id: String) -> bool:
 	return true
 
 
+func _find_nearest_player_city_index(cell: Vector2i) -> int:
+	if cities.is_empty():
+		return -1
+	var best_city_index := 0
+	var best_distance := 999999
+	for index in range(cities.size()):
+		var city: Dictionary = cities[index]
+		var city_cell_value := WorldGeneratorScript.array_to_cell(city.get("cell", []))
+		var distance := WorldGeneratorScript.hex_distance(cell, city_cell_value)
+		if distance < best_distance:
+			best_distance = distance
+			best_city_index = index
+	return best_city_index
+
+
 func _grant_neutral_location_reward(location_index: int) -> String:
 	if location_index < 0 or location_index >= neutral_locations.size() or cities.is_empty():
 		return ""
 	_save_active_city()
 	var location: Dictionary = neutral_locations[location_index]
 	var location_cell := WorldGeneratorScript.array_to_cell(location.get("cell", []))
-	var best_city_index := 0
-	var best_distance := 999999
-	for index in range(cities.size()):
-		var city: Dictionary = cities[index]
-		var city_cell_value := WorldGeneratorScript.array_to_cell(city.get("cell", []))
-		var distance := WorldGeneratorScript.hex_distance(location_cell, city_cell_value)
-		if distance < best_distance:
-			best_distance = distance
-			best_city_index = index
+	var best_city_index := _find_nearest_player_city_index(location_cell)
+	if best_city_index < 0:
+		return ""
 	var reward: Dictionary = location.get("reward", {})
 	var target_city: Dictionary = cities[best_city_index]
 	var gold_gain := maxi(0, int(reward.get("gold", 0)))
@@ -564,6 +573,37 @@ func _grant_neutral_location_reward(location_index: int) -> String:
 	if best_city_index == active_city_id:
 		_load_active_city()
 	return "Награда в %s: +%d золота, +%d еды, +%d производства." % [str(target_city.get("name", "город")), gold_gain, food_gain, production_gain]
+
+
+func _apply_neutral_location_special_reward(location: Dictionary) -> String:
+	var type_id := str(location.get("type", ""))
+	var location_cell := WorldGeneratorScript.array_to_cell(location.get("cell", []))
+	match type_id:
+		"ancient_ruins":
+			_reveal_fog_area(location_cell, 5)
+			return "Старые карты раскрыли окрестности руин."
+		"monster_lair":
+			for unit in player_units:
+				unit["experience"] = clampi(int(unit.get("experience", 0)) + 12, 0, 999999)
+			return "Войска получили по 12 опыта за победу над чудовищами."
+		"abandoned_mine":
+			return "Шахта работает: ближайший город получает +2 производства каждый ход."
+		"forgotten_shrine":
+			player_hero["health"] = get_hero_max_health(player_hero)
+			player_hero["wounded_turns"] = 0
+			return "Святилище полностью восстановило здоровье правителя."
+		"mercenary_camp":
+			if player_units.size() < 24:
+				player_units.append({
+					"role": UNIT_CATALOG_SCRIPT.ROLE_MELEE,
+					"health": UNIT_CATALOG_SCRIPT.get_max_health(UNIT_CATALOG_SCRIPT.ROLE_MELEE),
+					"experience": 0,
+				})
+				return "Один мечник-наёмник присоединился к армии."
+			city_gold += 25
+			_save_active_city()
+			return "Армия заполнена: за снаряжение лагеря получено 25 золота."
+	return ""
 
 
 func complete_battle(
@@ -583,6 +623,7 @@ func complete_battle(
 	enemy_units = _read_unit_records(enemy_survivors)
 	var defeated_kingdom_name := "Вражеское королевство"
 	var location_index := -1
+	var location_for_special_reward: Dictionary = {}
 	if battle_target_type == "location":
 		for index in range(neutral_locations.size()):
 			if str(neutral_locations[index].get("id", "")) == battle_location_id:
@@ -599,6 +640,7 @@ func complete_battle(
 				location["guards"] = []
 				location["guardian_health"] = 0.0
 				neutral_locations[location_index] = location
+				location_for_special_reward = location.duplicate(true)
 				last_world_event_text = _grant_neutral_location_reward(location_index)
 			else:
 				neutral_locations[location_index] = location
@@ -638,6 +680,10 @@ func complete_battle(
 		enemy_hero["health"] = clampf(enemy_commander_health, 0.0, get_hero_max_health(enemy_hero))
 		if enemy_commander_health <= 0.0:
 			enemy_hero["wounded_turns"] = 2
+	if victory and not location_for_special_reward.is_empty():
+		var special_reward_text := _apply_neutral_location_special_reward(location_for_special_reward)
+		if not special_reward_text.is_empty():
+			last_world_event_text += " " + special_reward_text
 	var hero_xp_gained := award_hero_experience(
 		victory,
 		int(stats.get("player_kills", 0)),
@@ -1173,6 +1219,7 @@ func advance_campaign_turn() -> void:
 		city_last_event = ""
 		_advance_one_city_turn()
 		_save_active_city()
+	_apply_neutral_mine_income()
 	_charge_army_upkeep()
 	active_city_id = previous_city_id
 	_load_active_city()
@@ -1456,6 +1503,21 @@ func _apply_diplomacy_economy() -> void:
 	_load_active_city()
 
 
+func _apply_neutral_mine_income() -> void:
+	if cities.is_empty():
+		return
+	for location in neutral_locations:
+		if not bool(location.get("cleared", false)) or str(location.get("type", "")) != "abandoned_mine":
+			continue
+		var location_cell := WorldGeneratorScript.array_to_cell(location.get("cell", []))
+		var city_index := _find_nearest_player_city_index(location_cell)
+		if city_index < 0:
+			continue
+		var target_city: Dictionary = cities[city_index]
+		target_city["production_bank"] = maxi(0, int(target_city.get("production_bank", 0))) + 2
+		cities[city_index] = target_city
+
+
 func _queue_world_event_if_due() -> void:
 	if not pending_world_event.is_empty() or not WorldEventCatalogScript.is_event_turn(turn_number):
 		return
@@ -1490,8 +1552,12 @@ func resolve_world_event(choice_id: String) -> bool:
 		for unit in player_units:
 			unit["experience"] = clampi(int(unit.get("experience", 0)) + unit_xp_gain, 0, 999999)
 	var reveal_radius := clampi(int(effect.get("reveal_radius", 0)), 0, 8)
+	var reveal_distance := clampi(int(effect.get("reveal_distance", 0)), 0, 24)
 	if reveal_radius > 0:
-		_reveal_fog_area(player_cell, reveal_radius)
+		var reveal_origin := player_cell
+		if reveal_distance > 0:
+			reveal_origin = _find_scout_reveal_origin(reveal_distance, reveal_radius)
+		_reveal_fog_area(reveal_origin, reveal_radius)
 	last_world_event_text = str(choice.get("result", "Событие завершено."))
 	pending_world_event.clear()
 	world_events_resolved += 1
@@ -1516,6 +1582,33 @@ func refresh_fog_of_war() -> void:
 		_reveal_fog_area(cell, CITY_VISION_RADIUS)
 	if settler_active:
 		_reveal_fog_area(settler_cell, SETTLER_VISION_RADIUS)
+
+
+func _find_scout_reveal_origin(distance: int, radius: int) -> Vector2i:
+	var directions := WorldGeneratorScript.neighbors()
+	if directions.is_empty():
+		return player_cell
+	var start_index := posmod(world_seed + turn_number, directions.size())
+	var best_cell := player_cell
+	var best_unexplored_count := -1
+	for step in range(directions.size()):
+		var direction_index := posmod(start_index + step, directions.size())
+		var candidate := player_cell + directions[direction_index] * distance
+		if not WorldGeneratorScript.is_inside_world(candidate):
+			continue
+		var unexplored_count := 0
+		for q in range(-radius, radius + 1):
+			for r in range(-radius, radius + 1):
+				var offset := Vector2i(q, r)
+				if WorldGeneratorScript.hex_distance(Vector2i.ZERO, offset) > radius:
+					continue
+				var sample := candidate + offset
+				if WorldGeneratorScript.is_inside_world(sample) and not is_cell_explored(sample):
+					unexplored_count += 1
+		if unexplored_count > best_unexplored_count:
+			best_unexplored_count = unexplored_count
+			best_cell = candidate
+	return best_cell
 
 
 func _reveal_fog_area(origin: Vector2i, radius: int) -> void:

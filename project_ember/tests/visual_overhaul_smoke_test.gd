@@ -73,15 +73,20 @@ func _run() -> void:
 	await process_frame
 
 	var node_budget_ok := true
-	var two_mesh_budget_ok := true
+	var compact_visual_budget_ok := true
 	for unit in units:
 		if _count_nodes(unit) > 8:
 			node_budget_ok = false
 		var visual_root := unit.get_node("VisualRoot") as Node3D
-		if visual_root.get_child_count() != 2:
-			two_mesh_budget_ok = false
+		var sprite_visual := visual_root.get_node_or_null("CombatSprite") as AnimatedSprite3D
+		var body_mesh := visual_root.get_node_or_null("BodyMesh") as MeshInstance3D
+		var action_mesh := visual_root.get_node_or_null("ActionMesh") as MeshInstance3D
+		var sprite_renderer_valid := is_instance_valid(sprite_visual) and visual_root.get_child_count() == 1
+		var mesh_fallback_valid := is_instance_valid(body_mesh) and is_instance_valid(action_mesh) and visual_root.get_child_count() == 2
+		if not sprite_renderer_valid and not mesh_fallback_valid:
+			compact_visual_budget_ok = false
 	_check(node_budget_ok, "all 50 live BattleUnit instances stay at or below eight nodes")
-	_check(two_mesh_budget_ok, "all 50 live units render their core model through two mesh instances")
+	_check(compact_visual_budget_ok, "all 50 live units use the compact animated-sprite renderer or the two-mesh fallback")
 
 	var material_count_after_spawn := VisualCacheScript.get_material_count()
 	units[0].take_damage(1.0)

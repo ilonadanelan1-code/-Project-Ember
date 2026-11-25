@@ -1,21 +1,10 @@
-Build: Project Ember v0.29.0 — Diplomacy & AI Kingdoms
+Build: Project Ember v0.30.0 — Neutral Sites & Exploration Expansion
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.28.0 — Faction Founding & Kingdom Identity
-Feature: five deterministic AI personalities, 45 relationship records, timed treaties, trade/alliance income, tribute/vassal transfers, player and AI wars, border tension, war exhaustion, deterministic peace proposals and a scrollable mobile diplomacy panel.
-Static validation: 162/162 passed
-Smoke-test sources: 31 included; not executed in this environment
-Python static QA syntax validation: passed
-Godot 4.7.2 parser/import/runtime and Android GPU/touch/FPS validation: pending; engine executable unavailable in the build container
-Save schema: version 1 retained
-Package type: Godot source project, not an APK
-
-Combat hotfix based on the v0.29.0 release line:
-- Enemy-controlled units actively acquire and advance toward opposing units across the tactical field.
-- When only the enemy commander remains, the player army expands its automatic search range and pursues the final commander.
-- Enemy commanders no longer retreat out of the battle at critical health.
-- Ordinary enemy units return to AUTO after completing a retreat, with a recovery delay, instead of becoming permanently stuck in HOLD.
-- No campaign save schema, unit IDs, or diplomacy IDs are changed.
-
-Regression coverage: battle_engagement_smoke_test.gd checks final-commander pursuit, commander damage, enemy aggression, and re-engagement after retreat.
-Godot 4.7.2 validation: pending on the hotfix branch.
+Base: v0.29.0 — Diplomacy & AI Kingdoms
+Feature set: five neutral POI types with distinct one-time rewards; permanent abandoned-mine production; distant deterministic scouting event; existing factions, cities, armies, heroes, tactical combat and diplomacy retained.
+Neutral locations: max 72, deterministic by world seed, existing location IDs and cleared-state persistence retained.
+Economy: gold, food and stored production only; no new resource.
+Save schema: SAVE_VERSION 1; no new JSON fields introduced by this expansion.
+Package type: Godot source project, not an APK.
+QA status: pending GitHub Godot 4.7.2 workflow after publication.

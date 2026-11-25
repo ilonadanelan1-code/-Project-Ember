@@ -22,7 +22,7 @@ func _run() -> void:
 	_check(not map_source.is_empty(), "strategy HUD source is readable")
 	_check(not battle_source.is_empty(), "battle HUD source is readable")
 
-	_check(map_source.contains('top_panel.offset_bottom = UiMetrics.dp(48.0)'), "strategy top bar uses the reduced height")
+	_check(map_source.contains('top_panel.offset_bottom = UiMetrics.dp(78.0)'), "strategy top bar reserves space for status, resources and map feedback")
 	_check(map_source.contains('bottom_panel.offset_top = -UiMetrics.dp(66.0)'), "strategy quick dock has a reduced height budget")
 	_check(map_source.contains('_map_more_panel.offset_bottom = -UiMetrics.dp(74.0)'), "secondary command drawer clears the compact quick dock")
 	_check(map_source.contains('font_size(14)'), "quick actions use compact readable labels")

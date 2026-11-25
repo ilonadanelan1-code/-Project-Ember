@@ -42,7 +42,7 @@ func _run() -> void:
 	_check(request_start >= 0 and perform_start > request_start, "strategy map has separate request and execution functions")
 	_check(request_block.contains("_restart_confirm_dialog.open()"), "new campaign request opens the confirmation dialog")
 	_check(not request_block.contains("CampaignState.new_campaign()"), "request path cannot clear campaign progress directly")
-	_check(perform_block.contains("CampaignState.new_campaign()"), "actual reset is isolated behind the confirmation callback")
+	_check(perform_block.contains("CampaignState.prepare_new_campaign(false)"), "actual reset opens the protected faction-founding flow behind the confirmation callback")
 
 	var dialog := ConfirmDialogScript.new()
 	root.add_child(dialog)

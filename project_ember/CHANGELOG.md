@@ -1,3 +1,13 @@
+## v0.30.0 — Neutral Sites & Exploration Expansion
+
+- Gives all five existing neutral location types a distinct post-victory effect while retaining their original resource rewards and stable location IDs.
+- Ancient ruins reveal the surrounding five-hex area; monster lairs grant +12 XP to each surviving troop; shrines restore the ruler; mercenary camps recruit one swordsman when army capacity allows or grant 25 gold when full.
+- Cleared abandoned mines become persistent economic sites, granting +2 stored production per campaign turn to the nearest player city.
+- Changes the scout-report event to reveal a deterministic remote radius-four area centered twelve hexes from the army, beyond normal army vision.
+- Keeps neutral-site state in the existing location records and reuses the existing three resources; no save-schema version bump or new campaign resource is introduced.
+- Fixes Godot 4.7.2 smoke-test regressions involving typed empty arrays, typed faction building lists, updated AI war-only movement, current animated-sprite rendering, the faction-founding restart flow and the current mobile HUD layout.
+- Updates H regression coverage and static QA guards. Full Godot 4.7.2 runtime results are recorded in `QA_REPORT_v0.30.0.txt` after the branch run.
+
 ## v0.29.0 — Diplomacy & AI Kingdoms
 - Adds five deterministic diplomatic personalities for the nine existing AI kingdoms.
 - Adds a 45-pair player/AI relationship matrix with canonical keys and bounded relationship values.

@@ -2,6 +2,7 @@ extends SceneTree
 
 const CampaignStateScript = preload("res://scripts/campaign_state.gd")
 const WorldScript = preload("res://scripts/world_generator.gd")
+const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
 
 var _failures := 0
 
@@ -108,7 +109,18 @@ func _run() -> void:
 	state.advance_campaign_turn()
 	_check(state.turn_number == 2, "campaign turn advances")
 	var first_army_after := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
-	_check(first_army_after != first_army_before, "first kingdom moves its army on its scheduled AI turn")
+	_check(first_army_after == first_army_before, "peaceful AI kingdom keeps its army in place without a war treaty")
+	DiplomacyCatalogScript.set_treaty(
+		state.diplomacy_relations,
+		DiplomacyCatalogScript.PLAYER_ID,
+		0,
+		"war",
+		state.turn_number
+	)
+	state.advance_campaign_turn()
+	state.advance_campaign_turn()
+	var first_army_during_war := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
+	_check(first_army_during_war != first_army_after, "AI army advances toward the player after a war treaty becomes active")
 
 	var remembered_cell := Vector2i(-11, 0)
 	state.player_cell = Vector2i(15, 0)
@@ -125,7 +137,7 @@ func _run() -> void:
 		var capital: Dictionary = cities[0]
 		_check(not capital.get("build_queue", []).is_empty() or not capital.get("buildings", []).is_empty(), "kingdom %d begins autonomous development" % (index + 1))
 
-	for _turn in range(12):
+	for _turn in range(10):
 		state.advance_campaign_turn()
 	_check(state.turn_number == 14, "AI economy and development progress over repeated turns")
 	_check(state.get_total_enemy_units() >= total_starting_units, "AI kingdoms do not lose units during peaceful development")
