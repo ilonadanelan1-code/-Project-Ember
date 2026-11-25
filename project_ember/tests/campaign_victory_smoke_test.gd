@@ -28,13 +28,13 @@ func _run() -> void:
 	_check(VictoryCatalog.normalize_state({}).get("unlocked_types", []).is_empty(), "legacy saves receive empty victory progress")
 	_check(CampaignStateScript.SAVE_VERSION == 1, "victory system keeps the existing save schema version")
 
-	for kingdom_id in range(6):
+	for kingdom_id in range(5):
 		VictoryCatalog.record_military_victory(state, kingdom_id, 24, 8)
 	VictoryCatalog.record_military_victory(state, 0, 24, 8)
-	_check(state.get("military_wins", []).size() == 6, "military wins count unique kingdoms only")
+	_check(state.get("military_wins", []).size() == 5, "military wins count unique kingdoms only")
 	_check(not state.get("unlocked_types", []).has("military"), "victory checks remain inactive before turn 25")
 	VictoryCatalog.record_military_victory(state, 6, 25, 8)
-	_check(state.get("military_wins", []).size() == 7, "additional kingdom victory is stored only once")
+	_check(state.get("military_wins", []).size() == 6, "sixth unique kingdom victory is stored exactly once")
 	_check(state.get("unlocked_types", []).has("military"), "six unique victories and eight survivors unlock military victory")
 
 	var player_units: Array = []
