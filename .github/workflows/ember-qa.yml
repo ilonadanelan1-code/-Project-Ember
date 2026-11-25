@@ -92,6 +92,10 @@ jobs:
               --rendering-driver opengl3 --audio-driver Dummy \
               res://tools/qa/visual_capture.tscn -- "$EMBER_QA_ARTIFACTS/visual" \
               2>&1 | tee "$EMBER_QA_ARTIFACTS/logs/visual-capture.log"
+          if grep -En 'SHADER ERROR:|Shader compilation failed|Unknown identifier in expression' "$EMBER_QA_ARTIFACTS/logs/visual-capture.log"; then
+            echo "Visual capture reported shader compilation errors." >&2
+            exit 1
+          fi
 
       - name: Upload QA bundle (also on failure)
         if: always()
