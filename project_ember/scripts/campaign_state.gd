@@ -529,6 +529,10 @@ func begin_location_battle(location_id: String) -> bool:
 		"mercenary_camp": guardian_name = "Капитан наёмников"
 	enemy_hero = _make_hero_record(guardian_name, WorldLocationCatalogScript.get_display_name(type_id))
 	enemy_hero["health"] = saved_guardian_health
+	_ensure_hero_ready_for_battle(enemy_hero)
+	# Keep guardian health synchronized with the recovered battle record.
+	location["guardian_health"] = float(enemy_hero.get("health", saved_guardian_health))
+	neutral_locations[location_index] = location
 	battle_in_progress = true
 	return true
 
