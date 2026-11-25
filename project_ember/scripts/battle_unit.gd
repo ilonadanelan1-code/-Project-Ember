@@ -2,6 +2,7 @@ class_name BattleUnit
 extends CharacterBody3D
 
 const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
+const CombatSpriteLibraryScript = preload("res://scripts/combat_sprite_library.gd")
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 const Palette = preload("res://scripts/art_palette.gd")
 
@@ -76,6 +77,11 @@ var _body_mesh: MeshInstance3D
 var _action_mesh: MeshInstance3D
 var _action_rest_position: Vector3 = Vector3.ZERO
 var _action_rest_rotation: Vector3 = Vector3.ZERO
+var _combat_sprite: AnimatedSprite3D
+var _active_attack_animation: StringName = &""
+var _attack_variant: bool = false
+var _hit_recoil_timer: float = 0.0
+var _hit_recoil_direction: Vector3 = Vector3.ZERO
 var _animation_clock: float = 0.0
 var _attack_animation_elapsed: float = -1.0
 var _attack_animation_duration: float = 0.38
@@ -163,12 +169,35 @@ func _get_damage_sound(attacker: BattleUnit) -> String:
 
 
 func _build_visuals() -> void:
-	_visual_root = BattleUnitVisualsScript.build(team, role)
-	add_child(_visual_root)
-	_body_mesh = _visual_root.get_node("BodyMesh") as MeshInstance3D
-	_action_mesh = _visual_root.get_node("ActionMesh") as MeshInstance3D
-	_action_rest_position = _action_mesh.position
-	_action_rest_rotation = _action_mesh.rotation
+	var sprite_frames := CombatSpriteLibraryScript.get_frames(team, role)
+	if is_instance_valid(sprite_frames) and role != UnitRole.CAVALRY:
+		_visual_root = Node3D.new()
+		_visual_root.name = "VisualRoot"
+		add_child(_visual_root)
+		_combat_sprite = AnimatedSprite3D.new()
+		_combat_sprite.name = "CombatSprite"
+		_combat_sprite.sprite_frames = sprite_frames
+		_combat_sprite.position.y = 0.80
+		_combat_sprite.pixel_size = 0.0175
+		_combat_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		_combat_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_combat_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		_combat_sprite.shaded = false
+		_combat_sprite.transparent = true
+		_combat_sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_combat_sprite.flip_h = team == 1
+		if role == UnitRole.COMMANDER:
+			_combat_sprite.scale = Vector3.ONE * 1.10
+		_combat_sprite.play("idle")
+		_visual_root.add_child(_combat_sprite)
+	else:
+		# Source-only builds without the licensed atlas keep the original renderer.
+		_visual_root = BattleUnitVisualsScript.build(team, role)
+		add_child(_visual_root)
+		_body_mesh = _visual_root.get_node("BodyMesh") as MeshInstance3D
+		_action_mesh = _visual_root.get_node("ActionMesh") as MeshInstance3D
+		_action_rest_position = _action_mesh.position
+		_action_rest_rotation = _action_mesh.rotation
 
 	# Keep the original gameplay collision capsule and its role-specific dimensions.
 	var body_radius := 0.38
@@ -325,21 +354,42 @@ func play_attack_animation(is_charge_attack: bool = false) -> void:
 	if health <= 0.0:
 		return
 	_attack_animation_elapsed = 0.0
-	_attack_animation_duration = 0.48 if is_charge_attack else (0.42 if role == UnitRole.SPEAR else 0.36)
 	_attack_animation_is_charge = is_charge_attack
+	if is_instance_valid(_combat_sprite):
+		_active_attack_animation = CombatSpriteLibraryScript.get_attack_animation(role, _attack_variant)
+		if role == UnitRole.MELEE or role == UnitRole.COMMANDER:
+			_attack_variant = not _attack_variant
+		_combat_sprite.speed_scale = 1.18 if is_charge_attack else 1.0
+		_attack_animation_duration = CombatSpriteLibraryScript.get_animation_duration(
+			_combat_sprite.sprite_frames,
+			_active_attack_animation
+		)
+		_combat_sprite.play(_active_attack_animation)
+	else:
+		_attack_animation_duration = 0.48 if is_charge_attack else (0.42 if role == UnitRole.SPEAR else 0.36)
 
 
 func _trigger_rally_animation() -> void:
 	_rally_animation_timer = 0.95
 
 
-func _trigger_hit_flash() -> void:
-	var flash_material := BattleUnitVisualsScript.get_hit_flash_material()
-	if is_instance_valid(_body_mesh):
-		_body_mesh.material_overlay = flash_material
-	if is_instance_valid(_action_mesh):
-		_action_mesh.material_overlay = flash_material
-	_hit_flash_timer = 0.12
+func _trigger_hit_flash(attacker: BattleUnit = null) -> void:
+	if is_instance_valid(_combat_sprite):
+		_combat_sprite.modulate = Color(1.28, 1.20, 1.10, 1.0)
+		_hit_recoil_timer = 0.17
+		_hit_recoil_direction = Vector3.ZERO
+		if is_instance_valid(attacker) and attacker != self:
+			var recoil := global_position - attacker.global_position
+			recoil.y = 0.0
+			if recoil.length_squared() > 0.001:
+				_hit_recoil_direction = recoil.normalized()
+	else:
+		var flash_material := BattleUnitVisualsScript.get_hit_flash_material()
+		if is_instance_valid(_body_mesh):
+			_body_mesh.material_overlay = flash_material
+		if is_instance_valid(_action_mesh):
+			_action_mesh.material_overlay = flash_material
+	_hit_flash_timer = 0.13
 
 
 func _clear_hit_flash() -> void:
@@ -347,7 +397,10 @@ func _clear_hit_flash() -> void:
 		_body_mesh.material_overlay = null
 	if is_instance_valid(_action_mesh):
 		_action_mesh.material_overlay = null
+	if is_instance_valid(_combat_sprite):
+		_combat_sprite.modulate = Color.WHITE
 	_hit_flash_timer = 0.0
+	_hit_recoil_timer = 0.0
 
 
 func order_move(point: Vector3) -> void:
@@ -475,8 +528,8 @@ func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 		_play_battle_feedback("death", "death", global_position + Vector3(0.0, 0.65, 0.0), team)
 		eliminated.emit(self, attacker)
 		_begin_death()
-	elif is_instance_valid(_body_mesh) or is_instance_valid(_action_mesh):
-		_trigger_hit_flash()
+	elif is_instance_valid(_combat_sprite) or is_instance_valid(_body_mesh) or is_instance_valid(_action_mesh):
+		_trigger_hit_flash(attacker)
 		var source_team := attacker.team if is_instance_valid(attacker) else team
 		_play_battle_feedback("impact", _get_damage_sound(attacker), global_position + Vector3(0.0, 0.95, 0.0), source_team)
 func _begin_death() -> void:
@@ -552,28 +605,62 @@ func _process(delta: float) -> void:
 	if is_instance_valid(active_camera):
 		low_lod = active_camera.size >= 34.0 or active_camera.global_position.distance_to(global_position) >= 42.0
 
-	var bob_amount := 0.006 if low_lod else (0.052 if moving else 0.014)
-	_visual_root.position.y = sin(_animation_clock) * bob_amount
+	var bob_amount := 0.006 if low_lod else (0.048 if moving else 0.012)
+	var recoil_offset := Vector3.ZERO
+	if _hit_recoil_timer > 0.0:
+		_hit_recoil_timer = maxf(0.0, _hit_recoil_timer - delta)
+		var recoil_progress := 1.0 - (_hit_recoil_timer / 0.17)
+		recoil_offset = _hit_recoil_direction * (sin(recoil_progress * PI) * 0.26)
+	_visual_root.position = Vector3(recoil_offset.x, sin(_animation_clock) * bob_amount, recoil_offset.z)
 	var breathing := 1.0 + sin(_animation_clock * 0.48) * (0.003 if low_lod else 0.008)
 	if is_instance_valid(_body_mesh):
 		_body_mesh.scale.y = breathing
 
-	if moving:
-		var desired_angle := atan2(-velocity.z, velocity.x)
-		if team == 1:
-			desired_angle -= PI
-		_visual_root.rotation.y = lerp_angle(_visual_root.rotation.y, desired_angle, minf(delta * 7.0, 1.0))
-		if role == UnitRole.CAVALRY and not low_lod:
-			_visual_root.rotation.z = lerpf(_visual_root.rotation.z, -0.045 if _moving_fast else -0.018, minf(delta * 5.0, 1.0))
+	if is_instance_valid(_combat_sprite):
+		_combat_sprite.flip_h = team == 1
+		_update_combat_sprite_animation(delta, moving)
 	else:
-		_visual_root.rotation.z = lerpf(_visual_root.rotation.z, 0.0, minf(delta * 4.0, 1.0))
-
-	_update_action_animation(delta, moving, low_lod)
+		if moving:
+			var desired_angle := atan2(-velocity.z, velocity.x)
+			if team == 1:
+				desired_angle -= PI
+			_visual_root.rotation.y = lerp_angle(_visual_root.rotation.y, desired_angle, minf(delta * 7.0, 1.0))
+			if role == UnitRole.CAVALRY and not low_lod:
+				_visual_root.rotation.z = lerpf(_visual_root.rotation.z, -0.045 if _moving_fast else -0.018, minf(delta * 5.0, 1.0))
+		else:
+			_visual_root.rotation.z = lerpf(_visual_root.rotation.z, 0.0, minf(delta * 4.0, 1.0))
+		_update_action_animation(delta, moving, low_lod)
 
 	if _hit_flash_timer > 0.0:
 		_hit_flash_timer = maxf(0.0, _hit_flash_timer - delta)
 		if _hit_flash_timer <= 0.0:
 			_clear_hit_flash()
+
+
+func _update_combat_sprite_animation(delta: float, moving: bool) -> void:
+	if not is_instance_valid(_combat_sprite):
+		return
+	if _rally_animation_timer > 0.0:
+		_rally_animation_timer = maxf(0.0, _rally_animation_timer - delta)
+	if _attack_animation_elapsed >= 0.0:
+		_attack_animation_elapsed += delta
+		if _attack_animation_elapsed < _attack_animation_duration and _combat_sprite.is_playing():
+			return
+		_attack_animation_elapsed = -1.0
+		_attack_animation_is_charge = false
+		_combat_sprite.speed_scale = 1.0
+		_active_attack_animation = &""
+	if _rally_animation_timer > 0.0 and role == UnitRole.COMMANDER and _combat_sprite.sprite_frames.has_animation("guard"):
+		_set_combat_sprite_animation(&"guard")
+	else:
+		_set_combat_sprite_animation(&"run" if moving else &"idle")
+
+
+func _set_combat_sprite_animation(animation_name: StringName) -> void:
+	if not is_instance_valid(_combat_sprite) or not _combat_sprite.sprite_frames.has_animation(animation_name):
+		return
+	if _combat_sprite.animation != animation_name or not _combat_sprite.is_playing():
+		_combat_sprite.play(animation_name)
 
 
 func _update_action_animation(delta: float, moving: bool, low_lod: bool) -> void:
