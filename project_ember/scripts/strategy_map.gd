@@ -898,6 +898,8 @@ func _refresh_world_event_panel() -> void:
 
 
 func _resolve_world_event_choice(choice_index: int) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	var choices: Array = CampaignState.pending_world_event.get("choices", [])
 	if choice_index < 0 or choice_index >= choices.size() or not choices[choice_index] is Dictionary:
 		return
@@ -1637,6 +1639,8 @@ func _refresh_diplomacy_panel() -> void:
 
 
 func _perform_diplomacy_action(action_id: String, kingdom_id: int) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	var result := CampaignState.perform_diplomacy_action(action_id, kingdom_id)
 	_message_text = str(result.get("message", "Дипломатическое действие не удалось."))
 	_refresh_diplomacy_panel()
@@ -1652,6 +1656,8 @@ func _perform_diplomacy_action(action_id: String, kingdom_id: int) -> void:
 
 
 func _respond_to_diplomacy_offer(offer_id: String, accept: bool) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	var result := CampaignState.respond_to_diplomacy_offer(offer_id, accept)
 	_message_text = str(result.get("message", "Предложение не обработано."))
 	_refresh_kingdoms_panel()
@@ -1911,6 +1917,8 @@ func _create_city_panel(root: Control) -> void:
 
 
 func _choose_city_specialization(specialization_id: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.choose_city_specialization(specialization_id):
 		var data: Dictionary = CityDevelopmentCatalogScript.SPECIALIZATIONS.get(specialization_id, {})
 		_message_text = "Город выбрал специализацию: %s." % str(data.get("name", specialization_id))
@@ -1921,6 +1929,8 @@ func _choose_city_specialization(specialization_id: String) -> void:
 
 
 func _build_province_improvement(improvement_id: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.queue_province_improvement(improvement_id):
 		var data: Dictionary = CityDevelopmentCatalogScript.get_improvement_data(improvement_id)
 		_message_text = "%s добавлено в очередь провинции." % str(data.get("name", "Улучшение"))
@@ -1931,6 +1941,8 @@ func _build_province_improvement(improvement_id: String) -> void:
 
 
 func _upgrade_city_building(building_id: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.queue_city_building_upgrade(building_id):
 		_message_text = "Улучшение здания добавлено в очередь."
 	else:
@@ -1952,6 +1964,8 @@ func _close_city() -> void:
 
 
 func _queue_building(building_id: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.queue_building(building_id):
 		var building_data: Dictionary = CampaignState.get_city_building_data(building_id)
 		_message_text = "%s добавлена в очередь. Производство завершится за несколько ходов." % str(building_data.get("name", "Постройка"))
@@ -1963,6 +1977,8 @@ func _queue_building(building_id: String) -> void:
 
 
 func _queue_recruit(role_name: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.queue_recruit(role_name):
 		_message_text = "Отряд добавлен в очередь найма."
 	else:
@@ -1972,6 +1988,8 @@ func _queue_recruit(role_name: String) -> void:
 
 
 func _purchase_army_upgrade(role_id: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.purchase_army_upgrade(role_id):
 		_message_text = "Вооружение армии улучшено. Новый ранг действует на всех бойцов этой роли."
 		Haptics.confirm(35)
@@ -1982,6 +2000,8 @@ func _purchase_army_upgrade(role_id: String) -> void:
 
 
 func _upgrade_hero_skill(skill_id: String) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.upgrade_hero_skill(skill_id):
 		var skill_names := {"leadership": "Лидерство", "tactics": "Тактика", "might": "Сила"}
 		_message_text = "Навык героя улучшен: %s. Изменения действуют со следующего сражения." % str(skill_names.get(skill_id, skill_id))
@@ -1992,6 +2012,8 @@ func _upgrade_hero_skill(skill_id: String) -> void:
 
 
 func _queue_settler() -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.queue_settler():
 		_message_text = "Поселенец добавлен в очередь города."
 	else:
@@ -2000,6 +2022,8 @@ func _queue_settler() -> void:
 	_refresh_ui()
 
 func _found_city() -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.found_city(CampaignState.settler_cell):
 		_settler_selected = false
 		_message_text = "Основан новый город: " + CampaignState.city_name
@@ -2014,6 +2038,7 @@ func _found_city() -> void:
 func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
 		return
+	var campaign_finished := str(CampaignState.campaign_victory.get("status", "none")) == "claimed"
 	var income: Dictionary = CampaignState.get_city_income()
 	if is_instance_valid(_city_title_label):
 		_city_title_label.text = "ГОРОД — " + CampaignState.city_name
@@ -2428,6 +2453,8 @@ func _screen_to_cell(screen_position: Vector2) -> Vector2i:
 
 
 func _select_player_army() -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	_settler_selected = false
 	_selected_kingdom_id = -1
 	_army_selected = true
@@ -2438,6 +2465,8 @@ func _select_player_army() -> void:
 
 
 func _attack_enemy() -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	var target_id := _selected_kingdom_id
 	if target_id < 0:
 		target_id = CampaignState.get_kingdom_index_at_army(CampaignState.enemy_cell)
@@ -2449,6 +2478,8 @@ func _attack_enemy() -> void:
 
 
 func _attack_kingdom(kingdom_id: int) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if kingdom_id < 0 or kingdom_id >= CampaignState.kingdoms.size():
 		return
 	var kingdom: Dictionary = CampaignState.kingdoms[kingdom_id]
