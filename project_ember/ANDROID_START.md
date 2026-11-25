@@ -21,3 +21,19 @@
 - Версия схемы сохранений остаётся 1. Новые корневые поля: `diplomacy_relations`, `pending_diplomacy_offers`.
 - Статические проверки 162/162 пройдены. Они не заменяют Godot parser/import, запуск сцен, реальные сохранение/загрузку и проверку на Android.
 - `tests/diplomacy_smoke_test.gd` включён как тестовый исходник, но в среде сборки не исполнялся.
+
+
+## v0.30.0 — Campaign victory verification
+
+1. Import the project with Godot 4.7.2 Android Editor. Keep the v0.29.0 project and save as a separate backup.
+2. Load a COPY of a v0.29.0 campaign. Confirm that it opens with empty victory progress and that the original cities, armies, diplomacy and neutral locations remain unchanged.
+3. Open «Ещё → Цели победы». Before turn 25, the three paths must show progress but cannot unlock.
+4. For the military path, win battles against six different AI kingdoms. Repeat battles against the same kingdom and confirm the counter does not increase. Keep at least eight living player troops for the sixth distinct win.
+5. For the economic path, reach two cities with population 14+, keep at least 600 combined gold and a projected net gold income of +12/turn or more for five consecutive turns. Drop below any condition and confirm the hold counter resets.
+6. For the diplomatic path, maintain relation +55 with five living kingdoms, three active positive agreements and at least two alliances or player-led vassal agreements for three consecutive turns.
+7. Select an unlocked path and choose «Продолжить игру». Save, restart and confirm the victory choice and turn persist while the campaign continues.
+8. Select an unlocked path and choose «Завершить кампанию» in a separate test save. Confirm turn advancement, map actions, army selection and city actions are disabled after reload.
+9. Check the victory panel on the phone in landscape orientation: scroll all three rows, verify the safe area and confirm every interactive button is at least 48 dp high.
+10. Run `tests/campaign_victory_smoke_test.gd` plus the existing campaign, diplomacy, faction, city, world and combat smoke tests.
+
+The victory rules intentionally do not introduce mana, new building IDs, new unit IDs or a fourth resource. The project ZIP is source code, not an APK.
