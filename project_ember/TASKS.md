@@ -1,3 +1,13 @@
+## v0.33.1 — Pixel Art Restoration & Release Guard
+
+- [x] Restore the owner-provided Tiny Swords blue/red pixel infantry atlas and matching animation manifest in playable release archives.
+- [x] Keep nearest-neighbour, unshaded animated pixel sprites as the only production unit renderer.
+- [x] Disable the procedural low-poly BattleUnit fallback.
+- [x] Add a permanent sprite-art policy and static regression checks.
+- [x] Add a playable-release packager that refuses to emit a sprite-less archive.
+- [x] Prevent source-only GitHub CI from uploading a misleading game archive when required art is absent.
+- [ ] Verify restored pixel soldiers and pixel-isometric battlefield on the target Android device.
+
 # Project Ember — Tasks
 
 ## v0.33.0 — Territorial Control & Frontier Fortifications

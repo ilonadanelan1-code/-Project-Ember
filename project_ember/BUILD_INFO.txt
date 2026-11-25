@@ -1,12 +1,13 @@
-Build: Project Ember v0.33.0 — Territorial Control & Frontier Fortifications
+Build: Project Ember v0.33.1 — Pixel Art Restoration & Release Guard
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.32.0 — Strategic Kingdom AI
-Feature set: deterministic territorial influence from cities, armies and watchtowers; disputed border resolution; AI frontier fort construction; rival-land settlement restriction; tactical +1 armour near friendly watchtowers.
-Territory: city influence scales with population, capital status and military specialization; field armies project temporary influence; border cells with comparable rival influence are contested.
-Frontier watchtower: forest/hill province improvement; 55 gold and 12 production; +1 production/turn; influence radius 8; +1 friendly troop armour within 3 hexes in friendly territory.
-AI kingdoms: threatened realms can prioritize a watchtower in an available forest/hill province. Existing nine kingdoms, factions, diplomacy and army roles remain.
-Economy: gold, food and stored production only. Existing army capacity remains 24.
-Save schema: SAVE_VERSION 1; territory is derived at runtime. Watchtowers are stored in existing province-improvement city records.
+Base: v0.33.0 — Territorial Control & Frontier Fortifications
+Feature set: restores owner-provided Tiny Swords blue/red pixel-art infantry atlas in playable archives; keeps mounted cavalry pixel animation sheets and pixel-isometric ground; removes procedural low-poly unit fallback; adds strict local playable-release gate.
+Combat art: Tiny Swords (Free Pack) by Pixel Frog; integrated 1152x2304 RGBA atlas; 96x96 cells; 12 animation rows per faction; matching animation manifest. The source pack is not copied into the project package.
+Battle presentation: AnimatedSprite3D uses nearest-neighbour filtering, unshaded fixed-Y billboards and alpha-cut transparency. The battlefield keeps its pixel-isometric terrain atlas and biome dressing.
+Release gate: run tools/assets/package_playable_release.sh. It requires the atlas and manifest, validates animation metadata, PNG dimensions, no-low-poly runtime and ZIP CRC.
+Source repository: licensed runtime atlas/manifest remain excluded. Source-only CI checks the code and skips playable artifacts if those binaries are absent.
+Gameplay/economy: v0.33.0 territorial control, watchtowers, resources and unit IDs are unchanged.
+Save schema: SAVE_VERSION 1; no save migration.
 Package type: Godot source project, not an APK.
-QA status: GitHub Actions validates Godot 4.7.2 import, parser, smoke tests and strategic-map visual captures on release-branch pushes. Physical Android balance/performance testing remains separate.
+Android validation: physical device runtime and GPU performance are not claimed; install the integrated playable ZIP to verify.

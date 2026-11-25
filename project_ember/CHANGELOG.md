@@ -1,3 +1,12 @@
+## v0.33.1 — Pixel Art Restoration & Release Guard
+
+- Restores the supplied Tiny Swords 1152×2304 combat sprite atlas and matching animation manifest in playable release archives. The generated atlas matches the previously working restored-sprite build pixel-for-pixel.
+- Keeps the existing blue/red infantry, archer, lancer and commander SpriteFrames, mounted cavalry animation sheets, nearest-neighbour filtering, alpha cut and unshaded billboard rendering.
+- Removes the procedural low-poly 3D model as an active BattleUnit fallback. Source-only Git checkouts report the missing licensed asset rather than silently changing the game's visual style.
+- Adds a permanent combat pixel-art policy and a release packager that refuses to create a playable ZIP without the atlas, manifest, correct dimensions and pixel-sprite runtime.
+- Keeps licensed PNGs out of the public source repository and prevents source-only CI from uploading a misleading playable archive.
+- Leaves battlefield terrain art, combat gameplay, unit statistics, animations, combat timing, territory rules and SAVE_VERSION unchanged.
+
 ## v0.33.0 — Territorial Control & Frontier Fortifications
 
 - Replaces fixed city-adjacency ownership rings with deterministic territorial influence from settlements, field armies and frontier watchtowers.
