@@ -223,3 +223,48 @@ static func calculate_metrics(
 		"diplomatic_checks": diplomatic_checks,
 		"diplomatic_ready": diplomatic_ready,
 	}
+
+
+static func get_progress(
+		state: Dictionary,
+		turn_number: int,
+		cities: Array,
+		player_units: Array,
+		player_faction: Dictionary,
+		diplomacy_relations: Dictionary,
+		kingdoms: Array,
+		army_upkeep: int
+) -> Dictionary:
+	var normalized := normalize_state(state)
+	var metrics := calculate_metrics(
+		turn_number, cities, player_units, player_faction,
+		diplomacy_relations, kingdoms, army_upkeep
+	)
+	var wins: Array = normalized.get("military_wins", [])
+	metrics["military_wins"] = wins.size()
+	metrics["economic_hold_turns"] = int(normalized.get("economic_hold_turns", 0))
+	metrics["diplomatic_hold_turns"] = int(normalized.get("diplomatic_hold_turns", 0))
+	metrics["economic_ready"] = metrics["economic_hold_turns"] >= ECONOMIC_HOLD_TURNS_REQUIRED
+	metrics["diplomatic_ready"] = metrics["diplomatic_hold_turns"] >= DIPLOMATIC_HOLD_TURNS_REQUIRED
+	metrics["military_ready"] = turn_number >= MIN_CAMPAIGN_TURN and wins.size() >= MILITARY_KINGDOMS_REQUIRED and player_units.size() >= MILITARY_ARMY_REQUIRED
+	metrics["unlocked_types"] = normalized.get("unlocked_types", []).duplicate()
+	metrics["status"] = str(normalized.get("status", "none"))
+	metrics["selected_type"] = str(normalized.get("type", ""))
+	return metrics
+
+
+static func choose_victory(state: Dictionary, victory_type: String, continue_playing: bool, turn_number: int) -> bool:
+	if not VICTORY_TYPES.has(victory_type):
+		return false
+	var normalized := normalize_state(state)
+	if str(normalized.get("status", "none")) == "claimed":
+		return false
+	var unlocked: Array = normalized.get("unlocked_types", [])
+	if not unlocked.has(victory_type):
+		return false
+	normalized["type"] = victory_type
+	normalized["turn"] = maxi(1, turn_number)
+	normalized["status"] = "continued" if continue_playing else "claimed"
+	state.clear()
+	state.merge(normalized, true)
+	return true
