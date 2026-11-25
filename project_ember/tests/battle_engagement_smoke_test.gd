@@ -103,7 +103,19 @@ func _run() -> void:
 	_check(wounded_enemy._order_mode == BattleUnitScript.OrderMode.AUTO, "wounded enemy returns to AUTO after completing its retreat")
 	_check(wounded_enemy._retreat_cooldown_timer > 0.0, "enemy retreat has a recovery delay that prevents immediate retreat loops")
 	_check(wounded_enemy._target == nearby_player, "retreated enemy reacquires and re-engages the nearby player")
-	_check(wounded_enemy.velocity.x < 0.0, "retreated enemy moves back toward the player instead of remaining stationary")
+	var reengage_start_x := wounded_enemy.global_position.x
+	await create_timer(0.35).timeout
+	var reengage_distance := wounded_enemy.global_position.distance_to(nearby_player.global_position)
+	var reengaging_in_melee := (
+		wounded_enemy.velocity.x < -0.05
+		or reengage_distance <= wounded_enemy.attack_range
+		or wounded_enemy._pending_hit_timer >= 0.0
+		or wounded_enemy._attack_animation_elapsed >= 0.0
+	)
+	_check(
+		wounded_enemy.global_position.x < reengage_start_x or reengaging_in_melee,
+		"retreated enemy closes distance or begins a melee strike instead of remaining idle"
+	)
 
 	arena.queue_free()
 	campaign_state.free()
