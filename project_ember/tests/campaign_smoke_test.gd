@@ -1,6 +1,7 @@
 extends SceneTree
 
 const CampaignStateScript = preload("res://scripts/campaign_state.gd")
+const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
 
 var _failures: int = 0
 
@@ -52,7 +53,7 @@ func _run() -> void:
 				var offset := Vector2i(q, r)
 				if WorldGeneratorScript.hex_distance(Vector2i.ZERO, offset) != radius:
 					continue
-				var candidate := state.city_cell + offset
+				var candidate: Vector2i = state.city_cell + offset
 				if state.can_found_city(candidate):
 					neutral_founding_cell = candidate
 					break
