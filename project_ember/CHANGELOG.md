@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.19.3 — Attack Command Reliability
+- Makes a direct attack order clear stale cooldowns and immediately activate the unit.
+- Prevents ally-separation steering from pushing units away from an ordered enemy.
+- Directly ordered archers fire inside attack range instead of retreating due to preferred spacing.
+- Adds regression coverage for attack orders, pursuit, stale cooldown and close-range ranged fire.
+- Preserves gameplay stats, damage, AI and saves.
+
+## v0.19.2 — Melee Contact Hotfix
+- Restores the original melee reach when starting an attack.
+- Commits a melee strike through its visible contact frame rather than rechecking a smaller radius after the wind-up.
+- Prevents small target movement from cancelling a valid hit.
+- Adds a regression test for a moving target.
+- Preserves combat stats, AI, ranged timing, animations and save data.
+
+## v0.19.1 — Combat Readability Pass
+- Applies melee damage at the weapon-contact frame rather than at swing start.
+- Delays arrow creation until the bow release frame.
+- Turns sprites toward active targets during movement and combat.
+- Ignores dead/corpse targets and cancels unfinished hits/projectiles when new orders arrive.
+- Adds guard and lancer defence recovery poses, with more proportional lancer scaling.
+- Adds smoke tests for hit timing, arrow release, corpses and order cancellation.
+- Preserves unit stats, damage, cooldowns, AI and save data.
+
+## v0.19.0 — Combat Animation Pass
+- Added optional billboarded AnimatedSprite3D combat visuals for melee soldiers, archers and spear/lancer units.
+- Added alternating sword attacks, archer shooting and lancer thrust animations.
+- Added short hit flash and directional recoil on successful hits; existing impact particles and audio remain active.
+- Preserved the original mounted cavalry model because the free Tiny Swords pack does not include horse-mounted units.
+- Preserved movement, hitboxes, combat calculations, AI, health, unit stats and save data.
+- Kept the original low-poly renderer as a safe fallback when the optional atlas is absent.
+- Added local atlas-generation tooling and smoke coverage for atlas-enabled and source-only builds.
+
+
 ## v0.17.0 — 24-Scene Painted Biomes & World Details
 - Replaced composite biome contact-sheet sampling with 24 independent source scenes (four per biome).
 - Raised close-zoom sampling density by changing the global period to 430 world units.

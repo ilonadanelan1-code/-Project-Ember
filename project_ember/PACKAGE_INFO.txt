@@ -1,5 +1,13 @@
-Project Ember v0.18.1 — Hex Terrain API Fix
-Source project ZIP for Godot 4.7.2 stable / GL Compatibility.
-Includes the Hex Terrain Bundle integration (448 pointy-top tiles, 6 lossless 64px atlases, native TileMapLayer/TerrainConnect renderer), existing gameplay and save systems, 19 GDScript smoke tests, a pinned Godot 4.7.2 GitHub Actions QA workflow, static resource validation and four-scale visual screenshot capture. Not an APK.
+Project Ember v0.19.3 — Attack Command Reliability
+Godot 4.7.2 stable / GL Compatibility source project for Android.
 
-Android runtime validation still requires the physical device.
+Includes the complete v0.19.2 project, Hex Terrain Bundle and locally integrated Tiny Swords combat atlas.
+
+Fixes attack commands that were accepted by the HUD but did not result in engagement:
+- Explicit attack orders clear stale cooldowns and immediately enter ATTACK mode.
+- Unit spacing considers allies only, with reduced steering influence, so nearby formations do not block pursuit.
+- A directly ordered archer fires when its target is inside attack range rather than retreating because the target is closer than preferred distance.
+- Melee attacks retain the original role range and stay committed through contact unless the target dies or is removed.
+
+Preserves role stats, damage, cooldowns, armor, AI, collisions, projectiles, animations and saves. Not an APK.
+Open project.godot in Godot 4.7.2 Android Editor and allow first import to finish.
