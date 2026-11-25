@@ -525,12 +525,14 @@ func order_move(point: Vector3) -> void:
 
 
 func order_attack(enemy: BattleUnit) -> void:
-	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0:
+	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0 or enemy._is_corpse:
 		return
 	_cancel_pending_combat()
 	_target = enemy
 	_order_mode = OrderMode.ATTACK
-
+	# An explicit player order should not inherit a long cooldown from the previous skirmish.
+	_attack_timer = minf(_attack_timer, 0.10)
+	velocity = Vector3.ZERO
 
 func order_attack_move(point: Vector3) -> void:
 	_cancel_pending_combat()
@@ -948,9 +950,13 @@ func _ranged_combat(offset: Vector3, distance: float) -> void:
 		else:
 			_steer(offset.normalized())
 		return
-	if _order_mode != OrderMode.HOLD and distance < preferred_range - 1.0:
+
+	# A direct attack order takes priority over preferred-range spacing.
+	# Otherwise an archer can retreat rather than shoot its selected target.
+	if _order_mode != OrderMode.ATTACK and _order_mode != OrderMode.HOLD and distance < preferred_range - 1.0:
 		_steer(-offset.normalized())
 		return
+
 	velocity = Vector3.ZERO
 	if _attack_timer <= 0.0:
 		_begin_ranged_attack(_target)
@@ -977,7 +983,7 @@ func _steer(direction: Vector3) -> void:
 	var desired_direction := direction.normalized()
 	var separation := _get_separation_vector(1.15)
 	if separation.length_squared() > 0.001:
-		desired_direction = (desired_direction + separation * 0.8).normalized()
+		desired_direction = (desired_direction + separation * 0.42).normalized()
 	velocity = desired_direction * move_speed * (1.0 + command_speed_bonus + rally_speed_bonus)
 	_moving_fast = role == UnitRole.CAVALRY and velocity.length() >= move_speed * 0.75
 	if _moving_fast and _charge_timer <= 0.0:
@@ -1000,7 +1006,7 @@ func _get_separation_vector(radius: float) -> Vector3:
 		if not node is BattleUnit:
 			continue
 		var other := node as BattleUnit
-		if other == self or other.health <= 0.0:
+		if other == self or other.team != team or other.health <= 0.0 or other._is_corpse:
 			continue
 		var away: Vector3 = global_position - other.global_position
 		away.y = 0.0
@@ -1008,7 +1014,6 @@ func _get_separation_vector(radius: float) -> Vector3:
 		if distance > 0.001 and distance < radius:
 			separation += away.normalized() * ((radius - distance) / radius)
 	return separation
-
 
 func _find_nearest_enemy(max_distance: float) -> BattleUnit:
 	var nearest: BattleUnit = null

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.19.3 — Attack Command Reliability
+- Makes a direct attack order clear stale cooldowns and immediately activate the unit.
+- Prevents ally-separation steering from pushing units away from an ordered enemy.
+- Directly ordered archers fire inside attack range instead of retreating due to preferred spacing.
+- Adds regression coverage for attack orders, pursuit, stale cooldown and close-range ranged fire.
+- Preserves gameplay stats, damage, AI and saves.
+
 ## v0.19.2 — Melee Contact Hotfix
 - Restores the original melee reach when starting an attack.
 - Commits a melee strike through its visible contact frame rather than rechecking a smaller radius after the wind-up.

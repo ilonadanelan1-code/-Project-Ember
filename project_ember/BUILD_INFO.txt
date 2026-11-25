@@ -1,8 +1,9 @@
-Build: Project Ember v0.19.2 — Melee Contact Hotfix
+Build: Project Ember v0.19.3 — Attack Command Reliability
 Engine: Godot 4.7.2-stable / GL Compatibility
 Map: 448 authored hex tiles / six 64px terrain atlases / native TileMapLayer
-Combat: Tiny Swords animated swordsmen, archers and spearmen; cavalry retains mounted renderer
-Fix: melee wind-up uses the original role attack range; a started strike remains committed through the contact frame unless its target dies or is removed
-Timing: visible contact and arrow release remain animation-synchronized
-Gameplay: health, armor, damage, cooldowns, AI, collision and save schema preserved
-QA: contact regression added; 21 smoke-test scripts; Godot 4.7.2 CI rerun; physical Android validation still required
+Combat: Tiny Swords animated sprites for swordsmen, archers and spearmen; cavalry retains mounted renderer
+Orders: explicit attack orders clear stale cooldowns and keep priority over ranged preferred-distance spacing
+Movement: separation steering considers nearby allies only and cannot overpower target pursuit
+Hits: melee contact remains synchronized to attack animation; committed strikes cancel on target death/removal
+Gameplay: role stats, damage, cooldowns, armor, AI, collision and save schema preserved
+QA: attack-order pursuit and close-range archer regression tests added; physical Android validation required

@@ -1,6 +1,7 @@
-Project Ember v0.19.2 — Melee Contact Hotfix
-- Restores original melee attack range for the start of each wind-up.
-- Keeps a started melee hit committed through its contact frame; the hit is cancelled only if the target dies or is removed.
-- Prevents slight target movement during the animation wind-up from silently cancelling a valid strike.
-- Adds a regression test for a target moving during melee contact timing.
-- Preserves role stats, damage, cooldowns, armor, AI, collision, save data, sprite animations and ranged projectile release.
+Project Ember v0.19.3 — Attack Command Reliability
+- Explicit attack commands clear stale attack cooldowns and immediately enter ATTACK mode.
+- Separation steering now considers living same-team units only, not the enemy target.
+- Reduced separation influence so clustered allies do not overpower the pursuit vector.
+- Direct attack orders make archers fire when the target is inside attack range even when it is closer than their preferred range.
+- Adds regression tests for attack-order activation, forward pursuit, cooldown reset and close-range archer fire.
+- Preserves unit statistics, damage, cooldowns, armor, AI, collisions, projectiles, animations and save data.

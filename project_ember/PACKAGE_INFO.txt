@@ -1,10 +1,13 @@
-Project Ember v0.19.2 — Melee Contact Hotfix
+Project Ember v0.19.3 — Attack Command Reliability
 Godot 4.7.2 stable / GL Compatibility source project for Android.
 
-Includes the complete v0.19.1 project and locally integrated Tiny Swords combat atlas.
+Includes the complete v0.19.2 project, Hex Terrain Bundle and locally integrated Tiny Swords combat atlas.
 
-Fixes melee units failing to land valid hits: melee units now enter the wind-up at their original role attack range. When a strike begins, its hit remains committed until the weapon-contact frame, unless the target dies or is removed. The previous extra contact-distance recheck no longer silently discards moving targets.
+Fixes attack commands that were accepted by the HUD but did not result in engagement:
+- Explicit attack orders clear stale cooldowns and immediately enter ATTACK mode.
+- Unit spacing considers allies only, with reduced steering influence, so nearby formations do not block pursuit.
+- A directly ordered archer fires when its target is inside attack range rather than retreating because the target is closer than preferred distance.
+- Melee attacks retain the original role range and stay committed through contact unless the target dies or is removed.
 
-Animation-timed melee contact, bow release, target-facing, guard/defence recovery and corpse checks remain enabled. Unit stats, damage, cooldowns, armor, AI, collision and saves are preserved.
-
-Not an APK. Open project.godot in Godot 4.7.2 Android Editor and allow first import to finish.
+Preserves role stats, damage, cooldowns, armor, AI, collisions, projectiles, animations and saves. Not an APK.
+Open project.godot in Godot 4.7.2 Android Editor and allow first import to finish.
