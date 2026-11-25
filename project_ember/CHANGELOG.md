@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.19.0 — Combat Animation Pass
+- Added optional billboarded AnimatedSprite3D combat visuals for melee soldiers, archers and spear/lancer units.
+- Added alternating sword attacks, archer shooting and lancer thrust animations.
+- Added short hit flash and directional recoil on successful hits; existing impact particles and audio remain active.
+- Preserved the original mounted cavalry model because the free Tiny Swords pack does not include horse-mounted units.
+- Preserved movement, hitboxes, combat calculations, AI, health, unit stats and save data.
+- Kept the original low-poly renderer as a safe fallback when the optional atlas is absent.
+- Added local atlas-generation tooling and smoke coverage for atlas-enabled and source-only builds.
+
+
 ## v0.17.0 — 24-Scene Painted Biomes & World Details
 - Replaced composite biome contact-sheet sampling with 24 independent source scenes (four per biome).
 - Raised close-zoom sampling density by changing the global period to 430 world units.
