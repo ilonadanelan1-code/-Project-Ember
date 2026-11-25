@@ -2,6 +2,7 @@ extends SceneTree
 
 const CampaignStateScript = preload("res://scripts/campaign_state.gd")
 const WorldScript = preload("res://scripts/world_generator.gd")
+const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
 
 var _failures := 0
 
@@ -105,6 +106,9 @@ func _run() -> void:
 	_check(initial_explored_count > 250 and initial_explored_count < 450, "initial vision reveals only a compact local region")
 
 	var first_army_before := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))
+	# Army movement is a wartime action. Put the first kingdom at war with the
+	# player so this test exercises an eligible scheduled move, not a peacetime turn.
+	DiplomacyCatalogScript.set_treaty(state.diplomacy_relations, -1, 0, "war", state.turn_number)
 	state.advance_campaign_turn()
 	_check(state.turn_number == 2, "campaign turn advances")
 	var first_army_after := WorldScript.array_to_cell(state.kingdoms[0].get("army_cell", []))

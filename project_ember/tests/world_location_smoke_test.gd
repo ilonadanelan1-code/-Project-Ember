@@ -141,7 +141,8 @@ func _run() -> void:
 		var gold_before: int = state.city_gold
 		var food_before: int = state.city_food
 		var production_before: int = state.city_production_bank
-		state.complete_battle(state.player_units, [], true, {"player_kills": 3, "player_damage": 30.0}, 210.0, 0.0)
+		var no_enemy_survivors: Array[Dictionary] = []
+		state.complete_battle(state.player_units, no_enemy_survivors, true, {"player_kills": 3, "player_damage": 30.0}, 210.0, 0.0)
 		var cleared_after_battle: Dictionary = state.get_neutral_location_by_id(target_id)
 		_check(bool(cleared_after_battle.get("cleared", false)), "victory permanently clears the neutral location")
 		_check(state.city_gold >= gold_before and state.city_food >= food_before and state.city_production_bank >= production_before, "neutral victory grants only non-negative existing resources")

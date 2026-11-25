@@ -1475,9 +1475,17 @@ func resolve_world_event(choice_id: String) -> bool:
 	if unit_xp_gain > 0:
 		for unit in player_units:
 			unit["experience"] = clampi(int(unit.get("experience", 0)) + unit_xp_gain, 0, 999999)
-	var reveal_radius := clampi(int(effect.get("reveal_radius", 0)), 0, 8)
-	if reveal_radius > 0:
-		_reveal_fog_area(player_cell, reveal_radius)
+	var reveal_bonus_radius := clampi(int(effect.get("reveal_bonus_radius", effect.get("reveal_radius", 0))), 0, 8)
+	if reveal_bonus_radius > 0:
+		var current_vision_radius := CITY_VISION_RADIUS
+		if not player_units.is_empty():
+			var faction_effects := FactionCatalogScript.get_effects(player_faction)
+			current_vision_radius = clampi(
+				ARMY_VISION_RADIUS + int(faction_effects.get("army_vision_bonus", 0)),
+				ARMY_VISION_RADIUS,
+				12
+			)
+		_reveal_fog_area(player_cell, current_vision_radius + reveal_bonus_radius)
 	last_world_event_text = str(choice.get("result", "Событие завершено."))
 	pending_world_event.clear()
 	world_events_resolved += 1

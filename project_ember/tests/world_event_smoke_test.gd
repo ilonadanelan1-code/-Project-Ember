@@ -55,9 +55,12 @@ func _run() -> void:
 	state.pending_world_event = WorldEventScript.get_event_by_id("scout_report")
 	state.city_gold = 100
 	var reveal_cell: Vector2i = state.player_cell + Vector2i(12, 0)
+	var beyond_scout_reveal: Vector2i = state.player_cell + Vector2i(14, 0)
 	_check(not state.is_cell_explored(reveal_cell), "scout test target begins outside current exploration")
+	_check(not state.is_cell_explored(beyond_scout_reveal), "scout boundary test begins outside current exploration")
 	_check(state.resolve_world_event("hire_scouts"), "scout report choice resolves")
-	_check(state.is_cell_explored(reveal_cell), "scout choice reveals a radius-four area around the army")
+	_check(state.is_cell_explored(reveal_cell), "scouts reveal four additional hexes beyond normal army vision")
+	_check(not state.is_cell_explored(beyond_scout_reveal), "scout bonus does not reveal beyond its intended radius")
 
 	state.pending_world_event = WorldEventScript.get_event_by_id("veteran_instructor")
 	state.city_gold = 100
