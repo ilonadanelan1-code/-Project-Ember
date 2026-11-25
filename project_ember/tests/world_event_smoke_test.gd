@@ -35,7 +35,7 @@ func _run() -> void:
 	root.add_child(state)
 	state.new_campaign(false)
 	state._prevent_save_overwrite = true
-	var initial_gold := state.city_gold
+	var initial_gold: int = state.city_gold
 	state.pending_world_event = WorldEventScript.get_event_by_id("merchant_caravan")
 	_check(state.can_resolve_world_event("trade"), "merchant offer validates its gold cost")
 	_check(state.resolve_world_event("trade"), "merchant caravan choice resolves")
@@ -44,7 +44,7 @@ func _run() -> void:
 
 	state.pending_world_event = WorldEventScript.get_event_by_id("refugees")
 	state.city_food = 20
-	var population_before := state.city_population
+	var population_before: int = state.city_population
 	_check(state.resolve_world_event("shelter"), "refugee shelter choice resolves when food is available")
 	_check(state.city_food == 10 and state.city_population == population_before + 1, "refugee choice spends food and increases population")
 	state.pending_world_event = WorldEventScript.get_event_by_id("refugees")
@@ -54,7 +54,7 @@ func _run() -> void:
 
 	state.pending_world_event = WorldEventScript.get_event_by_id("scout_report")
 	state.city_gold = 100
-	var reveal_cell := state.player_cell + Vector2i(12, 0)
+	var reveal_cell: Vector2i = state.player_cell + Vector2i(12, 0)
 	_check(not state.is_cell_explored(reveal_cell), "scout test target begins outside current exploration")
 	_check(state.resolve_world_event("hire_scouts"), "scout report choice resolves")
 	_check(state.is_cell_explored(reveal_cell), "scout choice reveals a radius-four area around the army")
@@ -67,16 +67,16 @@ func _run() -> void:
 
 	state.pending_world_event = WorldEventScript.get_event_by_id("workshop_wagon")
 	state.city_gold = 100
-	var production_before := state.city_production_bank
+	var production_before: int = state.city_production_bank
 	_check(state.resolve_world_event("hire_masters"), "workshop wagon choice resolves")
 	_check(state.city_production_bank == production_before + 15, "workshop wagon adds stored production")
 
 	state.pending_world_event = WorldEventScript.get_event_by_id("abandoned_wagon")
-	var wagon_food_before := state.city_food
+	var wagon_food_before: int = state.city_food
 	_check(state.resolve_world_event("keep_food"), "abandoned wagon food choice resolves")
 	_check(state.city_food == wagon_food_before + 12, "abandoned wagon adds the selected food reward")
 	state.pending_world_event = WorldEventScript.get_event_by_id("abandoned_wagon")
-	var wagon_gold_before := state.city_gold
+	var wagon_gold_before: int = state.city_gold
 	_check(state.resolve_world_event("sell_goods"), "abandoned wagon trade choice resolves")
 	_check(state.city_gold == wagon_gold_before + 18, "abandoned wagon adds the selected gold reward")
 
