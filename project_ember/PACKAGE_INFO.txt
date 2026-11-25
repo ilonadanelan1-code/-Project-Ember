@@ -1,5 +1,5 @@
-Project Ember v0.18.1 — Hex Terrain API Fix
+Project Ember v0.19.0 — Combat Animation Pass
 Source project ZIP for Godot 4.7.2 stable / GL Compatibility.
-Includes the Hex Terrain Bundle integration (448 pointy-top tiles, 6 lossless 64px atlases, native TileMapLayer/TerrainConnect renderer), existing gameplay and save systems, 19 GDScript smoke tests, a pinned Godot 4.7.2 GitHub Actions QA workflow, static resource validation and four-scale visual screenshot capture. Not an APK.
-
-Android runtime validation still requires the physical device.
+The owner's integrated build includes the private Tiny Swords combat atlas alongside the v0.18.1 hex terrain system, battle animation integration, tests and QA scripts.
+Melee, archer and spear units use animated pixel-art sprites; cavalry retains its original mounted model. Combat calculations, collision, AI, unit stats and saves are unchanged.
+Not an APK. Open project.godot in Godot 4.7.2. First import may take a little longer while the atlas texture is imported.
