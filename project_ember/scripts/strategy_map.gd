@@ -2628,7 +2628,7 @@ func _refresh_ui() -> void:
 		_refresh_kingdoms_panel()
 	_refresh_world_event_panel()
 	_refresh_campaign_victory_panel()
-	if str(CampaignState.campaign_victory.get("status", "none")) == "offered" and not _victory_prompt_shown:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "offered" and CampaignState.pending_world_event.is_empty() and not _victory_prompt_shown:
 		_victory_prompt_shown = true
 		_open_campaign_victory_panel()
 
