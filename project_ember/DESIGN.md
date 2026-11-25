@@ -228,3 +228,14 @@ Static validation: 93/93. The new `city_development_smoke_test.gd` source is inc
 Сохранение получает необязательные поля `diplomacy_relations` и `pending_diplomacy_offers`; `SAVE_VERSION` остаётся 1. Старые кампании получают 45 новых отношений из seed мира и пустую очередь предложений. Не добавляются новые ресурсы или ID королевств/юнитов/зданий. Подробные таблицы, формулы, пороги, UI и тест-план находятся в `DIPLOMACY.md`.
 
 Статический QA: 162/162. `diplomacy_smoke_test.gd` включён (исходник, не запускался). Godot parser/import/runtime и Android validation требуют отдельного прогона в среде с Godot 4.7.2.
+
+
+## v0.30.0 — Campaign victory and tempo
+
+The campaign gains three independent victory paths: `military`, `economic` and `diplomatic`. Evaluation starts on turn 25 and runs once at the end of each strategic turn. Military wins are counted by unique AI kingdom ID and unlock immediately after the sixth distinct victory if at least eight player troops survive. Economic victory requires two Metropolises, 600 combined city gold and at least 12 net gold per turn for five consecutive turns. Diplomatic victory requires five living friendly kingdoms at relation +55, three active positive agreements including at least two alliances/player-led vassals, for three consecutive turns.
+
+The player can finish the campaign or continue in freeplay. Finished campaigns remain saved and stop turn advancement. The new root save field is `campaign_victory`; missing fields are normalized on older saves and `SAVE_VERSION` remains 1. No resource, unit, building or kingdom IDs are changed.
+
+The mobile panel is available through `ЕЩЁ → ЦЕЛИ ПОБЕДЫ`. Details, formulas, save defaults, test plan and Android checks are in [CAMPAIGN_VICTORY.md](CAMPAIGN_VICTORY.md).
+
+The current development branch is based on `release/v0.29.0-diplomacy-expansion`. The GDScript test source is included but must be run with Godot 4.7.2; no physical Android verification is claimed until it is performed.
