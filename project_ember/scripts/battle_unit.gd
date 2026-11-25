@@ -3,6 +3,7 @@ extends CharacterBody3D
 
 const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 const CombatSpriteLibraryScript = preload("res://scripts/combat_sprite_library.gd")
+const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 const Palette = preload("res://scripts/art_palette.gd")
 const BattlefieldRulesScript = preload("res://scripts/battlefield_rules.gd")
@@ -244,10 +245,10 @@ func _build_visuals() -> void:
 		_visual_root.add_child(_combat_sprite)
 	else:
 		# The public source checkout intentionally omits the licensed Tiny Swords atlas.
-		# Never replace pixel-art soldiers with procedural low-poly models.
-		# The playable-release packager refuses to build until the sprite atlas is present.
+		# Keep the stable visual-root contract but never replace pixel-art soldiers
+		# with procedural low-poly models. A playable package must include the atlas.
 		_visual_root = Node3D.new()
-		_visual_root.name = "VisualRoot_MissingPixelArtAtlas"
+		_visual_root.name = "VisualRoot"
 		add_child(_visual_root)
 
 	# Keep the original gameplay collision capsule and its role-specific dimensions.
@@ -471,7 +472,9 @@ func _trigger_hit_flash(attacker: BattleUnit = null) -> void:
 			recoil.y = 0.0
 			if recoil.length_squared() > 0.001:
 				_hit_recoil_direction = recoil.normalized()
-	else:
+	elif is_instance_valid(_body_mesh) or is_instance_valid(_action_mesh):
+		# Legacy/debug-only mesh probes. Production units use pixel sprites;
+		# source-only checkouts without licensed art remain mesh-free.
 		var flash_material := BattleUnitVisualsScript.get_hit_flash_material()
 		if is_instance_valid(_body_mesh):
 			_body_mesh.material_overlay = flash_material
