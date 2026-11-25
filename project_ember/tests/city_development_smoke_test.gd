@@ -55,7 +55,7 @@ func _run() -> void:
 	var level_two_income: Dictionary = state.get_city_income()
 	_check(int(level_two_income.get("food", 0)) == 12, "farm rank two and agriculture specialization combine correctly")
 
-	var province_cell := state.get_next_province_cell("stone_quarry")
+	var province_cell: Vector2i = state.get_next_province_cell("stone_quarry")
 	_check(province_cell != Vector2i(9999, 9999), "city finds an eligible adjacent quarry hex")
 	_check(state.can_queue_province_improvement("stone_quarry"), "eligible province project can be queued")
 	_check(state.queue_province_improvement("stone_quarry"), "province project charges gold and enters the queue")
@@ -66,7 +66,7 @@ func _run() -> void:
 	_check(int(developed_income.get("production", 0)) == 6, "quarry contributes two additional production per turn")
 
 	_check(state.get_army_upkeep_per_turn() == 4, "starting army costs four gold per turn")
-	var old_gold := state.city_gold
+	var old_gold: int = state.city_gold
 	state.advance_campaign_turn()
 	_check(state.army_upkeep_last_due == 4 and state.army_upkeep_last_paid == 4, "campaign turn records full army upkeep payment")
 	_check(state.city_gold == old_gold + 4 - 4, "city income is collected before army upkeep is charged")
@@ -99,10 +99,10 @@ func _run() -> void:
 	_check(state.get_army_upkeep_per_turn() >= 0, "army upkeep remains non-negative")
 	state._prevent_save_overwrite = false
 	_check(state.save_campaign(), "city development and upkeep fields save in the existing campaign format")
-	var expected_city_specialization := state.city_specialization
-	var expected_city_building_level := state.get_city_building_level("farm")
-	var expected_province_count := state.city_province_improvements.size()
-	var expected_upkeep_due := state.army_upkeep_last_due
+	var expected_city_specialization: String = state.city_specialization
+	var expected_city_building_level: int = state.get_city_building_level("farm")
+	var expected_province_count: int = state.city_province_improvements.size()
+	var expected_upkeep_due: int = state.army_upkeep_last_due
 	state.city_specialization = ""
 	state.city_building_levels.clear()
 	state.city_province_improvements.clear()
