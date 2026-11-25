@@ -1,11 +1,11 @@
-extends SceneTree
+extends Node
 
 const RendererScript = preload("res://scripts/hex_map_batch_renderer.gd")
 
 var _failures := 0
 
 
-func _initialize() -> void:
+func _ready() -> void:
     call_deferred("_run")
 
 
@@ -19,8 +19,8 @@ func _check(condition: bool, description: String) -> void:
 
 func _run() -> void:
     var renderer := RendererScript.new()
-    root.add_child(renderer)
-    await process_frame
+    get_tree().root.add_child(renderer)
+    await get_tree().process_frame
 
     var surface_texture := renderer.get_texture()
     _check(surface_texture is Texture2D, "continuous world surface atlas loads")
@@ -133,7 +133,7 @@ func _run() -> void:
 
     if _failures > 0:
         printerr("Continuous world surface renderer tests failed: %d" % _failures)
-        quit(1)
+        get_tree().quit(1)
     else:
         print("All continuous world surface renderer tests passed.")
-        quit(0)
+        get_tree().quit(0)
