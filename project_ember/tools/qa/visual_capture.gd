@@ -1,4 +1,4 @@
-extends SceneTree
+extends Node
 
 ## Runs the real strategic map scene and records repeatable screenshots at four zoom levels.
 ## Run with a display (Xvfb + Mesa in CI), not --headless, because the dummy renderer has no image.
@@ -10,7 +10,7 @@ var _failures: int = 0
 var _map: Node
 
 
-func _initialize() -> void:
+func _ready() -> void:
     call_deferred("_run")
 
 
@@ -22,7 +22,7 @@ func _run() -> void:
     var dir_error := DirAccess.make_dir_recursive_absolute(output_dir)
     if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
         push_error("Could not create visual QA output directory: %s" % output_dir)
-        quit(1)
+        get_tree().quit(1)
         return
 
     # Deterministic, isolated campaign: never read or overwrite a developer's save.
@@ -31,13 +31,13 @@ func _run() -> void:
     var packed_scene := load(STRATEGY_SCENE) as PackedScene
     if packed_scene == null:
         push_error("Cannot load strategic map scene: " + STRATEGY_SCENE)
-        quit(1)
+        get_tree().quit(1)
         return
 
     _map = packed_scene.instantiate()
-    root.add_child(_map)
+    get_tree().root.add_child(_map)
     for _frame in range(8):
-        await process_frame
+        await get_tree().process_frame
 
     var center: Vector2 = _map.call("_hex_world_position", CampaignState.player_cell)
     var zoom_reports: Array[Dictionary] = []
@@ -46,7 +46,7 @@ func _run() -> void:
         _map.set("_map_zoom", zoom)
         _map.queue_redraw()
         for _frame in range(10):
-            await process_frame
+            await get_tree().process_frame
         await RenderingServer.frame_post_draw
 
         var image := _map.get_viewport().get_texture().get_image()
@@ -119,13 +119,13 @@ func _run() -> void:
 
     if is_instance_valid(_map):
         _map.queue_free()
-        await process_frame
+        await get_tree().process_frame
     print("Visual QA captures: %d / %d" % [zoom_reports.size(), ZOOM_LEVELS.size()])
     if _failures > 0 or zoom_reports.size() != ZOOM_LEVELS.size():
-        quit(1)
+        get_tree().quit(1)
     else:
         print("All visual QA captures passed.")
-        quit(0)
+        get_tree().quit(0)
 
 
 func _count_sampled_colors(image: Image) -> int:
