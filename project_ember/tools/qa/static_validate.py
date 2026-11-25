@@ -96,6 +96,8 @@ smoke_tests = sorted((ROOT / "tests").glob("*_smoke_test.gd")) if (ROOT / "tests
 check(len(smoke_tests) >= 18, f"at least 18 smoke tests are present ({len(smoke_tests)} found)")
 check((ROOT / "tools/qa/visual_capture.gd").is_file(), "visual screenshot runner exists")
 check((ROOT / "tools/qa/run_smoke_tests.sh").is_file(), "smoke test runner exists")
+check((ROOT / "tools/qa/parse_all_scripts.gd").is_file(), "project-context GDScript parser exists")
+check((ROOT / "tools/qa/parse_all_scripts.tscn").is_file(), "project-context parser scene exists")
 check((ROOT / ".github/workflows/ember-qa.yml").is_file(), "GitHub Actions QA workflow exists")
 check(not (ROOT / ".godot").exists(), "editor cache is not packaged in the source tree")
 
