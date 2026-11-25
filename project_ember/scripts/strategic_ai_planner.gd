@@ -167,7 +167,7 @@ static func estimate_force_strength(army_value: Variant) -> float:
 	for unit_value in army_value:
 		if not unit_value is Dictionary:
 			continue
-		var role_id := str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
+		var role_id: String = str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
 		var data := UnitCatalog.get_data(role_id)
 		var max_health := maxf(1.0, float(data.get("max_health", 125.0)))
 		var health_ratio := clampf(float(unit_value.get("health", max_health)) / max_health, 0.0, 1.0)
@@ -227,7 +227,7 @@ static func select_recruitment_role(
 			if not enemy_unit is Dictionary:
 				continue
 			enemy_total += 1
-			var enemy_role := str(enemy_unit.get("role", UnitCatalog.ROLE_MELEE))
+			var enemy_role: String = str(enemy_unit.get("role", UnitCatalog.ROLE_MELEE))
 			if enemy_role == UnitCatalog.ROLE_CAVALRY:
 				enemy_cavalry += 1
 			elif enemy_role == UnitCatalog.ROLE_RANGED:
@@ -252,7 +252,7 @@ static func select_recruitment_role(
 	}
 	for unit_value in army:
 		if unit_value is Dictionary:
-			var role_id := str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
+			var role_id: String = str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
 			if counts.has(role_id):
 				counts[role_id] = int(counts[role_id]) + 1
 	var share_total := 0.0
@@ -261,7 +261,7 @@ static func select_recruitment_role(
 	var best_role := UnitCatalog.ROLE_MELEE
 	var best_deficit := -999999.0
 	for role_index in range(ROLE_ORDER.size()):
-		var role_id := ROLE_ORDER[role_index]
+		var role_id: String = str(ROLE_ORDER[role_index])
 		var desired_count := float(desired_army_size) * float(shares.get(role_id, 0.0)) / maxf(0.01, share_total)
 		var deficit := desired_count - float(counts.get(role_id, 0))
 		deficit += float(posmod(kingdom_id + doctrine + role_index, 4)) * 0.001
