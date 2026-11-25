@@ -42,6 +42,7 @@ const float ATLAS_HEIGHT = 4096.0;
 const float MASK_SIZE = 181.0;
 const float MASK_RADIUS = 90.0;
 const float LOD_SURFACE_VARIANT = 24.0;
+const float MAX_ATLAS_MIP_LEVEL = 4.0;
 varying vec4 instance_payload;
 
 void vertex() {
@@ -63,8 +64,8 @@ vec2 surface_atlas_uv(float variant, vec2 surface_uv) {
     );
 }
 
-vec4 sample_surface(float variant, vec2 surface_uv) {
-    return texture(surface_atlas, surface_atlas_uv(variant, surface_uv));
+vec4 sample_surface(float variant, vec2 surface_uv, float mip_level) {
+    return textureLod(surface_atlas, surface_atlas_uv(variant, surface_uv), mip_level);
 }
 
 void fragment() {
@@ -87,9 +88,20 @@ void fragment() {
     vec2 world_position = world_center + local_px;
     float current_variant = terrain_family > 5.5 ? LOD_SURFACE_VARIANT : sample_surface_variant(vec2(q, r));
     float active_period = terrain_family > 5.5 ? texture_period * 2.0 : texture_period;
-    vec2 surface_uv = fract(world_position / active_period);
+    // Derive LOD from the continuous, pre-fract coordinate so repeat seams do
+    // not create giant derivatives. A 51px atlas gutter protects mip levels 0-4;
+    // deeper levels can blend adjacent panels and appear as rectangular bands.
+    vec2 surface_coordinate = world_position / active_period;
+    vec2 surface_uv = fract(surface_coordinate);
+    vec2 mip_dx = dFdx(surface_coordinate) * ATLAS_PANEL_SIZE;
+    vec2 mip_dy = dFdy(surface_coordinate) * ATLAS_PANEL_SIZE;
+    float atlas_mip_level = clamp(
+        log2(max(max(length(mip_dx), length(mip_dy)), 1.0)),
+        0.0,
+        MAX_ATLAS_MIP_LEVEL
+    );
 
-    vec4 surface = sample_surface(current_variant, surface_uv);
+    vec4 surface = sample_surface(current_variant, surface_uv, atlas_mip_level);
 
     // Blend neighboring biome panels in a narrow, symmetric band along shared
     // hex edges. Both sides converge to the same 50/50 mixture at the border.
@@ -154,7 +166,7 @@ void fragment() {
             float neighbor_variant = sample_surface_variant(vec2(q, r) + neighbor_offset);
             if (abs(neighbor_variant - current_variant) > 0.1 && neighbor_variant < 24.0) {
                 float blend_weight = 0.5 * (1.0 - smoothstep(0.5, biome_blend_width, local_edge_distance));
-                vec4 neighbor_surface = sample_surface(neighbor_variant, surface_uv);
+                vec4 neighbor_surface = sample_surface(neighbor_variant, surface_uv, atlas_mip_level);
                 surface = mix(surface, neighbor_surface, blend_weight);
             }
         }
@@ -163,7 +175,7 @@ void fragment() {
             float second_variant = sample_surface_variant(vec2(q, r) + second_neighbor_offset);
             if (abs(second_variant - current_variant) > 0.1 && second_variant < 24.0) {
                 float second_weight = 0.26 * (1.0 - smoothstep(0.5, biome_blend_width * 0.82, second_edge_distance));
-                vec4 second_surface = sample_surface(second_variant, surface_uv);
+                vec4 second_surface = sample_surface(second_variant, surface_uv, atlas_mip_level);
                 surface = mix(surface, second_surface, second_weight);
             }
         }

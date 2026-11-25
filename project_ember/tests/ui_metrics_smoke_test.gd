@@ -28,20 +28,20 @@ func _run() -> void:
 	metrics.name = "UiMetrics"
 	root.add_child(metrics)
 
-	metrics.configure_for_test(420.0, 1600.0, 2400.0, 1.0)
+	metrics.configure_for_test(420.0, 720.0, 1080.0, 1.0)
 	_check(is_equal_approx(metrics.real_px_per_dp, 2.625), "420 dpi resolves to 2.625 physical pixels per dp")
-	_check(is_equal_approx(metrics.ref_px_per_real, 2.0 / 3.0), "viewport/window ratio resolves to 0.667")
-	_check(is_equal_approx(metrics.ref_px_per_dp, 1.75), "2400x1080 / 1600x720 conversion matches 1.75 reference pixels per dp")
+	_check(is_equal_approx(metrics.ref_px_per_real, 2.0 / 3.0), "viewport/window height ratio resolves to 0.667")
+	_check(is_equal_approx(metrics.ref_px_per_dp, 1.75), "1080px device height / 720px viewport height conversion matches 1.75 reference pixels per dp")
 	_check(is_equal_approx(metrics.dp(48.0), 84.0), "48 dp resolves to 84 reference pixels in the control example")
-	metrics.configure_for_test(0.0, 1280.0, 1280.0, 1.0)
+	metrics.configure_for_test(0.0, 720.0, 720.0, 1.0)
 	_check(is_equal_approx(metrics.real_px_per_dp, 1.0), "unavailable DPI falls back to 160 dpi")
-	metrics.configure_for_test(560.0, 1280.0, 1280.0, 1.6)
+	metrics.configure_for_test(560.0, 720.0, 720.0, 1.6)
 	_check(is_equal_approx(metrics.ref_px_per_dp, 5.6), "UI scale is included and supports 1.6")
 	_check(int(ProjectSettings.get_setting("display/window/handheld/orientation")) == 4, "orientation is Sensor Landscape")
 	var settings := root.get_node("GameSettings")
 	settings.ui_scale = 1.2
 	settings.settings_changed.emit()
-	metrics.configure_for_test(420.0, 1600.0, 2400.0, settings.ui_scale)
+	metrics.configure_for_test(420.0, 720.0, 1080.0, settings.ui_scale)
 	_check(is_equal_approx(metrics.ref_px_per_dp, 2.1), "dp conversion recalculates with the updated UI scale")
 	settings.ui_scale = 1.0
 

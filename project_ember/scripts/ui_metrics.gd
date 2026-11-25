@@ -39,12 +39,12 @@ func refresh_metrics() -> void:
 	var scale := 1.0
 	if has_node("/root/GameSettings"):
 		scale = clampf(float(get_node("/root/GameSettings").get("ui_scale")), 0.8, 1.6)
-	var ratio := viewport_size.x / window_size.x if viewport_size.x > 0.0 and window_size.x > 0.0 else 1.0
+	var ratio := viewport_size.y / window_size.y if viewport_size.y > 0.0 and window_size.y > 0.0 else 1.0
 	_set_metrics(dpi, ratio, scale)
 
 
-func configure_for_test(dpi: float, viewport_width: float, window_width: float, ui_scale: float = 1.0) -> void:
-	var ratio := viewport_width / window_width if viewport_width > 0.0 and window_width > 0.0 else 1.0
+func configure_for_test(dpi: float, viewport_height: float, window_height: float, ui_scale: float = 1.0) -> void:
+	var ratio := viewport_height / window_height if viewport_height > 0.0 and window_height > 0.0 else 1.0
 	_set_metrics(dpi, ratio, ui_scale)
 
 

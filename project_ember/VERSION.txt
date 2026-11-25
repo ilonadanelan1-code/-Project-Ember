@@ -1,4 +1,4 @@
-Project Ember v0.17.1 — Godot 4.7.2 QA Pipeline
+Project Ember v0.17.2 — Android Rendering & UI Calibration
 - Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
 - Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
 - Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).
@@ -10,6 +10,10 @@ Project Ember v0.17.1 — Godot 4.7.2 QA Pipeline
 - Keeps fog-of-war, roads, territory lines, city markers, GL Compatibility and world-generation versions v1/v2/v3.
 - Existing save formats are unchanged; surface variants are derived from axial coordinates and world seed at render time.
 - Static checks are included. Godot parser/import and physical Android validation remain required; this is a source project, not an APK.
+
+- Caps atlas texture sampling at mip level 4 so the 51px atlas gutters remain valid during extreme minification on mobile GPUs.
+- Calculates UI dp conversion from the viewport/window height ratio, preventing aspect-expanded viewport width from enlarging touch controls on ultrawide Android screens.
+- Adds smoke assertions for both mobile fixes; actual device rendering still requires Android hardware validation.
 
 - Adds a Godot 4.7.2 CI workflow with verified official binary SHA-256.
 - Imports all project resources and runs every GDScript smoke test in isolated user-data directories.
