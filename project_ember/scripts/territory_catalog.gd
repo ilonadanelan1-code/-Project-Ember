@@ -10,7 +10,7 @@ const CONTEST_MARGIN := 6.0
 const CITY_FALLOFF := 9.25
 const ARMY_FALLOFF := 10.0
 const WATCHTOWER_FALLOFF := 10.5
-const WATCHTOWER_RADIUS := 4
+const WATCHTOWER_RADIUS := 8
 
 
 static func build_owner_lookup(
@@ -128,7 +128,7 @@ static func _append_city_sources(sources: Array[Dictionary], city_value: Variant
 				sources.append({
 					"cell": tower_cell,
 					"owner": owner_id,
-					"power": 52.0,
+					"power": 92.0,
 					"falloff": WATCHTOWER_FALLOFF,
 					"radius": WATCHTOWER_RADIUS,
 					"kind": "watchtower",

@@ -22,7 +22,7 @@ const PROVINCE_IMPROVEMENTS := {
 	"trade_post": {"name": "Торговый пост", "description": "+2 золота/ход", "terrain": ["plain", "farmland"], "gold_cost": 35, "production_cost": 7, "food": 0, "gold": 2, "production": 0},
 	"woodland_camp": {"name": "Лесной лагерь", "description": "+2 производства/ход", "terrain": ["forest"], "gold_cost": 30, "production_cost": 7, "food": 0, "gold": 0, "production": 2},
 	"stone_quarry": {"name": "Каменоломня", "description": "+2 производства/ход", "terrain": ["hills"], "gold_cost": 40, "production_cost": 8, "food": 0, "gold": 0, "production": 2},
-	"watchtower": {"name": "Сторожевая башня", "description": "Влияние +4 гекса · +1 производство/ход · +1 броня войскам в радиусе 3", "terrain": ["forest", "hills"], "gold_cost": 55, "production_cost": 12, "food": 0, "gold": 0, "production": 1},
+	"watchtower": {"name": "Сторожевая башня", "description": "Радиус влияния 8 · +1 производство/ход · +1 броня войскам в радиусе 3", "terrain": ["forest", "hills"], "gold_cost": 55, "production_cost": 12, "food": 0, "gold": 0, "production": 1},
 }
 
 const BUILDING_UPGRADES := {

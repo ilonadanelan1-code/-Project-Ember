@@ -212,11 +212,16 @@ func _draw() -> void:
 
 
 func _refresh_owner_lookup() -> void:
-	var lookup_cells: Array[Vector2i] = _cells.duplicate()
+	var lookup_cells: Array[Vector2i] = []
+	var lookup_set: Dictionary = {}
 	for cell in _cells:
+		if not lookup_set.has(cell):
+			lookup_set[cell] = true
+			lookup_cells.append(cell)
 		for offset in NEIGHBOR_OFFSETS:
 			var neighbor := cell + offset
-			if not lookup_cells.has(neighbor):
+			if not lookup_set.has(neighbor):
+				lookup_set[neighbor] = true
 				lookup_cells.append(neighbor)
 	_owner_lookup = TerritoryCatalogScript.build_owner_lookup(
 		lookup_cells,
@@ -472,7 +477,14 @@ func _draw_territory_borders() -> void:
 
 
 func _draw_province_improvements() -> void:
-	for city_data in CampaignState.cities:
+	var cities_to_draw: Array[Dictionary] = CampaignState.cities.duplicate()
+	for kingdom in CampaignState.kingdoms:
+		var kingdom_cities: Variant = kingdom.get("cities", [])
+		if kingdom_cities is Array:
+			for city_value in kingdom_cities:
+				if city_value is Dictionary:
+					cities_to_draw.append(city_value)
+	for city_data in cities_to_draw:
 		for improvement in city_data.get("province_improvements", []):
 			var cell := WorldGeneratorScript.array_to_cell(improvement.get("cell", []))
 			if not CampaignState.is_cell_explored(cell):
