@@ -83,6 +83,3 @@ jobs:
             The import is performed on a GitHub-hosted runner. The existing main branch remains unchanged until this PR is reviewed and merged.
 
             Please inspect the diff and wait for the project validation workflow before merging.
-          labels: |
-            automated-import
-            release
