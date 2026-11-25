@@ -200,7 +200,7 @@ func _build_visuals() -> void:
 		elif role == UnitRole.SPEAR:
 			# The lancer sheet includes a long pike; enlarge the sprite so the
 			# soldier remains legible at the same zoom as other infantry.
-			_combat_sprite.scale = Vector3(1.08, 1.42, 1.0)0
+			_combat_sprite.scale = Vector3(1.08, 1.42, 1.0)
 		_combat_sprite.play("idle")
 		_visual_root.add_child(_combat_sprite)
 	else:
