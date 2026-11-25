@@ -8,6 +8,7 @@ const WorldGenerator = preload("res://scripts/world_generator.gd")
 const FactionCatalog = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
 const WorldLocationCatalog = preload("res://scripts/world_location_catalog.gd")
+const StrategicAI = preload("res://scripts/strategic_ai_planner.gd")
 
 const KINGDOM_NAMES := [
 	"Королевство Алых Парусов",
@@ -273,9 +274,12 @@ static func process_turns(
 			city["build_queue"] = queue
 			cities[city_index] = city
 
+		kingdom["cities"] = cities
+		kingdom["army"] = army
+		var strategic_plan := StrategicAI.evaluate_kingdom(kingdom, kingdoms, diplomacy_relations, turn_number, player_cell, player_city_cells)
 		for city_index in range(cities.size()):
 			var city: Dictionary = cities[city_index]
-			var order_event := _queue_next_order(city, kingdom, army, turn_number, city_index, world_seed, world_generation_version)
+			var order_event := _queue_next_order(city, kingdom, army, turn_number, city_index, world_seed, world_generation_version, strategic_plan)
 			if not order_event.is_empty():
 				action_parts.append(order_event)
 			cities[city_index] = city
@@ -299,7 +303,7 @@ static func process_turns(
 		kingdom["cities"] = cities
 		kingdom["army"] = army
 		var next_expansion := int(kingdom.get("next_expansion_turn", 8))
-		if turn_number >= next_expansion and cities.size() < 3:
+		if turn_number >= next_expansion and bool(strategic_plan.get("expansion_allowed", false)):
 			var expansion := _try_found_ai_city(kingdom, kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells)
 			if not expansion.is_empty():
 				cities = kingdom.get("cities", [])
@@ -321,7 +325,16 @@ static func process_turns(
 	return events
 
 
-static func _queue_next_order(city: Dictionary, kingdom: Dictionary, army: Array, turn_number: int, city_index: int, world_seed: int, world_generation_version: int) -> String:
+static func _queue_next_order(
+		city: Dictionary,
+		kingdom: Dictionary,
+		army: Array,
+		turn_number: int,
+		city_index: int,
+		world_seed: int,
+		world_generation_version: int,
+		strategic_plan: Dictionary = {}
+) -> String:
 	var queue: Array = city.get("build_queue", [])
 	if not queue.is_empty() or army.size() >= 24:
 		return ""
@@ -336,7 +349,8 @@ static func _queue_next_order(city: Dictionary, kingdom: Dictionary, army: Array
 	var target_level := 0
 	var province_cell := Vector2i(9999, 9999)
 	var levels: Dictionary = city.get("building_levels", {})
-	var upgrade_id := _get_ai_building_upgrade_id(city)
+	var economy_focus := str(strategic_plan.get("economy_focus", "balanced"))
+	var upgrade_id := _get_ai_building_upgrade_id(city, economy_focus)
 	var upgrade_data: Dictionary = {}
 	if not upgrade_id.is_empty():
 		target_level = int(levels.get(upgrade_id, 1)) + 1
@@ -344,24 +358,34 @@ static func _queue_next_order(city: Dictionary, kingdom: Dictionary, army: Array
 	var faction_value: Variant = kingdom.get("faction", {})
 	var kingdom_faction: Dictionary = faction_value if faction_value is Dictionary else {}
 	var province_order := _get_ai_province_build_order(city, kingdom_faction, world_seed, world_generation_version)
+	var desired_army_size := clampi(int(strategic_plan.get("desired_army_size", 10)), 0, 24)
+	var can_recruit := bool(strategic_plan.get("can_recruit", false))
+	var recruit_role := str(strategic_plan.get("recruit_role", UnitCatalog.ROLE_MELEE))
+	if not UnitCatalog.is_valid_role(recruit_role):
+		recruit_role = UnitCatalog.ROLE_MELEE
+	var recruit_data := UnitCatalog.get_data(recruit_role)
+	var recruit_unlock := str(recruit_data.get("unlock_building", "barracks"))
+	var should_recruit := city_index == 0 and can_recruit and army.size() < desired_army_size
 
 	if not buildings.has("barracks") and gold >= 50:
 		order_id = "barracks"
-	elif city_index > 0 and not buildings.has("farm") and gold >= 25:
-		order_id = "farm"
-	# The capital must offset army upkeep before it commits its treasury to
-	# repeated recruitment. A market provides +4 gold/turn in the existing economy.
 	elif city_index == 0 and not buildings.has("market") and gold >= 35:
 		order_id = "market"
+	elif city_index > 0 and not buildings.has("farm") and gold >= 25:
+		order_id = "farm"
+	elif economy_focus == "gold" and not buildings.has("market") and gold >= 35:
+		order_id = "market"
+	elif economy_focus == "food" and not buildings.has("farm") and gold >= 25:
+		order_id = "farm"
+	elif should_recruit and not buildings.has(recruit_unlock) and BUILDING_COSTS.has(recruit_unlock) and gold >= int(BUILDING_COSTS[recruit_unlock].get("gold", 999999)):
+		order_id = recruit_unlock
+	elif should_recruit and buildings.has(recruit_unlock):
+		order_kind = "recruit"
+		order_id = recruit_role
+	elif economy_focus == "production" and not buildings.has("workshop") and gold >= 45:
+		order_id = "workshop"
 	elif not buildings.has("farm") and gold >= 25:
 		order_id = "farm"
-	elif city_index == 0 and army.size() < 9 and buildings.has("barracks"):
-		order_kind = "recruit"
-		order_id = UnitCatalog.ROLE_MELEE if (turn_number + int(kingdom.get("id", 0))) % 3 != 0 else UnitCatalog.ROLE_SPEAR
-	elif city_index == 0 and army.size() >= 9 and not buildings.has("archery_range") and gold >= 40:
-		order_id = "archery_range"
-	elif city_index == 0 and army.size() >= 12 and not buildings.has("stable") and gold >= 60:
-		order_id = "stable"
 	elif not buildings.has("market") and gold >= 35:
 		order_id = "market"
 	elif not buildings.has("workshop") and gold >= 45:
@@ -379,18 +403,9 @@ static func _queue_next_order(city: Dictionary, kingdom: Dictionary, army: Array
 		cost_production = int(province_order.get("production_cost", 1))
 		order_name = str(province_order.get("name", "Улучшение провинции"))
 		province_cell = World.array_to_cell(province_order.get("cell", []))
-	elif city_index == 0 and army.size() < 20:
+	elif should_recruit and buildings.has(recruit_unlock):
 		order_kind = "recruit"
-		if buildings.has("stable") and (turn_number + int(kingdom.get("id", 0))) % 5 == 0:
-			order_id = UnitCatalog.ROLE_CAVALRY
-		elif buildings.has("archery_range") and (turn_number + int(kingdom.get("id", 0))) % 3 == 0:
-			order_id = UnitCatalog.ROLE_RANGED
-		elif (turn_number + int(kingdom.get("id", 0))) % 4 == 0:
-			order_id = UnitCatalog.ROLE_SPEAR
-		else:
-			order_id = UnitCatalog.ROLE_MELEE
-		if not _role_is_unlocked(order_id, buildings):
-			order_id = UnitCatalog.ROLE_MELEE
+		order_id = recruit_role
 	else:
 		return ""
 
@@ -434,13 +449,22 @@ static func _queue_next_order(city: Dictionary, kingdom: Dictionary, army: Array
 	city["build_queue"] = queue
 	return "%s заказал: %s" % [city_name, order_name]
 
-static func _get_ai_building_upgrade_id(city: Dictionary) -> String:
+
+static func _get_ai_building_upgrade_id(city: Dictionary, economy_focus: String = "balanced") -> String:
 	if not city.get("build_queue", []).is_empty():
 		return ""
 	var city_level := CityDevelopment.get_city_level(int(city.get("population", 1)))
 	var buildings: Array = city.get("buildings", [])
 	var levels: Dictionary = city.get("building_levels", {})
-	for building_id in ["farm", "market", "workshop", "barracks", "archery_range", "stable"]:
+	var priorities: Array[String] = ["market", "farm", "workshop", "barracks", "archery_range", "stable"]
+	match economy_focus:
+		"food":
+			priorities = ["farm", "market", "workshop", "barracks", "archery_range", "stable"]
+		"production":
+			priorities = ["workshop", "market", "farm", "barracks", "archery_range", "stable"]
+		"military":
+			priorities = ["barracks", "archery_range", "stable", "market", "farm", "workshop"]
+	for building_id in priorities:
 		if buildings.has(building_id):
 			var next_level := int(levels.get(building_id, 1)) + 1
 			if next_level <= city_level and not CityDevelopment.get_building_upgrade_data(building_id, next_level).is_empty():
@@ -497,7 +521,7 @@ static func _try_found_ai_city(
 	if int(capital.get("population", 1)) < 6 or int(capital.get("gold", 0)) < 65:
 		return ""
 	var capital_cell := World.array_to_cell(capital.get("cell", []))
-	var candidate := _find_expansion_cell(capital_cell, all_kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells)
+	var candidate := _find_expansion_cell(capital_cell, all_kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, cities, int(kingdom.get("id", -1)))
 	if candidate == Vector2i(9999, 9999):
 		return ""
 	capital["gold"] = int(capital.get("gold", 0)) - 65
@@ -516,9 +540,12 @@ static func _find_expansion_cell(
 		player_city_cells: Array[Vector2i],
 		world_seed: int,
 		world_generation_version: int,
-		neutral_location_cells: Array[Vector2i] = []
+		neutral_location_cells: Array[Vector2i] = [],
+		own_city_records: Array = [],
+		current_kingdom_id: int = -1
 ) -> Vector2i:
-	var candidates: Array[Vector2i] = []
+	var best_cell := Vector2i(9999, 9999)
+	var best_score := -999999.0
 	for q in range(-8, 9):
 		for r in range(-8, 9):
 			var offset := Vector2i(q, r)
@@ -528,19 +555,26 @@ static func _find_expansion_cell(
 			var candidate := capital_cell + offset
 			if not World.is_inside_world(candidate) or World.terrain_at(candidate, world_seed, world_generation_version) == "water":
 				continue
-			if neutral_location_cells.has(candidate):
+			if neutral_location_cells.has(candidate) or _cell_occupied(candidate, kingdoms, player_cell, player_city_cells):
 				continue
-			if _cell_occupied(candidate, kingdoms, player_cell, player_city_cells):
+			var valid_spacing := true
+			for own_city_value in own_city_records:
+				if not own_city_value is Dictionary:
+					continue
+				var own_city_cell := World.array_to_cell(own_city_value.get("cell", []))
+				if own_city_cell != capital_cell and World.hex_distance(candidate, own_city_cell) < 5:
+					valid_spacing = false
+					break
+			if not valid_spacing:
 				continue
-			candidates.append(candidate)
-	if candidates.is_empty():
-		return Vector2i(9999, 9999)
-	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		var ah := absi(a.x * 31 + a.y * 17) % 97
-		var bh := absi(b.x * 31 + b.y * 17) % 97
-		return ah < bh
-	)
-	return candidates[0]
+			var candidate_score := StrategicAI.score_expansion_cell(
+				candidate, capital_cell, own_city_records, kingdoms, current_kingdom_id,
+				player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells
+			)
+			if candidate_score > best_score:
+				best_score = candidate_score
+				best_cell = candidate
+	return best_cell
 
 
 static func _move_army(
@@ -563,26 +597,16 @@ static func _move_army(
 	var target := Vector2i(9999, 9999)
 	var nearest_distance := 999999
 	var pursuing_neutral := false
-	var player_record := DiplomacyCatalog.get_record(diplomacy_relations, DiplomacyCatalog.PLAYER_ID, index)
-	if str(player_record.get("treaty", "peace")) == "war":
-		target = player_cell
-		nearest_distance = World.hex_distance(current, player_cell)
+	var war_plan := StrategicAI.select_war_target(kingdom, kingdoms, diplomacy_relations, player_cell, player_city_cells)
+	var war_active := bool(war_plan.get("war_active", false))
+	if war_active:
+		target = war_plan.get("cell", Vector2i(9999, 9999))
+		nearest_distance = World.hex_distance(current, target) if target != Vector2i(9999, 9999) else 999999
+		kingdom["target_kingdom_id"] = int(war_plan.get("kingdom_id", -99))
+		kingdom["neutral_target_id"] = ""
+		if target == Vector2i(9999, 9999):
+			return "армия удерживает оборону и не отвлекается на экспедиции"
 	else:
-		for other_id in range(kingdoms.size()):
-			if other_id == index or not bool(kingdoms[other_id].get("alive", true)):
-				continue
-			var relation_record := DiplomacyCatalog.get_record(diplomacy_relations, index, other_id)
-			if str(relation_record.get("treaty", "peace")) != "war":
-				continue
-			var other_army_cell := World.array_to_cell(kingdoms[other_id].get("army_cell", []))
-			var distance_to_enemy := World.hex_distance(current, other_army_cell)
-			if distance_to_enemy < nearest_distance:
-				nearest_distance = distance_to_enemy
-				target = other_army_cell
-
-	# During peace, AI kingdoms send limited expeditions to nearby neutral sites.
-	# War targets retain priority so exploration never overrides an active campaign.
-	if target == Vector2i(9999, 9999):
 		var location_index := _choose_neutral_expedition_target(kingdom, kingdoms, current, neutral_locations)
 		if location_index < 0:
 			kingdom["neutral_target_id"] = ""
@@ -614,8 +638,6 @@ static func _move_army(
 			return "экспедиция потерпела поражение у %s; охрана ослаблена" % WorldLocationCatalog.get_display_name(str(location.get("type", "ancient_ruins")))
 		target = location_cell
 		nearest_distance = location_distance
-	else:
-		kingdom["neutral_target_id"] = ""
 
 	if nearest_distance <= 1:
 		return ""

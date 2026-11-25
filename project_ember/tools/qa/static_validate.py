@@ -142,7 +142,7 @@ check(all(token in campaign_state_text for token in ["city_specialization", "cit
 check(all(token in campaign_state_text for token in ["queue_city_building_upgrade", "queue_province_improvement", "get_city_level", "get_city_income"]), "campaign state exposes city upgrade, province and income APIs")
 check(all(token in kingdom_ai_text for token in ["CityDevelopment.get_city_income", "FactionCatalog.get_upkeep_multiplier", "FactionCatalog.apply_income_modifiers", "world_seed, world_generation_version", "building_upgrade", "province_improvement"]), "AI kingdoms use city specializations, faction-aware upkeep, improvements and upgrades")
 ai_order_block = kingdom_ai_text.split("static func _queue_next_order", 1)[1].split("static func _get_ai_building_upgrade_id", 1)[0] if "static func _queue_next_order" in kingdom_ai_text else ""
-check("capital must offset army upkeep" in ai_order_block and ai_order_block.find('not buildings.has("market")') < ai_order_block.find('army.size() < 9 and buildings.has("barracks")'), "AI capital prioritizes a gold market before repeated recruitment")
+check("strategic_plan" in ai_order_block and "desired_army_size" in ai_order_block and "recruit_unlock" in ai_order_block and ai_order_block.find('not buildings.has("market")') < ai_order_block.find("should_recruit"), "AI city orders use strategic priorities and protect the capital market before recruitment")
 check(all(token in strategy_map_text_for_upgrades for token in ["РАЗВИТИЕ ГОРОДА И СПЕЦИАЛИЗАЦИЯ", "_city_specialization_buttons", "_city_province_buttons", "_city_building_upgrade_buttons", "_city_upkeep_label"]), "mobile city panel exposes specialization, provinces, building upgrades and upkeep")
 check(city_development_test_path.is_file(), "city development smoke test is included")
 check("CityDevelopmentCatalogScript.normalize_building_levels" in campaign_state_text and "CityDevelopmentCatalogScript.normalize_province_improvements" in campaign_state_text, "old city records receive safe level-one and empty-province defaults")
@@ -384,6 +384,18 @@ check(all(token in strategy_map_text for token in ["Характер:", "Отн�
 check("Условия изменились. Предложение больше недействительно." in campaign_state_text and "stale trade offers are rejected" in diplomacy_test_text, "diplomacy acceptance checks current treaty state")
 check(diplomacy_test_path.is_file(), "diplomacy smoke-test source is included")
 check(all(token in diplomacy_test_text for token in ["merchant begins with a modest positive player relationship", "AI-AI treaty creation preserves the relation score", "aggressive AI applies deterministic border tension", "stale trade offers are rejected"]), "diplomacy tests cover treaty persistence, border tension and stale offers")
+
+# Strategic kingdom planner: economy, force composition, war targets and expansion scoring.
+strategic_ai_path = ROOT / "scripts/strategic_ai_planner.gd"
+strategic_ai_text = strategic_ai_path.read_text(encoding="utf-8") if strategic_ai_path.is_file() else ""
+strategic_ai_test_path = ROOT / "tests/strategic_ai_smoke_test.gd"
+strategic_ai_test_text = strategic_ai_test_path.read_text(encoding="utf-8") if strategic_ai_test_path.is_file() else ""
+check(strategic_ai_path.is_file(), "strategic AI planner module exists")
+check(all(token in strategic_ai_text for token in ["evaluate_kingdom", "select_recruitment_role", "select_war_target", "score_expansion_cell"]), "strategic AI planner exposes economy, recruitment, war and expansion decisions")
+check(all(token in strategic_ai_text for token in ["net_gold_per_turn", "desired_army_size", "economy_focus", "expansion_allowed"]), "strategic planner evaluates treasury, upkeep and expansion reserves")
+check(all(token in kingdom_ai_text for token in ["StrategicAI.evaluate_kingdom", "StrategicAI.select_war_target", "StrategicAI.score_expansion_cell", "strategic_plan.get(\"expansion_allowed\""]), "AI turn loop consumes strategic plans for city orders, movement and settlement placement")
+check(strategic_ai_test_path.is_file() and all(token in strategic_ai_test_text for token in ["low treasury", "active war", "expansion scoring", "save schema version one"]), "strategic AI smoke test covers economy, war, expansion and save compatibility")
+check("const SAVE_VERSION := 1" in campaign_state_text and "const ARMY_CAPACITY := 24" in campaign_state_text, "strategic AI preserves campaign schema and army capacity")
 
 print(f"\nStatic QA: {checks - len(failures)}/{checks} checks passed")
 if failures:
