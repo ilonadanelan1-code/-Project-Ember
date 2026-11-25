@@ -95,7 +95,7 @@ func _run() -> void:
 	var battle_players: Array[Dictionary] = [{
 		"role": "melee",
 		"health": 100.0,
-		"experience": 40,
+		"experience": 46,
 		"battle_xp_gained": 6,
 		"previous_veterancy_rank": 0,
 	}]
@@ -103,7 +103,7 @@ func _run() -> void:
 	state.complete_battle(battle_players, no_enemy_survivors, true, {"player_kills": 0, "player_damage": 0.0})
 	_check(int(state.last_battle_result.get("player_unit_xp_awarded", 0)) == 6, "battle completion records survivor XP")
 	_check(int(state.last_battle_result.get("player_unit_promotions", 0)) == 1, "battle completion records a veterancy promotion")
-	_check(int(state.player_units[0].get("experience", 0)) == 46, "battle completion retains the promoted unit's cumulative XP")
+	_check(int(state.player_units[0].get("experience", 0)) == 46, "battle completion retains the cumulative XP supplied by the combat result")
 
 	state.free()
 	elite.free()
