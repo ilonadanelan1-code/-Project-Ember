@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - qa/godot-4.7.2-visual-pipeline-v0.17.1
   pull_request:
     branches:
       - main
