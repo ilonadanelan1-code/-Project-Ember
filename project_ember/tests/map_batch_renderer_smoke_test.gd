@@ -49,7 +49,7 @@ func _run() -> void:
             _check(source.contains("world_center = vec2(51.961524 * (q + 0.5 * r), 45.0 * r)"), "shader reconstructs pointy-top axial world coordinates")
             _check(source.contains("surface_coordinate = world_position / active_period") and not source.contains("fract(surface_coordinate)"), "surface coordinates derive from shared global world positions")
             _check(source.contains("mod(surface_coordinate, vec2(2.0))") and source.contains("abs(surface_repeat - vec2(1.0))"), "surface panels use seamless mirrored repetition instead of hard rectangular wrap seams")
-            _check(source.contains("edge_distance") and source.contains("smoothstep"), "hexes are clipped with a clean antialiased mask")
+            _check(source.contains("smoothstep(-1.0, 0.0, edge_distance)"), "hex coverage overlaps neighboring cells at the outer edge to prevent transparent seams")
             _check(source.contains("ATLAS_CELL_SIZE") and source.contains("atlas_column = mod(variant, 5.0)"), "shader resolves five atlas columns")
             _check(source.contains("atlas_row = floor(variant / 5.0)") and source.contains("/ ATLAS_HEIGHT"), "shader resolves five atlas rows independently")
             _check(not source.contains("atlas_index = clamp(floor"), "renderer no longer chooses a separate painted stamp per hex")

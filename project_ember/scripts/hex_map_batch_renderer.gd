@@ -83,7 +83,9 @@ void fragment() {
         25.980762 * scale - ax,
         min(30.0 * scale - ay, (51.961524 * scale - (ax + 1.7320508 * ay)) * 0.5)
     );
-    float coverage = smoothstep(-0.65, 0.65, edge_distance);
+    // Extend coverage one world unit beyond the ideal hex edge. Adjacent
+    // MultiMesh instances overlap here, preventing transparent hairline seams.
+    float coverage = smoothstep(-1.0, 0.0, edge_distance);
     vec2 world_center = vec2(51.961524 * (q + 0.5 * r), 45.0 * r);
     vec2 world_position = world_center + local_px;
     float current_variant = terrain_family > 5.5 ? LOD_SURFACE_VARIANT : sample_surface_variant(vec2(q, r));

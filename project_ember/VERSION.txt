@@ -1,4 +1,4 @@
-Project Ember v0.17.5 — Clean Strategic Map View
+Project Ember v0.17.6 — Seamless Hex Coverage
 - Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
 - Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
 - Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).
@@ -17,6 +17,7 @@ Project Ember v0.17.5 — Clean Strategic Map View
 - Caps high-density UI scaling at 1.30 reference pixels per dp, while preserving the user-controlled accessibility scale.
 - Reduces the strategy HUD height and label sizes, keeps 48dp minimum touch targets, and trims vertical button padding.
 - Hides the generic hex lattice on overview and normal zoom; a faint 0.06-alpha grid appears only above zoom 1.15.
+- Extends terrain coverage one world unit past each ideal hex edge so adjacent MultiMesh cells overlap and no transparent hairline remains between them.
 - Territorial borders, roads, shorelines and movement highlights remain visible at every relevant zoom.
 - Increases the world-surface repeat period from 430 to 560 world units to reduce obvious repeated artwork while preserving detail at normal zoom.
 - Adds smoke assertions for compact mobile layout and map line styling; actual device rendering still requires Android hardware validation.
