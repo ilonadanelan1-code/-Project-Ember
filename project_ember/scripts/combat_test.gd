@@ -194,6 +194,7 @@ func _spawn_commander(team: int, hero_record: Dictionary, spawn_position: Vector
 	var unit := BattleUnit.new()
 	unit.team = team
 	unit.role = BattleUnit.UnitRole.COMMANDER
+	unit.territory_armor_bonus = CampaignState.battle_territory_armor_bonus if team == PLAYER_TEAM else 0.0
 	unit.commander_level = clampi(int(hero_record.get("level", 1)), 1, 30)
 	var skills_value: Variant = hero_record.get("skills", {})
 	var skills: Dictionary = skills_value if skills_value is Dictionary else {}
@@ -253,6 +254,7 @@ func _spawn_unit(
 	var unit := BattleUnit.new()
 	unit.team = team
 	unit.role = unit_role
+	unit.territory_armor_bonus = CampaignState.battle_territory_armor_bonus if team == PLAYER_TEAM else 0.0
 	unit.starting_health = unit_health
 	unit.experience = clampi(unit_experience, 0, 999999)
 	unit.army_upgrade_rank = clampi(upgrade_rank, 0, 2)

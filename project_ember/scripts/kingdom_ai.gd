@@ -357,7 +357,7 @@ static func _queue_next_order(
 		upgrade_data = CityDevelopment.get_building_upgrade_data(upgrade_id, target_level)
 	var faction_value: Variant = kingdom.get("faction", {})
 	var kingdom_faction: Dictionary = faction_value if faction_value is Dictionary else {}
-	var province_order := _get_ai_province_build_order(city, kingdom_faction, world_seed, world_generation_version)
+	var province_order := _get_ai_province_build_order(city, kingdom_faction, world_seed, world_generation_version, bool(strategic_plan.get("threatened", false)))
 	var desired_army_size := clampi(int(strategic_plan.get("desired_army_size", 10)), 0, 24)
 	var can_recruit := bool(strategic_plan.get("can_recruit", false))
 	var recruit_role := str(strategic_plan.get("recruit_role", UnitCatalog.ROLE_MELEE))
@@ -472,8 +472,12 @@ static func _get_ai_building_upgrade_id(city: Dictionary, economy_focus: String 
 	return ""
 
 
-static func _get_ai_province_build_order(city: Dictionary, kingdom_faction: Dictionary, world_seed: int, world_generation_version: int) -> Dictionary:
+static func _get_ai_province_build_order(city: Dictionary, kingdom_faction: Dictionary, world_seed: int, world_generation_version: int, prefer_fortification: bool = false) -> Dictionary:
 	var improvements: Array = city.get("province_improvements", [])
+	var has_watchtower := false
+	for existing in improvements:
+		if existing is Dictionary and str(existing.get("id", "")) == "watchtower":
+			has_watchtower = true
 	var city_level := CityDevelopment.get_city_level(int(city.get("population", 1)))
 	var faction_effects := FactionCatalog.get_effects(kingdom_faction)
 	var province_slots := mini(6, CityDevelopment.get_province_slots(city_level) + int(faction_effects.get("province_slot_bonus", 0)))
@@ -491,6 +495,8 @@ static func _get_ai_province_build_order(city: Dictionary, kingdom_faction: Dict
 			continue
 		var terrain := World.terrain_at(cell, world_seed, world_generation_version)
 		var improvement_id := CityDevelopment.get_next_improvement_for_terrain(terrain)
+		if prefer_fortification and not has_watchtower and terrain in ["forest", "hills"]:
+			improvement_id = "watchtower"
 		if terrain in ["plain", "farmland"] and str(city.get("specialization", "")) == "commerce":
 			improvement_id = "trade_post"
 		if not improvement_id.is_empty():

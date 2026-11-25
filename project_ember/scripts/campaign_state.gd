@@ -6,6 +6,7 @@ extends Node
 const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
 const ArmyUpgradeCatalogScript = preload("res://scripts/army_upgrade_catalog.gd")
 const CityDevelopmentCatalogScript = preload("res://scripts/city_development_catalog.gd")
+const TerritoryCatalogScript = preload("res://scripts/territory_catalog.gd")
 const BattlefieldBiomesScript = preload("res://scripts/battlefield_biomes.gd")
 const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
 const KingdomAIScript = preload("res://scripts/kingdom_ai.gd")
@@ -129,6 +130,7 @@ var battle_enemy_cell: Vector2i = Vector2i.ZERO
 # Runtime-only battle presentation data; deliberately excluded from campaign saves.
 var battlefield_biome_id: String = BattlefieldBiomesScript.GRASSLAND
 var battlefield_seed: int = 841207
+var battle_territory_armor_bonus: float = 0.0
 var last_battle_result: Dictionary = {}
 var last_battle_report_pending: bool = false
 var _prevent_save_overwrite: bool = false
@@ -458,6 +460,7 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 	kingdoms[kingdom_id] = target_kingdom
 	battle_origin_cell = player_cell
 	battle_enemy_cell = enemy_cell
+	battle_territory_armor_bonus = TerritoryCatalogScript.get_defensive_armor_bonus(battle_origin_cell, cities, kingdoms)
 	var battle_terrain_map: Dictionary = {}
 	for offset in WorldGeneratorScript.neighbors():
 		var neighbor := battle_origin_cell + offset
@@ -509,6 +512,7 @@ func begin_location_battle(location_id: String) -> bool:
 		return false
 	battle_target_type = "location"
 	battle_location_id = location_id
+	battle_territory_armor_bonus = 0.0
 	battle_kingdom_id = -2
 	enemy_units = guards
 	enemy_cell = location_cell
@@ -665,6 +669,7 @@ func complete_battle(
 	last_battle_result["kingdom_id"] = battle_kingdom_id if battle_target_type == "kingdom" else -1
 	last_battle_result["kingdom_name"] = defeated_kingdom_name
 	last_battle_result["target_type"] = battle_target_type
+	last_battle_result["territory_armor_bonus"] = battle_territory_armor_bonus
 	if battle_target_type == "location":
 		last_battle_result["location_id"] = battle_location_id
 		last_battle_result["location_reward"] = last_world_event_text if victory else ""
@@ -707,6 +712,7 @@ func complete_battle(
 	battle_kingdom_id = -1
 	battle_target_type = "kingdom"
 	battle_location_id = ""
+	battle_territory_armor_bonus = 0.0
 	player_moves_left = 0
 	_sync_primary_kingdom()
 	save_campaign()
@@ -818,6 +824,9 @@ func can_found_city(cell: Vector2i) -> bool:
 	if get_city_index_at(cell) >= 0 or cities.size() >= 5 or cell == player_cell or cell == enemy_cell:
 		return false
 	if WorldLocationCatalogScript.has_location_at(neutral_locations, cell):
+		return false
+	var territory_owner := get_world_owner_at(cell)
+	if territory_owner >= 0 or territory_owner == TerritoryCatalogScript.OWNER_DISPUTED:
 		return false
 	for kingdom in kingdoms:
 		for ai_city in kingdom.get("cities", []):
@@ -1686,17 +1695,7 @@ func get_total_enemy_units() -> int:
 
 
 func get_world_owner_at(cell: Vector2i) -> int:
-	for city_record in cities:
-		var player_city_hex: Vector2i = WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
-		if WorldGeneratorScript.hex_distance(cell, player_city_hex) <= 1:
-			return -2
-	for index in range(kingdoms.size()):
-		var kingdom: Dictionary = kingdoms[index]
-		for city_record in kingdom.get("cities", []):
-			var kingdom_city_hex: Vector2i = WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
-			if WorldGeneratorScript.hex_distance(cell, kingdom_city_hex) <= 1:
-				return index
-	return -1
+	return TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms)
 
 
 func _sync_primary_kingdom() -> void:

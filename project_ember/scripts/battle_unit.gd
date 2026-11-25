@@ -51,6 +51,7 @@ const ArmyUpgradeCatalogScript = preload("res://scripts/army_upgrade_catalog.gd"
 @export var preferred_range: float = 1.4
 @export var projectile_speed: float = 12.0
 var armor: float = 0.0
+var territory_armor_bonus: float = 0.0
 var anti_cavalry_multiplier: float = 1.0
 var charge_multiplier: float = 1.0
 var commander_level: int = 1
@@ -155,7 +156,7 @@ func _apply_role_stats() -> void:
 		detection_range = 16.0
 		preferred_range = 1.7
 		projectile_speed = 0.0
-		armor = 4.0 + float(commander_might) * 0.8
+		armor = 4.0 + float(commander_might) * 0.8 + territory_armor_bonus
 		anti_cavalry_multiplier = 1.0
 		charge_multiplier = 1.0
 		return
@@ -177,6 +178,7 @@ func _apply_role_stats() -> void:
 	var upgrade_data := ArmyUpgradeCatalogScript.get_bonuses(_get_role_id(), army_upgrade_rank)
 	attack_damage *= float(upgrade_data.get("damage_multiplier", 1.0))
 	armor += float(upgrade_data.get("armor_bonus", 0.0))
+	armor += territory_armor_bonus
 	anti_cavalry_multiplier += float(upgrade_data.get("anti_cavalry_bonus", 0.0))
 	charge_multiplier += float(upgrade_data.get("charge_bonus", 0.0))
 

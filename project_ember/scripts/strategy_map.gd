@@ -14,6 +14,7 @@ const CityDevelopmentCatalogScript = preload("res://scripts/city_development_cat
 const WorldLocationCatalogScript = preload("res://scripts/world_location_catalog.gd")
 const FactionCatalogScript = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
+const TerritoryCatalogScript = preload("res://scripts/territory_catalog.gd")
 const HexTerrainTileMapRendererScript = preload("res://scripts/hex_terrain_tilemap_renderer.gd")
 const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const GameIconCatalogScript = preload("res://scripts/game_icon_catalog.gd")
@@ -140,6 +141,8 @@ func _draw() -> void:
 		elif owner_id >= 0:
 			var faction_color := _kingdom_color(owner_id)
 			overlay = Color(faction_color.r, faction_color.g, faction_color.b, 0.065)
+		elif owner_id == TerritoryCatalogScript.OWNER_DISPUTED:
+			overlay = Color(0.78, 0.52, 0.18, 0.085)
 		if not CampaignState.is_cell_visible(cell):
 			overlay = Color(0.012, 0.020, 0.025, 0.28)
 		if overlay.a > 0.0:
@@ -209,21 +212,19 @@ func _draw() -> void:
 
 
 func _refresh_owner_lookup() -> void:
-	_owner_lookup.clear()
-	var claim_offsets: Array[Vector2i] = [Vector2i.ZERO]
-	claim_offsets.append_array(NEIGHBOR_OFFSETS)
-	for city_data in CampaignState.cities:
-		var capital_cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
-		for offset in claim_offsets:
-			_owner_lookup[capital_cell + offset] = -2
-	for kingdom_index in range(CampaignState.kingdoms.size()):
-		var kingdom: Dictionary = CampaignState.kingdoms[kingdom_index]
-		for city_data in kingdom.get("cities", []):
-			var city_cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
-			for offset in claim_offsets:
-				var claimed_cell := city_cell + offset
-				if not _owner_lookup.has(claimed_cell):
-					_owner_lookup[claimed_cell] = kingdom_index
+	var lookup_cells: Array[Vector2i] = _cells.duplicate()
+	for cell in _cells:
+		for offset in NEIGHBOR_OFFSETS:
+			var neighbor := cell + offset
+			if not lookup_cells.has(neighbor):
+				lookup_cells.append(neighbor)
+	_owner_lookup = TerritoryCatalogScript.build_owner_lookup(
+		lookup_cells,
+		CampaignState.cities,
+		CampaignState.player_cell,
+		CampaignState.player_units,
+		CampaignState.kingdoms
+	)
 
 
 func _get_visible_map_cells() -> Array[Vector2i]:
@@ -440,6 +441,7 @@ func _draw_territory_borders() -> void:
 	if _cells.is_empty():
 		return
 	var boundary_segments := PackedVector2Array()
+	var disputed_segments := PackedVector2Array()
 	for cell in _cells:
 		var cell_owner := int(_owner_lookup.get(cell, -1))
 		for direction_index in range(3):
@@ -455,12 +457,18 @@ func _draw_territory_borders() -> void:
 			var edge_finish := corners[(edge_index + 1) % 6]
 			if not _point_is_visible((edge_start + edge_finish) * 0.5, 12.0 * _map_zoom):
 				continue
-			boundary_segments.append(edge_start)
-			boundary_segments.append(edge_finish)
-	if boundary_segments.is_empty():
-		return
-	draw_multiline(boundary_segments, Palette.MAP_BORDER_SHADOW, maxf(0.55, 1.8 * _map_zoom), true)
-	draw_multiline(boundary_segments, Palette.MAP_CLAIM_BORDER, maxf(0.4, 0.9 * _map_zoom), true)
+			if cell_owner == TerritoryCatalogScript.OWNER_DISPUTED or neighbor_owner == TerritoryCatalogScript.OWNER_DISPUTED:
+				disputed_segments.append(edge_start)
+				disputed_segments.append(edge_finish)
+			else:
+				boundary_segments.append(edge_start)
+				boundary_segments.append(edge_finish)
+	if not boundary_segments.is_empty():
+		draw_multiline(boundary_segments, Palette.MAP_BORDER_SHADOW, maxf(0.55, 1.8 * _map_zoom), true)
+		draw_multiline(boundary_segments, Palette.MAP_CLAIM_BORDER, maxf(0.4, 0.9 * _map_zoom), true)
+	if not disputed_segments.is_empty():
+		draw_multiline(disputed_segments, Palette.MAP_BORDER_SHADOW, maxf(0.6, 1.9 * _map_zoom), true)
+		draw_multiline(disputed_segments, Color("#d4a34e"), maxf(0.5, 1.15 * _map_zoom), true)
 
 
 func _draw_province_improvements() -> void:
@@ -480,8 +488,13 @@ func _draw_province_improvements() -> void:
 				"trade_post": marker_color = Color("#e0c16c")
 				"woodland_camp": marker_color = Color("#79a879")
 				"stone_quarry": marker_color = Color("#a6aab0")
+				"watchtower": marker_color = Color("#e5a14a")
 			draw_circle(screen_point, maxf(2.2, 3.0 * _map_zoom), marker_color)
 			draw_arc(screen_point, maxf(3.0, 4.0 * _map_zoom), 0.0, TAU, 12, Color(0.08, 0.07, 0.05, 0.9), 1.0)
+			if improvement_id == "watchtower":
+				var tower_height := maxf(3.0, 4.2 * _map_zoom)
+				draw_rect(Rect2(screen_point + Vector2(-tower_height * 0.45, -tower_height * 0.25), Vector2(tower_height * 0.9, tower_height * 1.1)), marker_color, true)
+				draw_line(screen_point + Vector2(0.0, -tower_height * 0.25), screen_point + Vector2(0.0, -tower_height * 1.05), marker_color, maxf(0.8, _map_zoom))
 
 
 func _draw_neutral_locations() -> void:
@@ -1830,9 +1843,11 @@ func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
 		return
 	var income: Dictionary = CampaignState.get_city_income()
+	var tower_count := TerritoryCatalogScript.get_watchtower_count(CampaignState.city_province_improvements)
+	var influence_radius := TerritoryCatalogScript.get_city_influence_radius(CampaignState.city_population, CampaignState.active_city_id, CampaignState.city_specialization)
 	if is_instance_valid(_city_title_label):
 		_city_title_label.text = "ГОРОД — " + CampaignState.city_name
-	_city_overview_label.text = "%s · %s\nКоролевство: %s · %s\nУровень %d · население: %d · армия: %d/%d\nСостав: %s\nОпыт: %s" % [
+	_city_overview_label.text = "%s · %s\nКоролевство: %s · %s\nУровень %d · население: %d · армия: %d/%d\nВлияние: радиус %d гексов · башен: %d\nСостав: %s\nОпыт: %s" % [
 		CampaignState.city_name,
 		CampaignState.get_city_level_name(),
 		str(CampaignState.player_faction.get("kingdom_name", "Наследная держава")),
@@ -1841,6 +1856,8 @@ func _refresh_city_panel() -> void:
 		CampaignState.city_population,
 		CampaignState.player_units.size(),
 		CampaignState.ARMY_CAPACITY,
+		influence_radius,
+		tower_count,
 		_get_army_composition_text(),
 		CampaignState.get_army_veterancy_summary(),
 	]
@@ -2381,6 +2398,8 @@ func _show_last_battle_report() -> void:
 			_message_text = "Охрана удержала %s. Выживших: %d. Потери: %d. Можно перегруппироваться и вернуться." % [str(result.get("kingdom_name", "локацию")), survivors, losses]
 		else:
 			_message_text = "Поражение. Выживших: %d. Потери: %d. Армия отступила к исходной позиции." % [survivors, losses]
+	if float(result.get("territory_armor_bonus", 0.0)) > 0.0:
+		_message_text += " Сторожевая башня дала отрядам +1 брони."
 	CampaignState.last_battle_report_pending = false
 	CampaignState.save_campaign()
 
