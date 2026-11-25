@@ -228,3 +228,12 @@ Static validation: 93/93. The new `city_development_smoke_test.gd` source is inc
 Сохранение получает необязательные поля `diplomacy_relations` и `pending_diplomacy_offers`; `SAVE_VERSION` остаётся 1. Старые кампании получают 45 новых отношений из seed мира и пустую очередь предложений. Не добавляются новые ресурсы или ID королевств/юнитов/зданий. Подробные таблицы, формулы, пороги, UI и тест-план находятся в `DIPLOMACY.md`.
 
 Статический QA: 162/162. `diplomacy_smoke_test.gd` включён (исходник, не запускался). Godot parser/import/runtime и Android validation требуют отдельного прогона в среде с Godot 4.7.2.
+
+
+## v0.32.0 — Strategic kingdom AI
+
+The campaign AI now uses a shared deterministic planner rather than relying only on a fixed building/recruitment sequence. At each kingdom turn it estimates city income, treasury reserves, unit upkeep, population and force strength; selects an economic focus and a sustainable army target; and chooses a recruitment role from doctrine plus the active enemy roster. Capital orders protect the market before recruiting, while secondary cities develop food and production according to the kingdom's current needs.
+
+Settlement founding is permitted only when the realm has a minimum reserve and can sustain the new city without ignoring a nearby military threat. Candidate hexes are scored by terrain productivity, useful neighboring terrain, distance from existing cities and rivals, and proximity to neutral sites. During active wars the army selects a treaty opponent using distance, relative army strength and the proximity of the enemy force to its own cities. A war army will not leave an active campaign to pursue a peaceful neutral expedition.
+
+Planner output is transient turn state. No new mandatory campaign fields, resources, stable unit IDs or building IDs are introduced; `SAVE_VERSION` remains 1. Balance and actual Android performance remain subject to longer device playtests.

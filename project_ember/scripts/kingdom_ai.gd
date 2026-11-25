@@ -336,7 +336,7 @@ static func _queue_next_order(
 		strategic_plan: Dictionary = {}
 ) -> String:
 	var queue: Array = city.get("build_queue", [])
-	if not queue.is_empty() or army.size() >= 24:
+	if not queue.is_empty():
 		return ""
 	var buildings: Array = city.get("buildings", [])
 	var gold := int(city.get("gold", 0))

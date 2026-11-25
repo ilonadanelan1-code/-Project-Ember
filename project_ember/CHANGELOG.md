@@ -1,3 +1,13 @@
+## v0.32.0 — Strategic Kingdom AI
+
+- Adds a shared strategic planner that evaluates each AI kingdom's treasury, three-resource income, army upkeep, population, current force strength and active wars every turn.
+- Replaces the fixed recruitment pattern with doctrine-aware force composition and counters to enemy cavalry/ranged-heavy armies using existing unit roles and unlock buildings.
+- Makes city orders react to economic pressure: markets protect gold income, farms protect food growth, workshops support production, and recruitment pauses when the realm cannot sustain its army.
+- Gates new settlements on treasury reserves, net income and nearby military threats; chooses expansion hexes by terrain yield, local resources, neutral-site proximity and distance from rival cities.
+- Selects active war destinations by distance, relative force strength and threats to the kingdom's own cities; armies do not abandon an active war to pursue neutral sites.
+- Keeps AI plans transient, existing role/building/resource IDs unchanged and `SAVE_VERSION` at 1.
+- Adds strategic planner smoke coverage and static QA guards. Godot 4.7.2 import, parser, smoke tests and visual map captures run in GitHub Actions.
+
 ## v0.31.0 — AI Neutral Site Expeditions
 
 - Gives each living AI kingdom a peaceful-world objective: it can reserve a nearby neutral site and move its army toward it when no active war target takes priority.

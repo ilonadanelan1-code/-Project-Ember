@@ -1,5 +1,19 @@
 # Project Ember — Tasks
 
+## v0.32.0 — Strategic Kingdom AI
+
+- [x] Evaluate treasury, resource income, army upkeep, population and current military pressure for every living AI kingdom.
+- [x] Set an economy focus and a sustainable army-size target instead of using a fixed troop-count script.
+- [x] Choose recruitment roles by doctrine and active enemy composition, with valid unlock-building decisions.
+- [x] Prioritize market, farm or workshop development according to the kingdom's economic needs.
+- [x] Gate settlement founding on reserves, net income and nearby threats.
+- [x] Score expansion sites by terrain yield, local resources, neutral-site proximity and rival-city spacing.
+- [x] Select war targets by distance, relative army strength and danger to the kingdom's own cities.
+- [x] Add deterministic strategic AI smoke tests and static QA guards.
+- [ ] Balance long campaigns and AI decision quality using real multi-dozen-turn Android playthroughs.
+- [ ] Verify CPU/FPS and player-facing outcomes on the target Android device.
+
+
 ## v0.24.1 — Tactical Combat Expansion
 
 - [x] Add four symmetric, deterministic terrain zones to woodland, highlands and marsh battles; keep grassland neutral.

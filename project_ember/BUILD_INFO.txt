@@ -1,10 +1,10 @@
-Build: Project Ember v0.31.0 — AI Neutral Site Expeditions
+Build: Project Ember v0.32.0 — Strategic Kingdom AI
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.30.0 — Neutral Sites & Exploration Expansion
-Feature set: nine AI kingdoms can reserve, approach and contest neutral sites; deterministic strategic skirmishes preserve casualties and guardian health; captured sites grant rewards to the conquering realm; mine income is owner-specific; the strategic map identifies the capturing kingdom.
-Neutral locations: max 72, deterministic by world seed, existing location IDs and capture-state persistence retained.
-Economy: gold, food and stored production only; no new resource.
-Save schema: SAVE_VERSION 1; new optional neutral-location ownership/capture fields and kingdom expedition target are normalized with legacy-safe defaults.
+Base: v0.31.0 — AI Neutral Site Expeditions
+Feature set: shared deterministic kingdom planner evaluates treasury, income, upkeep, population, force strength and wars; doctrine- and opponent-aware recruitment; economy-led city orders; reserve- and threat-gated expansion; productive settlement-site scoring; threat-aware war target selection.
+AI kingdoms: nine independent factions retain their existing identities, diplomacy, cities, armies and neutral-site expeditions. Active war plans take priority over neutral exploration.
+Economy: gold, food and stored production only; existing unit roles, buildings, faction modifiers and 24-troop army capacity are retained.
+Save schema: SAVE_VERSION 1; strategic plans are transient and no mandatory fields are added.
 Package type: Godot source project, not an APK.
-QA status: the root GitHub Actions release workflow runs Godot 4.7.2 import, parser, smoke-test and visual-capture validation on release-branch pushes.
+QA status: GitHub Actions validates Godot 4.7.2 import, parser, all smoke tests and strategic-map visual captures on release-branch pushes. Physical Android balance/performance testing remains a separate check.
