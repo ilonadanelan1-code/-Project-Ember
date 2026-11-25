@@ -378,7 +378,7 @@ check(all(token in campaign_state_text for token in ['"diplomacy_relations": dip
 check(all(token in campaign_state_text for token in ["player_declaration", "battle_provocation", 'peace_record["war_reason"] = "resolved"', "offer_still_valid"]), "war causes, peace resolution and stale-offer validation are persisted")
 check(all(token in campaign_state_text for token in ["_capital_gold_change", "_get_player_diplomacy_sources", "TRUCE_DURATION"]), "trade and tribute payments use capped existing gold and player border sources")
 check('if not bool(kingdoms[kingdom_id].get("alive", true))' in campaign_state_text and 'if not bool(kingdoms[second_id].get("alive", true))' in campaign_state_text, "dead AI kingdoms do not receive treaty income or pay diplomacy upkeep")
-check(all(token in world_ai_text for token in ["diplomacy_relations: Dictionary = {}", 'str(player_record.get("treaty", "peace")) == "war"', "_move_army"]), "AI armies only target realms with an active war treaty")
+check(all(token in world_ai_text for token in ["diplomacy_relations: Dictionary = {}", "StrategicAI.select_war_target", "_move_army"]), "AI armies use the strategic planner for movement decisions")
 check(all(token in strategy_map_text for token in ["_create_kingdoms_panel", "_open_diplomacy_panel", "_refresh_diplomacy_panel", "_respond_to_diplomacy_offer"]), "mobile kingdom interface exposes relationship details and incoming proposals")
 check(all(token in strategy_map_text for token in ["Характер:", "Отношение:", "Усталость от войны", "Повод:", "ПРЕДЛОЖИТЬ ТОРГОВЛЮ", "ПОТРЕБОВАТЬ ВАССАЛИТЕТ"]), "diplomacy UI explains personality, relation, war cause and treaty actions")
 check("Условия изменились. Предложение больше недействительно." in campaign_state_text and "stale trade offers are rejected" in diplomacy_test_text, "diplomacy acceptance checks current treaty state")
@@ -392,6 +392,7 @@ strategic_ai_test_path = ROOT / "tests/strategic_ai_smoke_test.gd"
 strategic_ai_test_text = strategic_ai_test_path.read_text(encoding="utf-8") if strategic_ai_test_path.is_file() else ""
 check(strategic_ai_path.is_file(), "strategic AI planner module exists")
 check(all(token in strategic_ai_text for token in ["evaluate_kingdom", "select_recruitment_role", "select_war_target", "score_expansion_cell"]), "strategic AI planner exposes economy, recruitment, war and expansion decisions")
+check(all(token in strategic_ai_text for token in ['str(player_record.get("treaty", "peace")) == "war"', 'str(relation.get("treaty", "peace")) != "war"']), "strategic war targets require an active player or AI war treaty")
 check(all(token in strategic_ai_text for token in ["net_gold_per_turn", "desired_army_size", "economy_focus", "expansion_allowed"]), "strategic planner evaluates treasury, upkeep and expansion reserves")
 check(all(token in kingdom_ai_text for token in ["StrategicAI.evaluate_kingdom", "StrategicAI.select_war_target", "StrategicAI.score_expansion_cell", "strategic_plan.get(\"expansion_allowed\""]), "AI turn loop consumes strategic plans for city orders, movement and settlement placement")
 check(strategic_ai_test_path.is_file() and all(token in strategic_ai_test_text for token in ["low treasury", "active war", "expansion scoring", "save schema version one"]), "strategic AI smoke test covers economy, war, expansion and save compatibility")
