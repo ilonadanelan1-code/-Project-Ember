@@ -1,5 +1,17 @@
 # Project Ember — Tasks
 
+## v0.33.0 — Territorial Control & Frontier Fortifications
+
+- [x] Derive territorial influence from cities, armies and watchtowers instead of fixed city-adjacency rings.
+- [x] Resolve equal rival influence as disputed land and render it with a distinct border.
+- [x] Add watchtower province construction, persistent influence and nearby tactical armour.
+- [x] Let threatened AI kingdoms prioritize frontier watchtowers.
+- [x] Restrict new settlements in rival-owned and contested territory.
+- [x] Add deterministic ownership, fortification and save-compatibility smoke tests.
+- [ ] Balance border pressure, tower placement and expansion pacing in long campaign playthroughs.
+- [ ] Verify map rendering cost and tactical armour feedback on the target Android device.
+
+
 ## v0.32.0 — Strategic Kingdom AI
 
 - [x] Evaluate treasury, resource income, army upkeep, population and current military pressure for every living AI kingdom.

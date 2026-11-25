@@ -237,3 +237,12 @@ The campaign AI now uses a shared deterministic planner rather than relying only
 Settlement founding is permitted only when the realm has a minimum reserve and can sustain the new city without ignoring a nearby military threat. Candidate hexes are scored by terrain productivity, useful neighboring terrain, distance from existing cities and rivals, and proximity to neutral sites. During active wars the army selects a treaty opponent using distance, relative army strength and the proximity of the enemy force to its own cities. A war army will not leave an active campaign to pursue a peaceful neutral expedition.
 
 Planner output is transient turn state. No new mandatory campaign fields, resources, stable unit IDs or building IDs are introduced; `SAVE_VERSION` remains 1. Balance and actual Android performance remain subject to longer device playtests.
+
+
+## v0.33.0 — Territorial control and frontier fortifications
+
+Territory is calculated deterministically from the current settlements, field armies and watchtowers. Cities project a broad influence field based on population, capital status and military specialization. Armies add a smaller temporary field around their current strategic position. If two rival kingdoms have comparable influence on a hex, the cell becomes disputed instead of being assigned to whichever kingdom is processed first. The strategic map renders player, AI and contested regions without persisting a second world-sized ownership grid.
+
+Watchtowers are a new forest/hill province improvement. They cost 55 gold and 12 production, add one production each turn, and project influence up to eight hexes from their location. In a kingdom battle, player troops gain +1 armour when the battle takes place within three hexes of a friendly watchtower and the origin hex remains under friendly control. Neutral-site battles do not receive the fortification bonus. Threatened AI kingdoms can prioritize building a watchtower in a free forest/hill province.
+
+A settler may establish a city in neutral or friendly territory but cannot plant a new settlement inside rival-owned or contested land. Territorial ownership is recalculated from the existing records each time it is needed. No new mandatory campaign fields, resource IDs or save migration are introduced; `SAVE_VERSION` remains 1. Long-campaign balance and Android rendering cost remain device-playtest items.

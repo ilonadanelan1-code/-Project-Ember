@@ -1,10 +1,12 @@
-Build: Project Ember v0.32.0 — Strategic Kingdom AI
+Build: Project Ember v0.33.0 — Territorial Control & Frontier Fortifications
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.31.0 — AI Neutral Site Expeditions
-Feature set: shared deterministic kingdom planner evaluates treasury, income, upkeep, population, force strength and wars; doctrine- and opponent-aware recruitment; economy-led city orders; reserve- and threat-gated expansion; productive settlement-site scoring; threat-aware war target selection.
-AI kingdoms: nine independent factions retain their existing identities, diplomacy, cities, armies and neutral-site expeditions. Active war plans take priority over neutral exploration.
-Economy: gold, food and stored production only; existing unit roles, buildings, faction modifiers and 24-troop army capacity are retained.
-Save schema: SAVE_VERSION 1; strategic plans are transient and no mandatory fields are added.
+Base: v0.32.0 — Strategic Kingdom AI
+Feature set: deterministic territorial influence from cities, armies and watchtowers; disputed border resolution; AI frontier fort construction; rival-land settlement restriction; tactical +1 armour near friendly watchtowers.
+Territory: city influence scales with population, capital status and military specialization; field armies project temporary influence; border cells with comparable rival influence are contested.
+Frontier watchtower: forest/hill province improvement; 55 gold and 12 production; +1 production/turn; influence radius 8; +1 friendly troop armour within 3 hexes in friendly territory.
+AI kingdoms: threatened realms can prioritize a watchtower in an available forest/hill province. Existing nine kingdoms, factions, diplomacy and army roles remain.
+Economy: gold, food and stored production only. Existing army capacity remains 24.
+Save schema: SAVE_VERSION 1; territory is derived at runtime. Watchtowers are stored in existing province-improvement city records.
 Package type: Godot source project, not an APK.
-QA status: GitHub Actions validates Godot 4.7.2 import, parser, all smoke tests and strategic-map visual captures on release-branch pushes. Physical Android balance/performance testing remains a separate check.
+QA status: GitHub Actions validates Godot 4.7.2 import, parser, smoke tests and strategic-map visual captures on release-branch pushes. Physical Android balance/performance testing remains separate.

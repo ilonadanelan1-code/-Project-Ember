@@ -1,3 +1,14 @@
+## v0.33.0 — Territorial Control & Frontier Fortifications
+
+- Replaces fixed city-adjacency ownership rings with deterministic territorial influence from settlements, field armies and frontier watchtowers.
+- Cities project control according to population, capital status and military specialization; field armies add a smaller temporary influence zone that moves with their position.
+- Resolves overlap as contested land rather than assigning arbitrary ownership. Disputed borders are highlighted in amber; ownership is calculated from current campaign records without saving a second world-sized owner grid.
+- Adds the watchtower province improvement on forest and hill hexes. It costs 55 gold and 12 production, adds one production per turn, projects influence up to eight hexes from its site and grants +1 armour to player troops fighting within three hexes in friendly territory.
+- AI kingdoms can prioritize a frontier watchtower when their cities are threatened. Watchtower markers are drawn for both player and AI kingdoms.
+- Settlers cannot found cities inside a rival kingdom's territory or on contested land; neutral and friendly territory remain valid.
+- Keeps territory derived from existing city/army records and province-improvement lists. `SAVE_VERSION` remains 1.
+- Adds territorial-control smoke tests and static QA guards for ownership, disputed borders, army projection, outpost influence and tactical armour.
+
 ## v0.32.0 — Strategic Kingdom AI
 
 - Adds a shared strategic planner that evaluates each AI kingdom's treasury, three-resource income, army upkeep, population, current force strength and active wars every turn.
