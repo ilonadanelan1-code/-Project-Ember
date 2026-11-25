@@ -200,7 +200,15 @@ func _spawn_commander(team: int, hero_record: Dictionary, spawn_position: Vector
 	unit.commander_leadership = clampi(int(skills.get("leadership", 0)), 0, 5)
 	unit.commander_tactics = clampi(int(skills.get("tactics", 0)), 0, 5)
 	unit.commander_might = clampi(int(skills.get("might", 0)), 0, 5)
-	unit.starting_health = float(hero_record.get("health", -1.0))
+	var saved_health := float(hero_record.get("health", -1.0))
+	if saved_health < 0.0:
+		unit.starting_health = -1.0
+	elif saved_health <= 0.0:
+		# Never render an inert commander with zero HP. CampaignState normally
+		# repairs this record before battle and this is the final spawn safeguard.
+		unit.starting_health = CampaignState.get_hero_max_health(hero_record) * 0.35
+	else:
+		unit.starting_health = saved_health
 	unit.battlefield_biome_id = _battlefield_biome_id
 	unit.battlefield_seed = _battlefield_seed
 	unit.battlefield_field_size = FIELD_SIZE
