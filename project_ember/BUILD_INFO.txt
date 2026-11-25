@@ -7,6 +7,7 @@ Feature: three campaign victory paths (military, economic, diplomatic), unique k
 Compatibility: existing resource, unit, building and kingdom IDs unchanged; SAVE_VERSION 1 retained; v0.29.0 saves receive safe default victory state.
 Package type: Godot source project, not an APK.
 
-CI: Godot 4.3 package workflow passed project import/parser, strategic scene startup, tactical scene startup, campaign economy/persistence, unit roster and hero progression checks.
-Godot 4.7.2 QA: resource import and script compilation passed in the current release workflow; full smoke suite and visual captures remain subject to that workflow's final result.
-Android GPU, touch-layout, save/load and FPS validation: requires testing in Godot Android Editor on a physical device.
+CI: Godot 4.3 package workflow passed project import/parser, strategic scene startup, tactical battle startup, campaign economy/persistence, unit roster and hero progression checks.
+Godot 4.7.2 QA: PASSED on 2026-11-25. Resource import, editor-side script compilation, all GDScript parser checks, all 32 smoke tests (32 passed / 0 failed), and strategic-map captures at four zoom levels passed.
+QA workflow run: 45648940100.
+Android GPU behavior, touch interaction, on-device save/load and FPS still require validation in Godot Android Editor on a physical device; they are not certified by headless CI.
