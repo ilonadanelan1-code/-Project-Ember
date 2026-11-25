@@ -48,7 +48,7 @@ static func get_frames(team: int, role: int) -> SpriteFrames:
 	if class_key == "warrior":
 		_add_animation(frames, "attack_a", ROWS["warrior_attack_a"], faction_offset, false)
 		_add_animation(frames, "attack_b", ROWS["warrior_attack_b"], faction_offset, false)
-		_add_animation(frames, "guard", ROWS["warrior_guard"], faction_offset, false)
+		_add_animation(frames, "guard", ROWS["warrior_guard"], faction_offset, true)
 	elif class_key == "archer":
 		_add_animation(frames, "shoot", ROWS["archer_shoot"], faction_offset, false)
 	else:
