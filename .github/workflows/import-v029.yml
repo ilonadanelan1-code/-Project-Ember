@@ -2,6 +2,9 @@ name: Import Project Ember v0.29.0 archive
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/import-v029.yml"
 
 permissions:
   contents: write
