@@ -1,11 +1,12 @@
-Build: Project Ember v0.29.0 — Diplomacy & AI Kingdoms
+Build: Project Ember v0.30.0 — Campaign Victory
+Base: v0.29.0 — Diplomacy & AI Kingdoms
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.28.0 — Faction Founding & Kingdom Identity
-Feature: five deterministic AI personalities, 45 relationship records, timed treaties, trade/alliance income, tribute/vassal transfers, player and AI wars, border tension, war exhaustion, deterministic peace proposals and a scrollable mobile diplomacy panel.
-Static validation: 162/162 passed
-Smoke-test sources: 31 included; not executed in this environment
-Python static QA syntax validation: passed
-Godot 4.7.2 parser/import/runtime and Android GPU/touch/FPS validation: pending; engine executable unavailable in the build container
-Save schema: version 1 retained
-Package type: Godot source project, not an APK
+
+Feature: three campaign victory paths (military, economic, diplomatic), unique kingdom battle-victory tracking, consecutive-turn economic and diplomatic conditions, mobile victory panel, campaign completion and freeplay continuation.
+Compatibility: existing resource, unit, building and kingdom IDs unchanged; SAVE_VERSION 1 retained; v0.29.0 saves receive safe default victory state.
+Package type: Godot source project, not an APK.
+
+CI: Godot 4.3 package workflow passed project import/parser, strategic scene startup, tactical scene startup, campaign economy/persistence, unit roster and hero progression checks.
+Godot 4.7.2 QA: resource import and script compilation passed in the current release workflow; full smoke suite and visual captures remain subject to that workflow's final result.
+Android GPU, touch-layout, save/load and FPS validation: requires testing in Godot Android Editor on a physical device.
