@@ -6,6 +6,7 @@ signal metrics_changed
 const DEFAULT_DPI := 160.0
 const MIN_DPI := 120.0
 const MAX_DPI := 640.0
+const MAX_REFERENCE_DENSITY_SCALE := 1.30
 
 var real_px_per_dp: float = 1.0
 var ref_px_per_real: float = 1.0
@@ -52,7 +53,8 @@ func _set_metrics(dpi: float, real_to_viewport_ratio: float, ui_scale: float) ->
 	var safe_dpi := DEFAULT_DPI if dpi <= 0.0 else clampf(dpi, MIN_DPI, MAX_DPI)
 	real_px_per_dp = safe_dpi / 160.0
 	ref_px_per_real = maxf(real_to_viewport_ratio, 0.01)
-	ref_px_per_dp = real_px_per_dp * ref_px_per_real * clampf(ui_scale, 0.8, 1.6)
+	var calibrated_density_scale := clampf(real_px_per_dp * ref_px_per_real, 1.0, MAX_REFERENCE_DENSITY_SCALE)
+	ref_px_per_dp = calibrated_density_scale * clampf(ui_scale, 0.8, 1.6)
 	var signature := "%.5f:%.5f:%.5f" % [real_px_per_dp, ref_px_per_real, ref_px_per_dp]
 	if signature == _last_signature:
 		return

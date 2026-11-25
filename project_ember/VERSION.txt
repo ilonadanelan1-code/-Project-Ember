@@ -1,4 +1,4 @@
-Project Ember v0.17.2 — Android Rendering & UI Calibration
+Project Ember v0.17.3 — Mobile HUD & Map Line Polish
 - Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
 - Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
 - Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).
@@ -14,7 +14,10 @@ Project Ember v0.17.2 — Android Rendering & UI Calibration
 - Uses one world-stable artwork variant per biome and seamless mirrored UV repetition to remove rectangular same-biome texture patches and hard periodic wrap seams.
 - Caps atlas texture sampling at mip level 4 so the 51px atlas gutters remain valid during extreme minification on mobile GPUs.
 - Calculates UI dp conversion from the viewport/window height ratio, preventing aspect-expanded viewport width from enlarging touch controls on ultrawide Android screens.
-- Adds smoke assertions for both mobile fixes; actual device rendering still requires Android hardware validation.
+- Caps high-density UI scaling at 1.30 reference pixels per dp, while preserving the user-controlled accessibility scale.
+- Reduces the strategy HUD height and label sizes, keeps 48dp minimum touch targets, and trims vertical button padding.
+- Softens the base hex grid opacity and stroke width without changing territorial borders, roads, shorelines or movement highlights.
+- Adds smoke assertions for compact mobile layout and map line styling; actual device rendering still requires Android hardware validation.
 
 - Adds a Godot 4.7.2 CI workflow with verified official binary SHA-256.
 - Imports all project resources and runs every GDScript smoke test in isolated user-data directories.

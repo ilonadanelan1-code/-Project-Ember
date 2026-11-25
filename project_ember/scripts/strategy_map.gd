@@ -334,7 +334,7 @@ func _draw_hex_grid() -> void:
 			grid_segments.append(corners[edge_index])
 			grid_segments.append(corners[(edge_index + 1) % 6])
 	if not grid_segments.is_empty():
-		draw_multiline(grid_segments, Palette.MAP_HEX_GRID, maxf(0.24, 0.34 * _map_zoom), true)
+		draw_multiline(grid_segments, Palette.MAP_HEX_GRID, maxf(0.18, 0.22 * _map_zoom), true)
 
 
 func _draw_coastlines() -> void:
@@ -634,7 +634,7 @@ func _create_ui() -> void:
 	top_panel.offset_left = UiMetrics.dp(10.0)
 	top_panel.offset_top = UiMetrics.dp(8.0)
 	top_panel.offset_right = -UiMetrics.dp(10.0)
-	top_panel.offset_bottom = UiMetrics.dp(62.0)
+	top_panel.offset_bottom = UiMetrics.dp(48.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
@@ -642,7 +642,7 @@ func _create_ui() -> void:
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 	_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
 	_status_label.clip_text = true
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -651,7 +651,7 @@ func _create_ui() -> void:
 	_message_label = Label.new()
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_message_label.clip_text = true
-	_message_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(11))
+	_message_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(10))
 	_message_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
 	top_box.add_child(_message_label)
 
@@ -664,7 +664,7 @@ func _create_ui() -> void:
 	_map_more_panel.offset_left = UiMetrics.dp(10.0)
 	_map_more_panel.offset_top = -UiMetrics.dp(276.0)
 	_map_more_panel.offset_right = -UiMetrics.dp(10.0)
-	_map_more_panel.offset_bottom = -UiMetrics.dp(88.0)
+	_map_more_panel.offset_bottom = -UiMetrics.dp(74.0)
 	_map_more_panel.visible = false
 	root.add_child(_map_more_panel)
 
@@ -696,7 +696,7 @@ func _create_ui() -> void:
 	bottom_panel.anchor_right = 1.0
 	bottom_panel.anchor_bottom = 1.0
 	bottom_panel.offset_left = UiMetrics.dp(10.0)
-	bottom_panel.offset_top = -UiMetrics.dp(80.0)
+	bottom_panel.offset_top = -UiMetrics.dp(66.0)
 	bottom_panel.offset_right = -UiMetrics.dp(10.0)
 	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
 	root.add_child(bottom_panel)
@@ -1111,7 +1111,7 @@ func _add_button(parent: Container, text_value: String, callback: Callable) -> B
 	button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
+	button.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button

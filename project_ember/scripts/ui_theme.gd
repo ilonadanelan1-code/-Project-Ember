@@ -72,9 +72,9 @@ static func _button_style(background: Color, border: Color, scale: float, alpha:
 	style.set_border_width_all(maxi(1, roundi(_dp(1.5))))
 	style.set_corner_radius_all(roundi(_dp(7.0)))
 	style.content_margin_left = _dp(10.0)
-	style.content_margin_top = _dp(7.0)
+	style.content_margin_top = _dp(5.0)
 	style.content_margin_right = _dp(10.0)
-	style.content_margin_bottom = _dp(7.0)
+	style.content_margin_bottom = _dp(5.0)
 	return style
 static func _flat_style(background: Color, border: Color, scale: float) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
