@@ -112,7 +112,7 @@ for item in sorted(missing):
     print("  " + item)
 
 smoke_tests = sorted((ROOT / "tests").glob("*_smoke_test.gd")) if (ROOT / "tests").exists() else []
-check(len(smoke_tests) >= 19, f"at least 19 smoke tests are present ({len(smoke_tests)} found)")
+check(len(smoke_tests) >= 21, f"at least 21 smoke tests are present ({len(smoke_tests)} found)")
 check((ROOT / "scripts/hex_terrain_tilemap_renderer.gd").is_file(), "native Hex TileSet renderer exists")
 check((ROOT / "tests/hex_tileset_renderer_smoke_test.tscn").is_file(), "Hex TileSet smoke-test scene exists")
 check((ROOT / "tools/qa/visual_capture.gd").is_file(), "visual screenshot runner exists")

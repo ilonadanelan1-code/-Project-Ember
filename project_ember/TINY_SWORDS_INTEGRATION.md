@@ -19,3 +19,9 @@ free pack does not include a horse-mounted unit.
 
 The source pack is Tiny Swords (Free Pack) by Pixel Frog. Attribution is
 appreciated. Do not distribute the atlas or extracted source frames separately.
+
+
+## v0.19.1 notes
+- The atlas now contains 12 strips per faction (including Lancer_Right_Defence).
+- Melee contact and bow-release timing are coordinated by the combat controller.
+- Unit sprites flip to face their selected enemy; recovery uses guard/defence loops.

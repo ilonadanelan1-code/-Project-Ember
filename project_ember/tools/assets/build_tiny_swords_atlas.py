@@ -29,6 +29,7 @@ ANIMATIONS = [
     ("lancer_idle", "Lancer/Lancer_Idle.png", 320, 12),
     ("lancer_run", "Lancer/Lancer_Run.png", 320, 6),
     ("lancer_attack", "Lancer/Lancer_Right_Attack.png", 320, 3),
+    ("lancer_defence", "Lancer/Lancer_Right_Defence.png", 320, 6),
 ]
 TEAMS = ("Blue", "Red")
 

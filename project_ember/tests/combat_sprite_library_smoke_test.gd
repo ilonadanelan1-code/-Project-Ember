@@ -24,7 +24,7 @@ func _run() -> void:
 		var expected := {
 			0: {"idle": 8, "run": 6, "attack_a": 4, "attack_b": 4, "guard": 6},
 			1: {"idle": 6, "run": 4, "shoot": 8},
-			2: {"idle": 12, "run": 6, "attack": 3},
+			2: {"idle": 12, "run": 6, "attack": 3, "defend": 6},
 			4: {"idle": 8, "run": 6, "attack_a": 4, "attack_b": 4, "guard": 6},
 		}
 		for team in range(2):
@@ -45,6 +45,12 @@ func _run() -> void:
 		_check(Library.get_attack_animation(1) == &"shoot", "ranged attack selects shooting animation")
 		_check(Library.get_attack_animation(2) == &"attack", "spear attack selects thrust animation")
 		_check(Library.get_animation_duration(Library.get_frames(0, 0), &"attack_a") > 0.0, "attack timing is derived from animation frames")
+	_check(Library.get_contact_time(0) > 0.0 and Library.get_contact_time(1) > 0.0, "melee contact and arrow release have explicit timings")
+	var recovery_frames := SpriteFrames.new()
+	recovery_frames.add_animation("guard")
+	recovery_frames.add_animation("defend")
+	_check(Library.get_recovery_animation(0, recovery_frames) == &"guard", "swordsmen recover in a guard stance")
+	_check(Library.get_recovery_animation(2, recovery_frames) == &"defend", "spearmen recover in a defensive stance")
 
 	if _failures > 0:
 		printerr("Combat sprite library tests failed: %d" % _failures)

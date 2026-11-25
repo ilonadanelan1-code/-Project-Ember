@@ -1,5 +1,10 @@
-Project Ember v0.19.0 — Combat Animation Pass
-Source project ZIP for Godot 4.7.2 stable / GL Compatibility.
-The owner's integrated build includes the private Tiny Swords combat atlas alongside the v0.18.1 hex terrain system, battle animation integration, tests and QA scripts.
-Melee, archer and spear units use animated pixel-art sprites; cavalry retains its original mounted model. Combat calculations, collision, AI, unit stats and saves are unchanged.
-Not an APK. Open project.godot in Godot 4.7.2. First import may take a little longer while the atlas texture is imported.
+Project Ember v0.19.1 — Combat Readability Pass
+Godot 4.7.2 stable / GL Compatibility source project for Android.
+
+The integrated owner ZIP includes the Hex Terrain Bundle and a locally generated Tiny Swords combat atlas. Swordsmen, archers and spearmen use animated pixel-art units; cavalry retains its mounted renderer.
+
+Melee damage is applied at the weapon-contact frame. Arrows are spawned at bow release. Units face their current targets, ignore dead/corpse targets, cancel unfinished actions on new orders, and use guard/defence poses between attacks. Lancer proportions are adjusted without stretching the long pike.
+
+Unit stats, damage values, attack cooldowns, armor, AI, collision and saves are preserved. Public source CI omits the separately licensed sprite atlas and tests the fallback renderer.
+
+Not an APK. Open project.godot in Godot 4.7.2 Android Editor and allow the first import to finish.

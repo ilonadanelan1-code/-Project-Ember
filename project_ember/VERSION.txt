@@ -1,4 +1,4 @@
-Project Ember v0.19.0 — Combat Animation Pass
+Project Ember v0.19.1 — Combat Readability Pass
 - Fixes atlas enumeration using TileSetSource.get_tiles_count() and get_tile_id(); removes the runtime-invalid get_tiles() calls.
 - Integrates the Hex Terrain Bundle: 448 authored pointy-top hex tiles across six 64px atlases.
 - Replaces the painterly per-cell surface renderer with two native Godot TileMapLayers: TerrainConnect ground plus deterministic feature details.
@@ -43,3 +43,13 @@ Project Ember v0.19.0 — Combat Animation Pass
 - Captures the strategic map at zoom 0.075, 0.76, 0.90 and 1.25 with software OpenGL Compatibility rendering.
 - Uploads screenshots, per-zoom render metrics and test logs as a GitHub Actions artifact.
 - Adds static resource/hash validation and a Termux bootstrap for publishing this exact source to a dedicated QA branch without modifying main.
+
+
+## v0.19.1 combat corrections
+- Schedules melee damage at the visible weapon-contact frame instead of attack start.
+- Schedules projectile creation at bow release instead of draw start.
+- Faces the current target while moving and attacking.
+- Invalidates dead/corpse targets and cancels queued hits/projectiles when orders change.
+- Adds guard/defence recovery loops and the Tiny Swords lancer defence frames.
+- Corrects lancer proportions while preserving pike length.
+- Adds timing regression tests for contact, release, corpses and order cancellation.

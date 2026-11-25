@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.19.1 — Combat Readability Pass
+- Applies melee damage at the weapon-contact frame rather than at swing start.
+- Delays arrow creation until the bow release frame.
+- Turns sprites toward active targets during movement and combat.
+- Ignores dead/corpse targets and cancels unfinished hits/projectiles when new orders arrive.
+- Adds guard and lancer defence recovery poses, with more proportional lancer scaling.
+- Adds smoke tests for hit timing, arrow release, corpses and order cancellation.
+- Preserves unit stats, damage, cooldowns, AI and save data.
+
 ## v0.19.0 — Combat Animation Pass
 - Added optional billboarded AnimatedSprite3D combat visuals for melee soldiers, archers and spear/lancer units.
 - Added alternating sword attacks, archer shooting and lancer thrust animations.

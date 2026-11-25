@@ -1,7 +1,9 @@
-Build: Project Ember v0.19.0 — Combat Animation Pass
+Build: Project Ember v0.19.1 — Combat Readability Pass
 Engine: Godot 4.7.2-stable / GL Compatibility
-Map assets: 448 named hex tiles / 6 WebP atlases / 64px / shared TerrainConnect TileSet
-Combat visuals: optional AnimatedSprite3D sprites for melee, archer and lancer; original mounted cavalry renderer retained
-Combat feedback: alternating attacks, archer shooting, lancer thrust, hit flash and directional recoil
-Asset note: Tiny Swords atlas is local-only; public repository includes integration code and atlas builder, not the artwork
-QA: Godot parser and source-only fallback smoke test required; physical Android test required for this build
+Map assets: 448 authored hex tiles / six 64px terrain atlases / native TileMapLayer
+Combat: Tiny Swords animated sprites for swordsmen, archers and spearmen; original mounted cavalry renderer retained
+Combat timing: melee contact and arrow release synchronized to animation frames; dead/corpse targets and stale queued hits blocked
+Combat poses: target-facing sprites; looping guard/defence recovery; proportionally taller lancer sprite
+Gameplay: unit stats, damage, cooldowns, armor, AI, collision and save schema preserved
+Assets: licensed Tiny Swords atlas remains local-only; public source contains integration code and atlas builder, not artwork
+QA: 21 smoke-test scripts; Godot 4.7.2 CI pending for this revision; Android GPU validation requires the physical device
