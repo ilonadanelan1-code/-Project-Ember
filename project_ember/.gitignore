@@ -4,3 +4,5 @@
 *.tmp
 *.bak
 artifacts/
+assets/combat/tiny_swords/combat_units_atlas.png
+assets/combat/tiny_swords/atlas_manifest.json
