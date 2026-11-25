@@ -68,12 +68,21 @@ func _run() -> void:
         var terrain_renderer: Object = _map.get("_terrain_renderer")
         var detail_renderer: Object = _map.get("_world_detail_renderer")
         var unique_samples := _count_sampled_colors(image)
-        if image.get_width() < 640 or image.get_height() < 360 or unique_samples < 24:
-            _failures += 1
-            push_error("Visual capture looks blank or incomplete at zoom %.3f" % zoom)
-
         var terrain_instances := int(terrain_renderer.call("get_tile_instance_count")) if is_instance_valid(terrain_renderer) else 0
         var detail_instances := int(detail_renderer.call("get_detail_instance_count")) if is_instance_valid(detail_renderer) else 0
+        # With fog of war, continent zoom legitimately compresses the explored
+        # 271-cell starting area into a small island. Keep a lower color floor
+        # there, but require real explored cells and terrain instances at all zooms.
+        var minimum_unique_colors := 12 if zoom <= 0.10 else 24
+        if (
+            image.get_width() < 640
+            or image.get_height() < 360
+            or unique_samples < minimum_unique_colors
+            or visible_cells.size() < 200
+            or terrain_instances <= 0
+        ):
+            _failures += 1
+            push_error("Visual capture looks blank or incomplete at zoom %.3f" % zoom)
         var snapshot := {
             "zoom": zoom,
             "screenshot": image_name,
