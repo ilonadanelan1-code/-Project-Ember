@@ -1,4 +1,4 @@
-Project Ember v0.18.1 — Hex Terrain API Fix
+Project Ember v0.19.0 — Combat Animation Pass
 - Fixes atlas enumeration using TileSetSource.get_tiles_count() and get_tile_id(); removes the runtime-invalid get_tiles() calls.
 - Integrates the Hex Terrain Bundle: 448 authored pointy-top hex tiles across six 64px atlases.
 - Replaces the painterly per-cell surface renderer with two native Godot TileMapLayers: TerrainConnect ground plus deterministic feature details.
@@ -8,6 +8,10 @@ Project Ember v0.18.1 — Hex Terrain API Fix
 - Includes the bundle license beside all six lossless WebP atlases; the original TileSet resource is preserved.
 - The current generator populates grassland, forest, farmland, hills, water and marsh. Desert and snow atlases are included and ready for future biome generation.
 - Adds a dedicated smoke test for all 448 tiles, atlas sources, hex grid settings and explored-cell rendering.
+- Adds an optional Tiny Swords AnimatedSprite3D combat renderer for melee, ranged and spear roles.
+- Adds weapon attack animations, shooting/thrust, hit flash and directional recoil without changing combat calculations.
+- Keeps cavalry on its existing mounted model because the free sprite pack has no horse-mounted unit.
+- Source-only builds without the local licensed sprite atlas keep the original procedural renderer.
 
 ## Previous v0.17.x rendering notes
 
