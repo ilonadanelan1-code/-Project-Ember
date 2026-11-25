@@ -81,15 +81,28 @@ func _run() -> void:
 	_check(player_unit.global_position.x > player_start_x, "enemy commander engages and moves toward the player")
 	_check(player_unit.health < player_start_health, "enemy commander actively attacks the player army")
 
-	# When the commander is the only enemy left, a player unit beyond its normal
-	# detection range must still acquire and pursue that last commander.
-	player_unit._target = null
-	player_unit._order_mode = BattleUnitScript.OrderMode.AUTO
-	player_unit.position = Vector3(-15.0, 0.0, -10.0)
-	enemy_commander.position = Vector3(5.0, 0.0, -10.0)
+	# When the commander is the only enemy left, a fresh player unit beyond its
+	# normal detection range must still acquire and pursue that last commander.
+	player_unit.queue_free()
 	await process_frame
-	_check(player_unit._target == enemy_commander, "player army detects the last enemy commander beyond normal detection range")
-	_check(player_unit.velocity.x > 0.0, "player army advances toward the last enemy commander")
+	var last_guardian_pursuer := _make_unit(
+		arena,
+		0,
+		BattleUnitScript.UnitRole.MELEE,
+		Vector3(-15.0, 0.0, -10.0)
+	)
+	enemy_commander.position = Vector3(5.0, 0.0, -10.0)
+	enemy_commander._target = null
+	enemy_commander._order_mode = BattleUnitScript.OrderMode.AUTO
+	await create_timer(0.18).timeout
+	_check(
+		last_guardian_pursuer._target == enemy_commander,
+		"player army detects the last enemy commander beyond normal detection range"
+	)
+	_check(
+		last_guardian_pursuer.velocity.x > 0.0,
+		"player army advances toward the last enemy commander after a physics update"
+	)
 
 	# Ordinary wounded enemy troops may still retreat, but they must re-enter
 	# AUTO after reaching the rear line rather than remain parked in HOLD forever.
