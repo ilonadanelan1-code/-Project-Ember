@@ -92,7 +92,9 @@ void fragment() {
     // not create giant derivatives. A 51px atlas gutter protects mip levels 0-4;
     // deeper levels can blend adjacent panels and appear as rectangular bands.
     vec2 surface_coordinate = world_position / active_period;
-    vec2 surface_uv = fract(surface_coordinate);
+    // Mirrored repeat joins opposite panel edges without a hard UV wrap seam.
+    vec2 surface_repeat = mod(surface_coordinate, vec2(2.0));
+    vec2 surface_uv = vec2(1.0) - abs(surface_repeat - vec2(1.0));
     vec2 mip_dx = dFdx(surface_coordinate) * ATLAS_PANEL_SIZE;
     vec2 mip_dy = dFdy(surface_coordinate) * ATLAS_PANEL_SIZE;
     float atlas_mip_level = clamp(
@@ -280,10 +282,10 @@ static func make_instance_data_from_axial(axial: Vector2, terrain_kind: String, 
 
 
 static func surface_variant_for_cell(cell: Vector2i, terrain_kind: String, world_seed: int) -> int:
+    # One stable art variant per biome and world avoids visible 4x4 rectangular
+    # patch boundaries. World coordinates keep the painted surface continuous.
     var family := terrain_variant_for_kind(terrain_kind)
-    var region_q := floori(float(cell.x) / 4.0)
-    var region_r := floori(float(cell.y) / 4.0)
-    var mixed := (region_q * 374761393) ^ (region_r * 668265263) ^ (world_seed * 1442695041) ^ (family * 1597334677)
+    var mixed := (world_seed * 1442695041) ^ (family * 1597334677)
     return family * SURFACE_VARIANTS_PER_FAMILY + posmod(mixed, SURFACE_VARIANTS_PER_FAMILY)
 
 
@@ -320,9 +322,11 @@ static func terrain_variant_for_kind(terrain_kind: String) -> int:
 static func world_texture_uv(cell: Vector2i, local_pixel: Vector2) -> Vector2:
     var center := Vector2(51.961524 * (float(cell.x) + 0.5 * float(cell.y)), 45.0 * float(cell.y))
     var world_position := center + local_pixel
+    var repeat_x := fposmod(world_position.x / WORLD_TEXTURE_PERIOD, 2.0)
+    var repeat_y := fposmod(world_position.y / WORLD_TEXTURE_PERIOD, 2.0)
     return Vector2(
-        fposmod(world_position.x, WORLD_TEXTURE_PERIOD) / WORLD_TEXTURE_PERIOD,
-        fposmod(world_position.y, WORLD_TEXTURE_PERIOD) / WORLD_TEXTURE_PERIOD
+        1.0 - absf(repeat_x - 1.0),
+        1.0 - absf(repeat_y - 1.0)
     )
 
 

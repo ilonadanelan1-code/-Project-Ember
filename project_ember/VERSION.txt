@@ -2,7 +2,7 @@ Project Ember v0.17.2 — Android Rendering & UI Calibration
 - Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
 - Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
 - Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).
-- Deterministic 4x4 axial macro-regions select one of four artwork variants per biome. Surface sampling remains continuous in shared world coordinates and neighboring biomes blend across shared edges.
+- One world-seeded artwork variant per biome removes 4x4 rectangular variant boundaries. Mirrored UV repetition removes hard panel-wrap seams; neighboring biomes continue to blend across shared hex edges.
 - Reduces the surface repeat period from 560 to 430 world units for ~30% higher texture density at close zoom.
 - Expands the foreground detail atlas from 16 to 24 feathered sprites, balanced across all six biomes, in a 6x4 sheet (3072x2048).
 - Foreground details use one selective MultiMesh batch; no per-object scene nodes.
@@ -11,6 +11,7 @@ Project Ember v0.17.2 — Android Rendering & UI Calibration
 - Existing save formats are unchanged; surface variants are derived from axial coordinates and world seed at render time.
 - Static checks are included. Godot parser/import and physical Android validation remain required; this is a source project, not an APK.
 
+- Uses one world-stable artwork variant per biome and seamless mirrored UV repetition to remove rectangular same-biome texture patches and hard periodic wrap seams.
 - Caps atlas texture sampling at mip level 4 so the 51px atlas gutters remain valid during extreme minification on mobile GPUs.
 - Calculates UI dp conversion from the viewport/window height ratio, preventing aspect-expanded viewport width from enlarging touch controls on ultrawide Android screens.
 - Adds smoke assertions for both mobile fixes; actual device rendering still requires Android hardware validation.

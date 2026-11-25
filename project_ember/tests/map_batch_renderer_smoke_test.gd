@@ -47,7 +47,8 @@ func _run() -> void:
             var source := material.shader.code
             _check(source.contains("varying vec4 instance_payload;"), "shader captures per-instance world payload")
             _check(source.contains("world_center = vec2(51.961524 * (q + 0.5 * r), 45.0 * r)"), "shader reconstructs pointy-top axial world coordinates")
-            _check(source.contains("fract(world_position / active_period)"), "surface UVs continue globally across neighboring hexes")
+            _check(source.contains("surface_coordinate = world_position / active_period") and not source.contains("fract(surface_coordinate)"), "surface coordinates derive from shared global world positions")
+            _check(source.contains("mod(surface_coordinate, vec2(2.0))") and source.contains("abs(surface_repeat - vec2(1.0))"), "surface panels use seamless mirrored repetition instead of hard rectangular wrap seams")
             _check(source.contains("edge_distance") and source.contains("smoothstep"), "hexes are clipped with a clean antialiased mask")
             _check(source.contains("ATLAS_CELL_SIZE") and source.contains("atlas_column = mod(variant, 5.0)"), "shader resolves five atlas columns")
             _check(source.contains("atlas_row = floor(variant / 5.0)") and source.contains("/ ATLAS_HEIGHT"), "shader resolves five atlas rows independently")
@@ -91,11 +92,11 @@ func _run() -> void:
     _check(RendererScript.terrain_variant_for_kind("farmland") == 4, "farmland maps to field surface")
     _check(RendererScript.terrain_variant_for_kind("marsh") == 5, "marsh maps to wetland surface")
     var region_variant_a := RendererScript.surface_variant_for_cell(Vector2i(0, 0), "plain", 842173)
-    var region_variant_b := RendererScript.surface_variant_for_cell(Vector2i(2, 3), "plain", 842173)
-    _check(region_variant_a == region_variant_b, "same 4x4 axial region keeps one stable meadow scene variant")
+    var distant_region_variant := RendererScript.surface_variant_for_cell(Vector2i(42, -57), "plain", 842173)
+    _check(region_variant_a == distant_region_variant, "same biome keeps one stable artwork variant across the whole world")
     _check(region_variant_a >= 0 and region_variant_a < 4, "meadow selects one of four independent source scenes")
     _check(RendererScript.surface_variant_for_cell(Vector2i(0, 0), "forest", 842173) >= 4, "forest selects its own independent atlas range")
-    _check(RendererScript.surface_variant_for_cell(Vector2i(0, 0), "plain", 842173) != RendererScript.surface_variant_for_cell(Vector2i(4, 0), "plain", 842173), "different axial macro-regions can select different meadow scenes")
+    _check(RendererScript.surface_variant_for_cell(Vector2i(0, 0), "plain", 842173) == RendererScript.surface_variant_for_cell(Vector2i(4, 0), "plain", 842173), "neighboring macro-regions no longer create abrupt same-biome texture patches")
     for family_name in names:
         var expected_family := RendererScript.terrain_variant_for_kind(family_name)
         var selected_variant := RendererScript.surface_variant_for_cell(Vector2i(-17, 29), family_name, 842173)
@@ -117,6 +118,13 @@ func _run() -> void:
         if first_uv.distance_to(second_uv) >= 0.00001:
             edge_samples_match = false
     _check(edge_samples_match, "all six neighbor directions share continuous surface UVs for every biome")
+    var repeat_period := renderer.get_texture_period()
+    var seam_before := RendererScript.world_texture_uv(Vector2i.ZERO, Vector2(repeat_period - 0.1, 0.0))
+    var seam_after := RendererScript.world_texture_uv(Vector2i.ZERO, Vector2(repeat_period + 0.1, 0.0))
+    _check(seam_before.distance_to(seam_after) < 0.00001, "mirrored surface UVs remain continuous across horizontal repeat boundaries")
+    var vertical_before := RendererScript.world_texture_uv(Vector2i.ZERO, Vector2(0.0, repeat_period - 0.1))
+    var vertical_after := RendererScript.world_texture_uv(Vector2i.ZERO, Vector2(0.0, repeat_period + 0.1))
+    _check(vertical_before.distance_to(vertical_after) < 0.00001, "mirrored surface UVs remain continuous across vertical repeat boundaries")
 
     var lod_centers := PackedVector2Array([Vector2(120.0, 100.0)])
     var lod_colors := PackedColorArray([Color.WHITE])
