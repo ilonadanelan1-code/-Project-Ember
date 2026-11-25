@@ -555,7 +555,7 @@ func complete_battle(
 			else:
 				neutral_locations[location_index] = location
 	if victory and battle_target_type == "kingdom" and battle_kingdom_id >= 0:
-		CampaignVictoryCatalogScript.record_military_victory(campaign_victory, battle_kingdom_id)
+		CampaignVictoryCatalogScript.record_military_victory(campaign_victory, battle_kingdom_id, turn_number, player_units.size())
 	if battle_kingdom_id >= 0 and battle_kingdom_id < kingdoms.size():
 		var defeated_kingdom: Dictionary = kingdoms[battle_kingdom_id]
 		defeated_kingdom_name = str(defeated_kingdom.get("name", defeated_kingdom_name))
