@@ -138,11 +138,11 @@ func _run() -> void:
 		_check(state.begin_location_battle(target_id), "army can engage neutral guards from an adjacent hex")
 		_check(state.battle_target_type == "location" and state.battle_location_id == target_id, "neutral battle is distinguished from a kingdom battle")
 		_check(state.enemy_units.size() == target.get("guards", []).size(), "neutral battle loads the location guard roster")
-		var gold_before := state.city_gold
-		var food_before := state.city_food
-		var production_before := state.city_production_bank
+		var gold_before: int = state.city_gold
+		var food_before: int = state.city_food
+		var production_before: int = state.city_production_bank
 		state.complete_battle(state.player_units, [], true, {"player_kills": 3, "player_damage": 30.0}, 210.0, 0.0)
-		var cleared_after_battle := state.get_neutral_location_by_id(target_id)
+		var cleared_after_battle: Dictionary = state.get_neutral_location_by_id(target_id)
 		_check(bool(cleared_after_battle.get("cleared", false)), "victory permanently clears the neutral location")
 		_check(state.city_gold >= gold_before and state.city_food >= food_before and state.city_production_bank >= production_before, "neutral victory grants only non-negative existing resources")
 		_check(not str(state.last_battle_result.get("location_reward", "")).is_empty(), "neutral battle report includes its resource reward")
@@ -157,7 +157,7 @@ func _run() -> void:
 		_check(state.begin_location_battle(defended_id), "second neutral site starts a battle for retreat-persistence test")
 		var surviving_guard: Array[Dictionary] = [{"role": "melee", "health": 28.0, "experience": 18}]
 		state.complete_battle(state.player_units, surviving_guard, false, {"player_kills": 1, "player_damage": 12.0}, 160.0, 61.0)
-		var damaged_location := state.get_neutral_location_by_id(defended_id)
+		var damaged_location: Dictionary = state.get_neutral_location_by_id(defended_id)
 		_check(damaged_location.get("guards", []).size() == 1, "defeat saves the surviving neutral guards")
 		_check(is_equal_approx(float(damaged_location.get("guardian_health", 0.0)), 61.0), "defeat saves the neutral guardian's remaining health")
 		state.player_cell = defended_cell + Vector2i(1, 0)
