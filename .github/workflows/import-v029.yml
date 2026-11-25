@@ -1,0 +1,88 @@
+name: Import Project Ember v0.29.0 archive
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: import-project-ember-v029
+  cancel-in-progress: false
+
+jobs:
+  import-archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify and extract the v0.29.0 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="Project-Ember-v0.29.0-Diplomacy-Expansion.zip"
+          test -s "$ARCHIVE"
+          mkdir -p "$RUNNER_TEMP/ember-import"
+          unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/ember-import/unpacked"
+
+          mapfile -t PROJECT_FILES < <(find "$RUNNER_TEMP/ember-import/unpacked" -type f -name project.godot -not -path '*/.godot/*')
+          if [ "${#PROJECT_FILES[@]}" -ne 1 ]; then
+            echo "Expected exactly one project.godot in the archive; found ${#PROJECT_FILES[@]}." >&2
+            printf '%s\n' "${PROJECT_FILES[@]}" >&2
+            exit 1
+          fi
+
+          SOURCE_DIR="$(dirname "${PROJECT_FILES[0]}")"
+          test -d "$SOURCE_DIR/scenes"
+          test -d "$SOURCE_DIR/scripts"
+
+          mkdir -p project_ember
+          rsync -a --delete --exclude='.godot/' "$SOURCE_DIR/" project_ember/
+
+          test -s project_ember/project.godot
+          test -d project_ember/scenes
+          test -d project_ember/scripts
+
+          VERSION="v0.29.0"
+          if [ -s project_ember/VERSION.txt ]; then
+            DETECTED="$(grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' project_ember/VERSION.txt | head -n1 || true)"
+            if [ -n "$DETECTED" ]; then VERSION="$DETECTED"; fi
+          fi
+          echo "PROJECT_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Update repository release information
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${PROJECT_VERSION:-v0.29.0}"
+          sed -i -E "s/Current source release: \*\*v[0-9.]+[^*]*\*\*/Current source release: **$VERSION — Diplomacy Expansion**/" README.md
+          cat > project_ember/IMPORT_INFO.txt <<EOF
+          Imported from Project-Ember-v0.29.0-Diplomacy-Expansion.zip
+          Detected project version: $VERSION
+          Source branch: main
+          Import is automated by GitHub Actions. Review CI results before merging.
+          EOF
+          echo "Imported project version: $VERSION"
+
+      - name: Create pull request with the imported project
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/import-project-ember-v0.29.0
+          delete-branch: false
+          commit-message: "Import Project Ember v0.29.0 source archive"
+          title: "Import Project Ember v0.29.0 — Diplomacy Expansion"
+          body: |
+            This PR replaces the stale tracked Godot source tree with the contents of the v0.29.0 Diplomacy Expansion ZIP stored in the repository root.
+
+            The import is performed on a GitHub-hosted runner. The existing main branch remains unchanged until this PR is reviewed and merged.
+
+            Please inspect the diff and wait for the project validation workflow before merging.
+          labels: |
+            automated-import
+            release
