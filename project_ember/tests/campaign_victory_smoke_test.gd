@@ -91,7 +91,8 @@ func _run() -> void:
 
 	var unlocked_before: Array = state.get("unlocked_types", []).duplicate()
 	var weakened_cities := [{"population": 5, "gold": 20, "buildings": [], "building_levels": {}, "province_improvements": [], "specialization": ""}]
-	VictoryCatalog.evaluate_turn(state, 30, weakened_cities, player_units, faction, relations, kingdoms, 8)
+	var weakened_relations := DiplomacyCatalog.create_initial_relations(9, 842173)
+	VictoryCatalog.evaluate_turn(state, 30, weakened_cities, player_units, faction, weakened_relations, kingdoms, 8)
 	_check(int(state.get("economic_hold_turns", 0)) == 0, "economic hold counter resets when a requirement is lost")
 	_check(int(state.get("diplomatic_hold_turns", 0)) == 0, "diplomatic hold counter resets when a requirement is lost")
 	_check(state.get("unlocked_types", []) == unlocked_before, "already unlocked victory paths remain available after progress changes")
