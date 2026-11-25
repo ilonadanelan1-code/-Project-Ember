@@ -4,6 +4,7 @@ const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 const BattleUnitScript = preload("res://scripts/battle_unit.gd")
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
+const CombatSpriteLibraryScript = preload("res://scripts/combat_sprite_library.gd")
 
 var _failures := 0
 
@@ -73,15 +74,31 @@ func _run() -> void:
 	await process_frame
 
 	var node_budget_ok := true
-	var two_mesh_budget_ok := true
+	var all_units_rendered := true
+	var mesh_renderer_count := 0
+	var sprite_renderer_count := 0
+	var expected_sprite_renderer_count := 0
 	for unit in units:
 		if _count_nodes(unit) > 8:
 			node_budget_ok = false
 		var visual_root := unit.get_node("VisualRoot") as Node3D
-		if visual_root.get_child_count() != 2:
-			two_mesh_budget_ok = false
+		var expects_sprite := is_instance_valid(CombatSpriteLibraryScript.get_frames(unit.team, unit.role))
+		if expects_sprite:
+			expected_sprite_renderer_count += 1
+			if visual_root.get_child_count() == 1 and visual_root.get_child(0) is AnimatedSprite3D:
+				sprite_renderer_count += 1
+			else:
+				all_units_rendered = false
+		else:
+			var body_mesh := visual_root.get_node_or_null("BodyMesh") as MeshInstance3D
+			var action_mesh := visual_root.get_node_or_null("ActionMesh") as MeshInstance3D
+			if visual_root.get_child_count() == 2 and is_instance_valid(body_mesh) and is_instance_valid(action_mesh):
+				mesh_renderer_count += 1
+			else:
+				all_units_rendered = false
 	_check(node_budget_ok, "all 50 live BattleUnit instances stay at or below eight nodes")
-	_check(two_mesh_budget_ok, "all 50 live units render their core model through two mesh instances")
+	_check(all_units_rendered and mesh_renderer_count + sprite_renderer_count == units.size(), "all 50 live units use their available merged-mesh or animated-sprite renderer")
+	_check(sprite_renderer_count == expected_sprite_renderer_count, "optional sprite assets are rendered when available and fall back safely when absent")
 
 	var material_count_after_spawn := VisualCacheScript.get_material_count()
 	units[0].take_damage(1.0)

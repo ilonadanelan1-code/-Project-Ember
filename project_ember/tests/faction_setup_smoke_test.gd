@@ -68,7 +68,8 @@ func _run() -> void:
 	_check(int(state.player_units[0].get("experience", 0)) == starting_xp + 20, "starting unit experience is applied to the initial army")
 	_check(state.get_player_faction_summary().contains("Речные люди"), "player faction summary reflects the selected people and culture")
 
-	state.city_buildings = ["farm"]
+	var starting_city_buildings: Array[String] = ["farm"]
+	state.city_buildings = starting_city_buildings
 	state.city_building_levels = {"farm": 1}
 	_check(int(state.get_city_income().get("food", 0)) == 11, "campaign city income applies selected faction effects")
 	_check(state.get_city_province_slots() == 1, "legacy faction has the original province slot count")

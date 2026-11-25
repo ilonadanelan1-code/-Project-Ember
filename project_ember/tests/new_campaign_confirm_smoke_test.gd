@@ -3,6 +3,7 @@ extends SceneTree
 const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
 const UiMetricsScript = preload("res://scripts/ui_metrics.gd")
 const GameSettingsScript = preload("res://scripts/game_settings.gd")
+const CampaignStateScript = preload("res://scripts/campaign_state.gd")
 
 var _failures := 0
 var _confirmed_count := 0
@@ -42,7 +43,8 @@ func _run() -> void:
 	_check(request_start >= 0 and perform_start > request_start, "strategy map has separate request and execution functions")
 	_check(request_block.contains("_restart_confirm_dialog.open()"), "new campaign request opens the confirmation dialog")
 	_check(not request_block.contains("CampaignState.new_campaign()"), "request path cannot clear campaign progress directly")
-	_check(perform_block.contains("CampaignState.new_campaign()"), "actual reset is isolated behind the confirmation callback")
+	_check(perform_block.contains("CampaignState.prepare_new_campaign(false)"), "confirmed reset enters the new-campaign faction setup flow")
+	_check(not perform_block.contains("CampaignState.new_campaign()"), "confirmed reset does not bypass faction setup")
 
 	var dialog := ConfirmDialogScript.new()
 	root.add_child(dialog)
@@ -55,6 +57,16 @@ func _run() -> void:
 	dialog.call("_on_confirm_button_down")
 	await create_timer(1.1).timeout
 	_check(_confirmed_count == 1 and not dialog.visible, "destructive reset confirmation emits only after a full one-second hold")
+
+	var campaign_state := CampaignStateScript.new()
+	root.add_child(campaign_state)
+	campaign_state.new_campaign(false)
+	campaign_state.turn_number = 7
+	campaign_state.city_gold = 1
+	campaign_state.prepare_new_campaign(false)
+	_check(campaign_state.faction_setup_pending, "confirmed new campaign waits for faction selection")
+	_check(campaign_state.turn_number == 1 and campaign_state.city_gold == 120, "new campaign reset clears prior turn and restores starting resources")
+	campaign_state.free()
 
 	dialog.queue_free()
 	await process_frame
