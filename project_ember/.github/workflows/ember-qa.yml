@@ -1,0 +1,102 @@
+name: Project Ember — Godot 4.7.2 QA
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+      - qa/godot-4.7.2-hex-terrain-v0.18.1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ember-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  godot-qa:
+    name: Import, smoke tests and visual captures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GODOT_VERSION: 4.7.2-stable
+      GODOT_ASSET: Godot_v4.7.2-stable_linux.x86_64.zip
+      GODOT_SHA256: cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4
+      GODOT_SILENCE_ROOT_WARNING: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      MESA_GL_VERSION_OVERRIDE: 4.5COMPAT
+      EMBER_QA_ARTIFACTS: ${{ github.workspace }}/artifacts/qa
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install software-rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            curl unzip xvfb mesa-utils libgl1-mesa-dri libglx-mesa0 \
+            libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libxcursor1 libxinerama1
+
+      - name: Download and verify official Godot 4.7.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl --fail --location --retry 3 \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/${GODOT_ASSET}" \
+            --output "$RUNNER_TEMP/godot/godot.zip"
+          echo "${GODOT_SHA256}  $RUNNER_TEMP/godot/godot.zip" | sha256sum --check --status
+          unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 2 -type f -name 'Godot_v4.7.2-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee "$RUNNER_TEMP/godot/version.txt"
+          grep -q '^4\.7\.2' "$RUNNER_TEMP/godot/version.txt"
+
+      - name: Validate project files and atlas checksums
+        run: |
+          mkdir -p "$EMBER_QA_ARTIFACTS"
+          python3 project_ember/tools/qa/static_validate.py project_ember | tee "$EMBER_QA_ARTIFACTS/static-validation.txt"
+
+      - name: Import all Godot resources and compile editor-side scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EMBER_QA_ARTIFACTS/logs"
+          "$GODOT_BIN" --headless --editor --path project_ember --import --quit --verbose \
+            2>&1 | tee "$EMBER_QA_ARTIFACTS/logs/godot-import.log"
+          if grep -En 'SCRIPT ERROR:|Parse Error:|Failed loading resource:|Cannot open file' \
+            "$EMBER_QA_ARTIFACTS/logs/godot-import.log"; then
+            echo "Godot import reported script or resource errors." >&2
+            exit 1
+          fi
+
+      - name: Parse every GDScript and run all smoke tests
+        run: project_ember/tools/qa/run_smoke_tests.sh project_ember
+
+      - name: Capture strategic map at four zoom levels
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EMBER_QA_ARTIFACTS/visual"
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            env LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=4.5COMPAT \
+            "$GODOT_BIN" --path project_ember --rendering-method gl_compatibility \
+              --rendering-driver opengl3 --audio-driver Dummy \
+              res://tools/qa/visual_capture.tscn -- "$EMBER_QA_ARTIFACTS/visual" \
+              2>&1 | tee "$EMBER_QA_ARTIFACTS/logs/visual-capture.log"
+
+      - name: Upload QA bundle (also on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-Ember-QA-${{ github.run_number }}
+          path: artifacts/qa/
+          if-no-files-found: warn
+          retention-days: 30

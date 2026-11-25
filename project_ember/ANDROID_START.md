@@ -1,40 +1,29 @@
-# Android Start — Project Ember v0.7.0
+# Android Start — Project Ember v0.18.1
 
-1. Extract the ZIP archive.
-2. Open Godot Android Editor and import the extracted `project.godot` file.
-3. Wait for project import, then press Play.
+1. Распакуй ZIP в отдельную папку. Предыдущую рабочую версию не перезаписывай.
+2. В Godot Android Editor открой `project.godot` из папки v0.18.1 и дождись импорта ресурсов.
+3. Запусти проект и открой новую или существующую кампанию.
+4. Проверь, что стратегическая карта загружается без красной ошибки `Invalid call` в `HexTerrainTileMapRenderer._build_feature_lookup()`.
+5. Проверь карту на близком и дальнем масштабе. Убедись, что туман войны, города, армии и дороги отображаются поверх TileMap.
+6. Пришли скриншот карты и новый Performance Report. По ним проверим визуальный слой и нагрузку на Android.
 
-## Strategy, city and recruitment
+## Исправление v0.18.1
 
-- Build Barracks to unlock swordsmen and spearmen.
-- Build an Archery Range (requires Barracks) to unlock archers.
-- Build a Stable (requires Barracks) to unlock cavalry.
-- Army capacity is 24 troops. New recruits join the strategic army when their production order completes.
-- Open a city to view the ruler's level, experience, wounds and skill points.
-- Spend skill points in Leadership, Tactics or Might. Each branch can be raised to rank 5.
+Godot 4 `TileSetAtlasSource` не имеет метода `get_tiles()`. Перебор атласа теперь использует поддерживаемые методы базового `TileSetSource`: `get_tiles_count()` и `get_tile_id(index)`. Тот же API используется для подсчёта 448 тайлов в диагностике.
 
-## Commander and tactical battle
+## Состав Hex Terrain Bundle
 
-- The ruler appears on the battlefield as a commander. The enemy army also has a commander.
-- A commander's passive aura strengthens nearby friendly troops.
-- Tap **БОЕВОЙ КЛИЧ** during battle to heal nearby allies and give them a temporary damage and movement bonus. The button shows its remaining cooldown.
-- Keyboard shortcut for Battle Cry: `Q`.
-- Commander experience is earned from battle kills, damage and victory. Each level grants one skill point.
-- If the ruler is defeated, the commander returns wounded and recovers over subsequent campaign turns; the campaign save retains health and progression.
+- 448 тайлов в шести 64px атласах.
+- Один общий TileSet с pointy-top hex geometry и TerrainConnect.
+- Два слоя TileMapLayer: поверхность и декоративные элементы.
+- Сохранены существующие генератор мира, сохранения, туман войны, города, армии, дороги и территориальные границы.
+- Атласы пустыни и снега включены в пакет, но пока не подключены к текущему генератору биомов.
 
-## Tactical controls
+Это исходный Godot-проект, не APK. Статические проверки пройдены; импорт ресурсов, запуск сцены и проверка на физическом Android-устройстве ещё требуют подтверждения.
 
-- Tap a friendly unit to select it. Tap another friendly unit with **ДОБОР** enabled to add/remove it.
-- Drag across the battlefield to select all friendly units inside the rectangle.
-- Tap an enemy with units selected to focus their attacks on it.
-- Tap empty ground to move selected troops to a formation. Toggle **МАРШ** for attack-move orders.
-- **ДЕРЖАТЬ** defends the current positions; **СТОП** cancels movement; **ОТСТУП** orders selected troops to withdraw.
-- Cycle **ЛИНИЯ / КОЛОННА / КЛИН** to change formation layout.
-- Use **ЗАПИСЬ** and **ГР. 1–4** to save and recall groups on touch devices.
-- On a keyboard, use `A` for attack-move, `H` for hold, `S` for stop, `Q` for Battle Cry, `R` to restart the isolated battle, and arrow keys to pan.
+## QA pipeline
 
-## Validation status
-
-GitHub Actions validates GDScript import, strategic/tactical scene startup, campaign economy/recruitment/persistence, the four-role unit roster and hero progression/commander abilities on Godot 4.3.
-
-The v0.6.0 source was previously confirmed to run on the target phone. This v0.7.0 update still needs a fresh Android Editor import and hands-on test of commander visuals, Battle Cry touch input, skill buttons, UI scaling and battle balance. Keep the previous ZIP until those checks are complete.
+- Целевая версия движка — Godot 4.7.2 stable.
+- В проекте есть smoke tests, статическая проверка ресурсов и визуальный capture runner.
+- GitHub Actions workflow запускает импорт проекта и тесты при публикации изменений в репозитории.
+- CI на Mesa/software rendering не заменяет измерения производительности на Android GPU.

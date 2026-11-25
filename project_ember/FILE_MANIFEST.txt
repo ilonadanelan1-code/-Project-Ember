@@ -1,0 +1,121 @@
+Project Ember v0.18.1 — source project manifest
+
+Hex Terrain Bundle integration:
+  assets/hex_terrain/tileset_64.tres
+  assets/hex_terrain/LICENSE.txt
+  assets/hex_terrain/grassland_forest_64.webp
+  assets/hex_terrain/desert_badlands_64.webp
+  assets/hex_terrain/snow_tundra_64.webp
+  assets/hex_terrain/swamp_marsh_64.webp
+  assets/hex_terrain/water_coast_64.webp
+  assets/hex_terrain/mountains_hills_64.webp
+
+New integration code:
+  scripts/hex_terrain_tilemap_renderer.gd
+  tests/hex_tileset_renderer_smoke_test.gd
+  tests/hex_tileset_renderer_smoke_test.tscn
+
+Complete project file listing follows.
+.github/README_QA.md
+.github/workflows/ember-qa.yml
+.gitignore
+ANDROID_START.md
+ART_BIBLE.md
+BUILD_INFO.txt
+CHANGELOG.md
+DESIGN.md
+FILE_MANIFEST.txt
+HERO_PROGRESSION.md
+INSTALL_EMBER_QA_PIPELINE.sh
+PACKAGE_INFO.txt
+STATIC_VALIDATION.txt
+TACTICAL_CONTROLS.md
+TASKS.md
+VERSION.txt
+VISUAL_OVERHAUL.md
+assets/hex_terrain/LICENSE.txt
+assets/hex_terrain/desert_badlands_64.webp
+assets/hex_terrain/grassland_forest_64.webp
+assets/hex_terrain/mountains_hills_64.webp
+assets/hex_terrain/snow_tundra_64.webp
+assets/hex_terrain/swamp_marsh_64.webp
+assets/hex_terrain/tileset_64.tres
+assets/hex_terrain/water_coast_64.webp
+assets/map/city_marker_atlas.png
+assets/map/city_marker_atlas.png.import
+assets/map/world_detail_atlas.png
+assets/map/world_detail_atlas.png.import
+assets/map/world_surface_atlas.png
+assets/map/world_surface_atlas.png.import
+assets/map/world_surface_manifest.json
+project.godot
+scenes/combat_test.tscn
+scenes/strategy_map.tscn
+scripts/art_palette.gd
+scripts/battle_unit.gd
+scripts/battle_unit_visuals.gd
+scripts/battlefield_biomes.gd
+scripts/battlefield_visuals.gd
+scripts/bottom_sheet.gd
+scripts/campaign_state.gd
+scripts/combat_effects.gd
+scripts/combat_projectile.gd
+scripts/combat_test.gd
+scripts/confirm_dialog.gd
+scripts/game_settings.gd
+scripts/haptics.gd
+scripts/hex_map_batch_renderer.gd
+scripts/hex_terrain_tilemap_renderer.gd
+scripts/icon_button.gd
+scripts/kingdom_ai.gd
+scripts/perf_overlay.gd
+scripts/performance_report.gd
+scripts/safe_area_container.gd
+scripts/settings_panel.gd
+scripts/strategic_map_details.gd
+scripts/strategy_map.gd
+scripts/toast.gd
+scripts/toast_manager.gd
+scripts/touch_gesture_router.gd
+scripts/ui_metrics.gd
+scripts/ui_theme.gd
+scripts/unit_catalog.gd
+scripts/visual_cache.gd
+scripts/world_detail_batch_renderer.gd
+scripts/world_generator.gd
+tests/atomic_save_smoke_test.gd
+tests/battlefield_biome_smoke_test.gd
+tests/campaign_smoke_test.gd
+tests/combat_effects_smoke_test.gd
+tests/foundation_smoke_test.gd
+tests/hero_progression_smoke_test.gd
+tests/hex_tileset_renderer_smoke_test.gd
+tests/hex_tileset_renderer_smoke_test.tscn
+tests/map_batch_renderer_smoke_test.gd
+tests/map_batch_renderer_smoke_test.tscn
+tests/mobile_hud_layout_smoke_test.gd
+tests/new_campaign_confirm_smoke_test.gd
+tests/performance_report_smoke_test.gd
+tests/strategic_map_art_smoke_test.gd
+tests/touch_gesture_router_smoke_test.gd
+tests/ui_foundation_smoke_test.gd
+tests/ui_metrics_smoke_test.gd
+tests/unit_roster_smoke_test.gd
+tests/visual_overhaul_smoke_test.gd
+tests/world_campaign_smoke_test.gd
+tests/world_detail_batch_smoke_test.gd
+tools/qa/README.md
+tools/qa/parse_all_scripts.gd
+tools/qa/parse_all_scripts.tscn
+tools/qa/run_smoke_tests.sh
+tools/qa/static_validate.py
+tools/qa/visual_capture.gd
+tools/qa/visual_capture.tscn
+ui/icons/cancel.svg
+ui/icons/cancel.svg.import
+ui/icons/confirm.svg
+ui/icons/confirm.svg.import
+ui/icons/menu.svg
+ui/icons/menu.svg.import
+ui/icons/settings.svg
+ui/icons/settings.svg.import

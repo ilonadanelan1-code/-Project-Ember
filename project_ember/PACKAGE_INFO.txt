@@ -1,1 +1,5 @@
-Project Ember v0.7.0 — Godot 4.3 source project. Import project.godot in Godot Android Editor. Includes persistent ruler progression and battlefield commander abilities.
+Project Ember v0.18.1 — Hex Terrain API Fix
+Source project ZIP for Godot 4.7.2 stable / GL Compatibility.
+Includes the Hex Terrain Bundle integration (448 pointy-top tiles, 6 lossless 64px atlases, native TileMapLayer/TerrainConnect renderer), existing gameplay and save systems, 19 GDScript smoke tests, a pinned Godot 4.7.2 GitHub Actions QA workflow, static resource validation and four-scale visual screenshot capture. Not an APK.
+
+Android runtime validation still requires the physical device.

@@ -1,0 +1,30 @@
+LICENCE - Hex Terrain Bundle: Packs 01-06
+
+In short: use it in your games and projects, change it as you like for your own use,
+but do not resell or share the assets themselves.
+
+YOU MAY
+  * Use these assets in commercial and non-commercial games, apps, videos, prototypes,
+    tabletop or printed maps and other projects (unlimited projects).
+  * Modify, recolour, crop or combine the assets for use in your own projects.
+  * Ship the assets inside your finished game or project (for example packed in its build or data files).
+
+YOU MAY NOT
+  * Resell, redistribute, share or give away the assets, or modified/derivative versions of them,
+    as assets, asset packs, tilesets, sprite sheets or similar, on their own or bundled
+    (for example on asset stores or file-sharing sites), whether free or paid.
+    This applies equally to bundles from this seller (such as the terrain bundle zip):
+    files from a bundle follow the same terms as the individual packs.
+  * Claim the assets as your own original artwork.
+
+CREDIT
+  Credit is appreciated but not required.
+
+ABOUT THIS LICENCE
+  This licence is a permission from the seller to the buyer. The seller does not claim a
+  copyright registration in these files, and no person drew the pixels; they were drawn by a program.
+
+NO WARRANTY
+  The assets are provided "as is", without warranty of any kind, express or implied.
+  In no event shall the seller be liable for any claim, damages or other liability
+  arising from the use of the assets.
