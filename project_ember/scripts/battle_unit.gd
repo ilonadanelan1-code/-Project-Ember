@@ -3,7 +3,6 @@ extends CharacterBody3D
 
 const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 const CombatSpriteLibraryScript = preload("res://scripts/combat_sprite_library.gd")
-const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
 const VisualCacheScript = preload("res://scripts/visual_cache.gd")
 const Palette = preload("res://scripts/art_palette.gd")
 const BattlefieldRulesScript = preload("res://scripts/battlefield_rules.gd")
