@@ -14,6 +14,7 @@ const CityDevelopmentCatalogScript = preload("res://scripts/city_development_cat
 const WorldLocationCatalogScript = preload("res://scripts/world_location_catalog.gd")
 const FactionCatalogScript = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
+const CampaignVictoryCatalogScript = preload("res://scripts/campaign_victory_catalog.gd")
 const HexTerrainTileMapRendererScript = preload("res://scripts/hex_terrain_tilemap_renderer.gd")
 const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const GameIconCatalogScript = preload("res://scripts/game_icon_catalog.gd")
@@ -91,6 +92,14 @@ var _world_event_panel: PanelContainer
 var _world_event_title_label: Label
 var _world_event_body_label: Label
 var _world_event_choice_buttons: Array[Button] = []
+var _victory_panel: PanelContainer
+var _victory_summary_label: Label
+var _victory_detail_labels: Dictionary = {}
+var _victory_select_buttons: Dictionary = {}
+var _victory_finish_button: Button
+var _victory_continue_button: Button
+var _selected_victory_type: String = ""
+var _victory_prompt_shown: bool = false
 var _faction_setup_panel: PanelContainer
 var _faction_people_option: OptionButton
 var _faction_culture_option: OptionButton
@@ -780,6 +789,7 @@ func _create_ui() -> void:
 	_set_button_icon(_found_city_button, GameIconCatalogScript.unit_icon("worker"))
 	_add_button(more_grid, "НАСТРОЙКИ", _open_settings)
 	_kingdoms_button = _add_button(more_grid, "КОРОЛЕВСТВА", _open_kingdoms_panel)
+	_add_button(more_grid, "ЦЕЛИ ПОБЕДЫ", _open_campaign_victory_panel)
 
 	_bottom_panel = PanelContainer.new()
 	_bottom_panel.name = "MobileHudQuickDock"
@@ -805,6 +815,7 @@ func _create_ui() -> void:
 	_create_city_panel(root)
 	_create_kingdoms_panel(root)
 	_create_world_event_panel(root)
+	_create_campaign_victory_panel(root)
 	_create_faction_setup_panel(root)
 	_settings_panel = SettingsPanelScript.new()
 	_settings_panel.pause_game_on_open = false
@@ -905,6 +916,180 @@ func _resolve_world_event_choice(choice_index: int) -> void:
 	_refresh_ui()
 	queue_redraw()
 	Haptics.confirm(15)
+
+
+func _create_campaign_victory_panel(root: Control) -> void:
+	_victory_panel = PanelContainer.new()
+	_victory_panel.name = "CampaignVictoryPanel"
+	_victory_panel.anchor_left = 0.06
+	_victory_panel.anchor_top = 0.10
+	_victory_panel.anchor_right = 0.94
+	_victory_panel.anchor_bottom = 0.90
+	_victory_panel.visible = false
+	_victory_panel.z_index = 14
+	root.add_child(_victory_panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(10.0)))
+	margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(8.0)))
+	margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(10.0)))
+	margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(8.0)))
+	_victory_panel.add_child(margin)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(7.0)))
+	margin.add_child(content)
+	var header := HBoxContainer.new()
+	content.add_child(header)
+	var title := Label.new()
+	title.text = "ПУТИ К ПОБЕДЕ"
+	title.add_theme_font_size_override("font_size", UiThemeScript.font_size(19))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_campaign_victory_panel)
+	close_button.custom_minimum_size = Vector2(UiMetrics.dp(104.0), UiThemeScript.touch_target(48.0))
+
+	_victory_summary_label = Label.new()
+	_victory_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_victory_summary_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_victory_summary_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
+	content.add_child(_victory_summary_label)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", int(UiMetrics.dp(6.0)))
+	scroll.add_child(rows)
+
+	var row_titles := {
+		"military": "ВОЕННОЕ ПРЕВОСХОДСТВО",
+		"economic": "ЭКОНОМИЧЕСКОЕ ПРЕВОСХОДСТВО",
+		"diplomatic": "ДИПЛОМАТИЧЕСКОЕ ПРЕВОСХОДСТВО",
+	}
+	for type_id in CampaignVictoryCatalogScript.VICTORY_TYPES:
+		var row := PanelContainer.new()
+		rows.add_child(row)
+		var row_margin := MarginContainer.new()
+		row_margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(8.0)))
+		row_margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(5.0)))
+		row_margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(8.0)))
+		row_margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(5.0)))
+		row.add_child(row_margin)
+		var row_content := VBoxContainer.new()
+		row_content.add_theme_constant_override("separation", int(UiMetrics.dp(3.0)))
+		row_margin.add_child(row_content)
+		var row_title := Label.new()
+		row_title.text = str(row_titles.get(type_id, type_id.to_upper()))
+		row_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
+		row_content.add_child(row_title)
+		var detail := Label.new()
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		detail.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
+		detail.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
+		row_content.add_child(detail)
+		var select_button := _add_button(row_content, "ВЫБРАТЬ", _select_campaign_victory.bind(type_id))
+		select_button.custom_minimum_size.y = UiThemeScript.touch_target(48.0)
+		_victory_detail_labels[type_id] = detail
+		_victory_select_buttons[type_id] = select_button
+
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", int(UiMetrics.dp(6.0)))
+	content.add_child(footer)
+	_victory_finish_button = _add_button(footer, "ЗАВЕРШИТЬ КАМПАНИЮ", _finish_campaign_victory)
+	_victory_continue_button = _add_button(footer, "ПРОДОЛЖИТЬ ИГРУ", _continue_campaign_victory)
+
+
+func _open_campaign_victory_panel() -> void:
+	if is_instance_valid(_map_more_panel) and _map_more_panel.visible:
+		_toggle_map_commands()
+	if is_instance_valid(_victory_panel):
+		_victory_panel.visible = true
+		_refresh_campaign_victory_panel()
+
+
+func _close_campaign_victory_panel() -> void:
+	if is_instance_valid(_victory_panel):
+		_victory_panel.visible = false
+
+
+func _select_campaign_victory(victory_type: String) -> void:
+	var progress := CampaignState.get_campaign_victory_progress()
+	var unlocked: Array = progress.get("unlocked_types", [])
+	if not unlocked.has(victory_type):
+		return
+	_selected_victory_type = victory_type
+	_refresh_campaign_victory_panel()
+
+
+func _finish_campaign_victory() -> void:
+	if _selected_victory_type.is_empty():
+		return
+	if CampaignState.choose_campaign_victory(_selected_victory_type, false):
+		_message_text = "Кампания завершена: " + _selected_victory_type
+		_refresh_campaign_victory_panel()
+		_refresh_ui()
+		Haptics.confirm(20)
+
+
+func _continue_campaign_victory() -> void:
+	if _selected_victory_type.is_empty():
+		return
+	if CampaignState.choose_campaign_victory(_selected_victory_type, true):
+		_message_text = "Победа достигнута. Кампания продолжается в свободном режиме."
+		_close_campaign_victory_panel()
+		_refresh_ui()
+		Haptics.confirm(15)
+
+
+func _refresh_campaign_victory_panel() -> void:
+	if not is_instance_valid(_victory_panel):
+		return
+	var progress := CampaignState.get_campaign_victory_progress()
+	var unlocked: Array = progress.get("unlocked_types", [])
+	var status := str(CampaignState.campaign_victory.get("status", "none"))
+	var wins := int(progress.get("military_wins", 0))
+	var army_size := int(progress.get("army_size", 0))
+	var military_text := "Победы над разными державами: %d / %d. Живых бойцов: %d / %d." % [
+		wins, int(progress.get("military_required", 6)), army_size, int(progress.get("military_army_required", 8))
+	]
+	var economic_text := "Метрополии: %d / %d. Золото в казнах: %d / %d. Чистый доход: %d / %d за ход. Удержание: %d / %d ходов." % [
+		int(progress.get("metropolises", 0)), int(progress.get("metropolises_required", 2)),
+		int(progress.get("total_gold", 0)), int(progress.get("gold_required", 600)),
+		int(progress.get("net_gold_income", 0)), int(progress.get("net_gold_required", 12)),
+		int(progress.get("economic_hold_turns", 0)), int(progress.get("economic_hold_required", 5))
+	]
+	var diplomatic_text := "Дружественные державы: %d / %d. Действующие договоры: %d / %d. Союзы и вассалитет: %d / %d. Удержание: %d / %d ходов." % [
+		int(progress.get("friendly_kingdoms", 0)), int(progress.get("friendly_required", 5)),
+		int(progress.get("active_positive_treaties", 0)), int(progress.get("treaties_required", 3)),
+		int(progress.get("major_treaties", 0)), int(progress.get("major_treaties_required", 2)),
+		int(progress.get("diplomatic_hold_turns", 0)), int(progress.get("diplomatic_hold_required", 3))
+	]
+	_victory_detail_labels["military"].text = military_text
+	_victory_detail_labels["economic"].text = economic_text
+	_victory_detail_labels["diplomatic"].text = diplomatic_text
+
+	for type_id in CampaignVictoryCatalogScript.VICTORY_TYPES:
+		var button: Button = _victory_select_buttons[type_id]
+		var is_unlocked := unlocked.has(type_id)
+		button.disabled = not is_unlocked or status == "claimed"
+		button.text = "ВЫБРАНО" if _selected_victory_type == type_id else ("ВЫБРАТЬ ПУТЬ" if is_unlocked else "УСЛОВИЯ НЕ ВЫПОЛНЕНЫ")
+
+	if status == "claimed":
+		_victory_summary_label.text = "Кампания завершена на ходу %d. Победа: %s. Чтобы начать заново, используй «Новая кампания»." % [
+			int(CampaignState.campaign_victory.get("turn", CampaignState.turn_number)),
+			str(CampaignState.campaign_victory.get("type", "")).to_upper()
+		]
+	elif status == "continued":
+		_victory_summary_label.text = "Победа уже достигнута на ходу %d. Кампания продолжается в свободном режиме." % int(CampaignState.campaign_victory.get("turn", 0))
+	else:
+		_victory_summary_label.text = "Ход %d. Проверка путей победы начинается с %d-го хода. Выбери достигнутый путь." % [CampaignState.turn_number, CampaignVictoryCatalogScript.MIN_CAMPAIGN_TURN]
+	_victory_finish_button.disabled = _selected_victory_type.is_empty() or not unlocked.has(_selected_victory_type) or status == "claimed"
+	_victory_continue_button.disabled = _victory_finish_button.disabled or status == "continued"
+	_victory_finish_button.text = "КАМПАНИЯ ЗАВЕРШЕНА" if status == "claimed" else "ЗАВЕРШИТЬ КАМПАНИЮ"
+	_victory_continue_button.text = "СВОБОДНЫЙ РЕЖИМ" if status == "continued" else "ПРОДОЛЖИТЬ ИГРУ"
 
 
 func _create_faction_setup_panel(root: Control) -> void:
@@ -2109,6 +2294,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _handle_map_tap(screen_position: Vector2) -> void:
+	if str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
+		return
 	if CampaignState.faction_setup_pending or CampaignState.battle_in_progress:
 		return
 	var cell := _screen_to_cell(screen_position)
@@ -2395,12 +2582,13 @@ func _refresh_ui() -> void:
 		var selected_kingdom_valid := _selected_kingdom_id >= 0 and _selected_kingdom_id < CampaignState.kingdoms.size()
 		var selected_army_cell := WorldGeneratorScript.array_to_cell(CampaignState.kingdoms[_selected_kingdom_id].get("army_cell", [])) if selected_kingdom_valid else CampaignState.enemy_cell
 		_attack_button.disabled = not selected_kingdom_valid or _hex_distance(CampaignState.player_cell, selected_army_cell) > 1 or CampaignState.player_units.is_empty()
+	var campaign_finished := str(CampaignState.campaign_victory.get("status", "none")) == "claimed"
 	if is_instance_valid(_turn_button):
-		_turn_button.disabled = CampaignState.campaign_lost
+		_turn_button.disabled = CampaignState.campaign_lost or campaign_finished
 	if is_instance_valid(_selection_button):
-		_selection_button.disabled = CampaignState.campaign_lost
+		_selection_button.disabled = CampaignState.campaign_lost or campaign_finished
 	if is_instance_valid(_city_button):
-		_city_button.disabled = CampaignState.cities.is_empty() or CampaignState.campaign_lost
+		_city_button.disabled = CampaignState.cities.is_empty() or CampaignState.campaign_lost or campaign_finished
 	if is_instance_valid(_found_city_button):
 		_found_city_button.disabled = not CampaignState.settler_active or not CampaignState.can_found_city(CampaignState.settler_cell) or not _is_traversable(CampaignState.settler_cell)
 	if is_instance_valid(_city_panel) and _city_panel.visible:
@@ -2408,6 +2596,10 @@ func _refresh_ui() -> void:
 	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
 		_refresh_kingdoms_panel()
 	_refresh_world_event_panel()
+	_refresh_campaign_victory_panel()
+	if str(CampaignState.campaign_victory.get("status", "none")) == "offered" and not _victory_prompt_shown:
+		_victory_prompt_shown = true
+		_open_campaign_victory_panel()
 
 
 func _get_visible_enemy_unit_count() -> int:
