@@ -1,5 +1,17 @@
 extends Node3D
 
+const Palette = preload("res://scripts/art_palette.gd")
+
+const UiThemeScript = preload("res://scripts/ui_theme.gd")
+const SettingsPanelScript = preload("res://scripts/settings_panel.gd")
+const PerfOverlayScript = preload("res://scripts/perf_overlay.gd")
+const CombatEffectsScript = preload("res://scripts/combat_effects.gd")
+const SafeAreaContainerScript = preload("res://scripts/safe_area_container.gd")
+const TouchGestureRouterScript = preload("res://scripts/touch_gesture_router.gd")
+const ToastManagerScript = preload("res://scripts/toast_manager.gd")
+
+const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
+
 const FIELD_SIZE := Vector2(38.0, 26.0)
 const PLAYER_TEAM := 0
 const ENEMY_TEAM := 1
@@ -15,6 +27,7 @@ enum FormationMode {
 
 var _camera: Camera3D
 var _ground_body: StaticBody3D
+var _battlefield_biome_name: String = "Равнина"
 var _selected_units: Array[BattleUnit] = []
 var _attack_move_enabled: bool = false
 var _additive_selection: bool = false
@@ -31,6 +44,7 @@ var _formation_button: Button
 var _pause_button: Button
 var _speed_button: Button
 var _result_panel: PanelContainer
+var _settings_panel: SettingsPanel
 var _result_title: Label
 var _result_details: Label
 var _formation_mode: FormationMode = FormationMode.LINE
@@ -49,14 +63,24 @@ var _control_group_buttons: Dictionary = {}
 var _group_store_mode: bool = false
 var _group_store_button: Button
 var _rally_button: Button
+var _safe_area: SafeAreaContainer
+var _gesture_router: TouchGestureRouter
+var _toast_manager: ToastManager
+var _commands_panel: PanelContainer
+var _commands_button: Button
 
 
 func _ready() -> void:
+	get_tree().set_auto_accept_quit(false)
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	_create_environment()
+	var combat_effects := CombatEffectsScript.new()
+	combat_effects.name = "CombatEffects"
+	add_child(combat_effects)
 	_spawn_armies()
 	_create_ui()
+	add_child(PerfOverlayScript.new())
 	_refresh_ui()
 
 
@@ -71,39 +95,19 @@ func _process(delta: float) -> void:
 
 
 func _create_environment() -> void:
-	var ground := MeshInstance3D.new()
-	var ground_mesh := PlaneMesh.new()
-	ground_mesh.size = FIELD_SIZE
-	ground.mesh = ground_mesh
-	var ground_material := StandardMaterial3D.new()
-	ground_material.albedo_color = Color(0.20, 0.29, 0.20)
-	ground_material.roughness = 1.0
-	ground.material_override = ground_material
-	add_child(ground)
+	var biome_id := CampaignState.battlefield_biome_id if CampaignState.battle_in_progress else "grassland"
+	var biome_seed := CampaignState.battlefield_seed if CampaignState.battle_in_progress else 841207
+	var visual_data: Dictionary = BattlefieldVisualsScript.create(
+		self,
+		FIELD_SIZE,
+		GameSettings.graphics_quality,
+		biome_id,
+		biome_seed
+	)
+	_ground_body = visual_data.get("ground_body") as StaticBody3D
+	_camera = visual_data.get("camera") as Camera3D
+	_battlefield_biome_name = str(visual_data.get("biome_name", "Равнина"))
 
-	_ground_body = StaticBody3D.new()
-	_ground_body.collision_layer = 1
-	_ground_body.collision_mask = 0
-	var ground_collision := CollisionShape3D.new()
-	var ground_shape := BoxShape3D.new()
-	ground_shape.size = Vector3(FIELD_SIZE.x, 0.2, FIELD_SIZE.y)
-	ground_collision.shape = ground_shape
-	ground_collision.position.y = -0.1
-	_ground_body.add_child(ground_collision)
-	add_child(_ground_body)
-
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-52.0, -25.0, 0.0)
-	light.shadow_enabled = false
-	add_child(light)
-
-	_camera = Camera3D.new()
-	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = 27.0
-	_camera.position = Vector3(0.0, 23.0, 16.0)
-	add_child(_camera)
-	_camera.look_at(Vector3.ZERO, Vector3.UP)
-	_camera.current = true
 
 
 func _spawn_armies() -> void:
@@ -204,6 +208,7 @@ func _activate_commander_rally() -> void:
 				var activated := unit.activate_rally()
 				_refresh_ui()
 				if activated:
+					Haptics.confirm(40)
 					_help_label.text = "БОЕВОЙ КЛИЧ! Ближайшие отряды восстановили силы и получили боевой бонус."
 				else:
 					_help_label.text = "Боевой клич пока недоступен или рядом нет союзных отрядов."
@@ -227,88 +232,93 @@ func _create_ui() -> void:
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 
-	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(root)
+	_safe_area = SafeAreaContainerScript.new()
+	layer.add_child(_safe_area)
+	var root := _safe_area.get_content_root()
+	root.theme = UiThemeScript.create_theme(GameSettings.ui_scale)
+	_gesture_router = TouchGestureRouterScript.new()
+	_gesture_router.name = "TouchGestureRouter"
+	_gesture_router.set_ui_root(root)
+	root.add_child(_gesture_router)
+	_toast_manager = ToastManagerScript.new()
+	_toast_manager.name = "ToastManager"
+	root.add_child(_toast_manager)
 	_create_selection_marquee(root)
 
 	var top_panel := PanelContainer.new()
+	top_panel.name = "BattleHudTop"
 	top_panel.anchor_left = 0.0
 	top_panel.anchor_top = 0.0
 	top_panel.anchor_right = 1.0
 	top_panel.anchor_bottom = 0.0
-	top_panel.offset_left = 10.0
-	top_panel.offset_top = 8.0
-	top_panel.offset_right = -10.0
-	top_panel.offset_bottom = 128.0
-	top_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.035, 0.055, 0.075, 0.92)))
+	top_panel.offset_left = UiMetrics.dp(10.0)
+	top_panel.offset_top = UiMetrics.dp(8.0)
+	top_panel.offset_right = -UiMetrics.dp(10.0)
+	top_panel.offset_bottom = UiMetrics.dp(62.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
-	top_box.add_theme_constant_override("separation", 1)
+	top_box.add_theme_constant_override("separation", int(UiMetrics.dp(1.0)))
 	top_panel.add_child(top_box)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 18)
-	_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
+	_status_label.clip_text = true
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	top_box.add_child(_status_label)
 
 	_help_label = Label.new()
-	_help_label.add_theme_font_size_override("font_size", 13)
-	_help_label.add_theme_color_override("font_color", Color(0.85, 0.91, 0.96))
+	_help_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(11))
+	_help_label.add_theme_color_override("font_color", Palette.UI_TEXT_HELP)
+	_help_label.clip_text = true
+	_help_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	top_box.add_child(_help_label)
 
-	var group_row := HBoxContainer.new()
-	group_row.add_theme_constant_override("separation", 5)
-	top_box.add_child(group_row)
-	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ: ВЫКЛ", _toggle_group_store_mode)
-	_group_store_button.custom_minimum_size = Vector2(0.0, 40.0)
-	_group_store_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for group_id in range(1, 5):
-		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
-		group_button.custom_minimum_size = Vector2(0.0, 40.0)
-		group_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_control_group_buttons[group_id] = group_button
+	_commands_panel = PanelContainer.new()
+	_commands_panel.name = "BattleCommandsDrawer"
+	_commands_panel.anchor_left = 0.0
+	_commands_panel.anchor_top = 1.0
+	_commands_panel.anchor_right = 1.0
+	_commands_panel.anchor_bottom = 1.0
+	_commands_panel.offset_left = UiMetrics.dp(8.0)
+	_commands_panel.offset_top = -UiMetrics.dp(254.0)
+	_commands_panel.offset_right = -UiMetrics.dp(8.0)
+	_commands_panel.offset_bottom = -UiMetrics.dp(94.0)
+	_commands_panel.visible = false
+	root.add_child(_commands_panel)
 
-	# Four compact rows: selection/orders, formation/retreat, battle controls and commander ability.
-	var bottom_panel := Panel.new()
-	bottom_panel.anchor_left = 0.0
-	bottom_panel.anchor_top = 1.0
-	bottom_panel.anchor_right = 1.0
-	bottom_panel.anchor_bottom = 1.0
-	bottom_panel.offset_left = 8.0
-	bottom_panel.offset_top = -258.0
-	bottom_panel.offset_right = -8.0
-	bottom_panel.offset_bottom = -8.0
-	bottom_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.025, 0.035, 0.05, 0.96)))
-	root.add_child(bottom_panel)
+	var drawer_margin := MarginContainer.new()
+	drawer_margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(6.0)))
+	drawer_margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(5.0)))
+	drawer_margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(6.0)))
+	drawer_margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(5.0)))
+	_commands_panel.add_child(drawer_margin)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 7)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 7)
-	bottom_panel.add_child(margin)
+	var drawer_scroll := ScrollContainer.new()
+	drawer_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drawer_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	drawer_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	drawer_margin.add_child(drawer_scroll)
+
+	var drawer_content := VBoxContainer.new()
+	drawer_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drawer_content.add_theme_constant_override("separation", int(UiMetrics.dp(5.0)))
+	drawer_scroll.add_child(drawer_content)
 
 	var buttons := GridContainer.new()
 	buttons.columns = 4
-	buttons.add_theme_constant_override("h_separation", 7)
-	buttons.add_theme_constant_override("v_separation", 5)
+	buttons.add_theme_constant_override("h_separation", int(UiMetrics.dp(5.0)))
+	buttons.add_theme_constant_override("v_separation", int(UiMetrics.dp(4.0)))
 	buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buttons.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(buttons)
+	drawer_content.add_child(buttons)
 
-	_add_action_button(buttons, "ВСЕ", _select_all_player_units)
 	_add_button = _add_action_button(buttons, "ДОБОР: ВЫКЛ", _toggle_additive_selection)
-	_mode_button = _add_action_button(buttons, "МАРШ: ВЫКЛ", _toggle_order_mode)
 	_add_action_button(buttons, "ДЕРЖАТЬ", _hold_selected_units)
 	_add_action_button(buttons, "СТОП", _stop_selected_units)
 	_add_action_button(buttons, "СНЯТЬ", _clear_selection_from_button)
 	_formation_button = _add_action_button(buttons, "СТРОЙ: ЛИНИЯ", _cycle_formation_mode)
 	_add_action_button(buttons, "ОТСТУП", _retreat_selected_units)
-	_pause_button = _add_action_button(buttons, "ПАУЗА", _toggle_pause)
 	_speed_button = _add_action_button(buttons, "СКОРОСТЬ: 1x", _cycle_speed)
 	_add_action_button(buttons, "ЗУМ +", _zoom_in)
 	_add_action_button(buttons, "ЗУМ -", _zoom_out)
@@ -317,7 +327,44 @@ func _create_ui() -> void:
 		if child is Button:
 			_combat_buttons.append(child as Button)
 
+	var group_row := HBoxContainer.new()
+	group_row.add_theme_constant_override("separation", int(UiMetrics.dp(4.0)))
+	drawer_content.add_child(group_row)
+	_group_store_button = _add_action_button(group_row, "ЗАПИСЬ", _toggle_group_store_mode)
+	_group_store_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	for group_id in range(1, 5):
+		var group_button := _add_action_button(group_row, "ГР. %d" % group_id, _on_control_group_button.bind(group_id))
+		group_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+		_control_group_buttons[group_id] = group_button
+	var settings_button := _add_action_button(group_row, "НАСТРОЙКИ", _open_settings)
+	settings_button.custom_minimum_size = Vector2(UiMetrics.dp(100.0), UiThemeScript.touch_target(48.0))
+
+	var bottom_panel := PanelContainer.new()
+	bottom_panel.name = "BattleHudQuickDock"
+	bottom_panel.anchor_left = 0.0
+	bottom_panel.anchor_top = 1.0
+	bottom_panel.anchor_right = 1.0
+	bottom_panel.anchor_bottom = 1.0
+	bottom_panel.offset_left = UiMetrics.dp(8.0)
+	bottom_panel.offset_top = -UiMetrics.dp(86.0)
+	bottom_panel.offset_right = -UiMetrics.dp(8.0)
+	bottom_panel.offset_bottom = -UiMetrics.dp(8.0)
+	root.add_child(bottom_panel)
+
+	var quick_row := HBoxContainer.new()
+	quick_row.add_theme_constant_override("separation", int(UiMetrics.dp(5.0)))
+	bottom_panel.add_child(quick_row)
+	var select_all_button := _add_action_button(quick_row, "ВСЕ", _select_all_player_units)
+	_combat_buttons.append(select_all_button)
+	_mode_button = _add_action_button(quick_row, "МАРШ", _toggle_order_mode)
+	_combat_buttons.append(_mode_button)
+	_pause_button = _add_action_button(quick_row, "ПАУЗА", _toggle_pause)
+	_combat_buttons.append(_pause_button)
+	_commands_button = _add_action_button(quick_row, "КОМАНДЫ", _toggle_commands_panel)
 	_create_result_panel(root)
+	_settings_panel = SettingsPanelScript.new()
+	_settings_panel.pause_game_on_open = true
+	root.add_child(_settings_panel)
 
 
 func _create_result_panel(parent: Control) -> void:
@@ -326,12 +373,11 @@ func _create_result_panel(parent: Control) -> void:
 	_result_panel.anchor_top = 0.5
 	_result_panel.anchor_right = 0.5
 	_result_panel.anchor_bottom = 0.5
-	_result_panel.offset_left = -270.0
-	_result_panel.offset_top = -158.0
-	_result_panel.offset_right = 270.0
-	_result_panel.offset_bottom = 158.0
-	_result_panel.custom_minimum_size = Vector2(540.0, 316.0)
-	_result_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.035, 0.055, 0.075, 0.98)))
+	_result_panel.offset_left = -UiMetrics.dp(270.0)
+	_result_panel.offset_top = -UiMetrics.dp(158.0)
+	_result_panel.offset_right = UiMetrics.dp(270.0)
+	_result_panel.offset_bottom = UiMetrics.dp(158.0)
+	_result_panel.custom_minimum_size = Vector2(UiMetrics.dp(540.0), UiMetrics.dp(316.0))
 	_result_panel.visible = false
 	parent.add_child(_result_panel)
 
@@ -343,38 +389,24 @@ func _create_result_panel(parent: Control) -> void:
 	_result_panel.add_child(margin)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
 	margin.add_child(content)
 
 	_result_title = Label.new()
 	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_title.add_theme_font_size_override("font_size", 27)
-	_result_title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
+	_result_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(27))
+	_result_title.add_theme_color_override("font_color", Palette.UI_RESULT_GOLD)
 	content.add_child(_result_title)
 
 	_result_details = Label.new()
 	_result_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_details.add_theme_font_size_override("font_size", 14)
-	_result_details.add_theme_color_override("font_color", Color(0.92, 0.95, 0.98))
+	_result_details.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
+	_result_details.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
 	content.add_child(_result_details)
 
 	var return_button := _add_action_button(content, "НА СТРАТЕГИЧЕСКУЮ КАРТУ", _return_to_strategy_map)
-	return_button.custom_minimum_size = Vector2(0.0, 48.0)
+	return_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(56.0))
 
-
-func _make_panel_style(background: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.36, 0.48, 0.58, 0.75)
-	style.corner_radius_top_left = 9
-	style.corner_radius_top_right = 9
-	style.corner_radius_bottom_left = 9
-	style.corner_radius_bottom_right = 9
-	return style
 
 
 func _add_action_button(parent: Container, title: String, callback: Callable) -> Button:
@@ -382,44 +414,21 @@ func _add_action_button(parent: Container, title: String, callback: Callable) ->
 	button.text = title
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
-	button.custom_minimum_size = Vector2(0.0, 52.0)
+	button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(56.0))
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	button.add_theme_font_size_override("font_size", 14)
-	button.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0))
-	button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
-	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.65))
-	button.add_theme_stylebox_override("normal", _make_button_style(Color(0.12, 0.20, 0.29)))
-	button.add_theme_stylebox_override("hover", _make_button_style(Color(0.17, 0.29, 0.40)))
-	button.add_theme_stylebox_override("pressed", _make_button_style(Color(0.25, 0.35, 0.22)))
-	button.add_theme_stylebox_override("focus", _make_button_style(Color(0.16, 0.24, 0.32)))
+	button.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
-
-
-func _make_button_style(background: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.48, 0.61, 0.72, 0.95)
-	style.corner_radius_top_left = 7
-	style.corner_radius_top_right = 7
-	style.corner_radius_bottom_left = 7
-	style.corner_radius_bottom_right = 7
-	return style
-
 
 func _create_selection_marquee(parent: Control) -> void:
 	_selection_marquee = Panel.new()
 	_selection_marquee.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_selection_marquee.visible = false
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.18, 0.55, 0.96, 0.16)
-	style.border_color = Color(0.48, 0.78, 1.0, 0.95)
+	style.bg_color = Palette.UI_SELECTION_FILL
+	style.border_color = Palette.UI_SELECTION_BORDER
 	style.border_width_left = 2
 	style.border_width_top = 2
 	style.border_width_right = 2
@@ -541,8 +550,9 @@ func _pan_camera(screen_delta: Vector2) -> void:
 	if not is_instance_valid(_camera):
 		return
 	var scale := _camera.size / maxf(get_viewport().get_visible_rect().size.y, 1.0)
-	_camera.position.x = clampf(_camera.position.x - screen_delta.x * scale, -20.0, 20.0)
-	_camera.position.z = clampf(_camera.position.z + screen_delta.y * scale, 5.0, 30.0)
+	var camera_speed := GameSettings.camera_speed
+	_camera.position.x = clampf(_camera.position.x - screen_delta.x * scale * camera_speed, -20.0, 20.0)
+	_camera.position.z = clampf(_camera.position.z + screen_delta.y * scale * camera_speed, 5.0, 30.0)
 
 
 func _set_camera_zoom(new_size: float) -> void:
@@ -582,6 +592,9 @@ func _save_control_group(group_id: int) -> void:
 	if saved.is_empty():
 		return
 	_control_groups[group_id] = saved
+	Haptics.confirm(30)
+	if is_instance_valid(_toast_manager):
+		_toast_manager.show_toast("Группа %d сохранена" % group_id, 2.0, "✓")
 
 
 func _select_control_group(group_id: int) -> void:
@@ -592,6 +605,7 @@ func _select_control_group(group_id: int) -> void:
 		if is_instance_valid(unit) and not unit.is_queued_for_deletion():
 			_selected_units.append(unit)
 			unit.set_selected(true)
+	Haptics.tap(10)
 
 
 func _handle_primary_tap(screen_position: Vector2, add_to_selection: bool) -> void:
@@ -656,11 +670,13 @@ func _issue_command(screen_position: Vector2) -> void:
 					unit.order_attack(target)
 			_attack_move_enabled = false
 			_refresh_ui()
+			Haptics.confirm(15)
 		return
 
 	_clear_focused_target()
 	var destination: Vector3 = hit.get("position", Vector3.ZERO)
 	_issue_formation_order(destination)
+	Haptics.confirm(15)
 
 
 func _issue_formation_order(destination: Vector3) -> void:
@@ -779,6 +795,49 @@ func _issue_order_to_slot(unit: BattleUnit, slot: Vector3) -> void:
 		unit.order_move(slot)
 
 
+func _toggle_commands_panel() -> void:
+	if not is_instance_valid(_commands_panel) or not is_instance_valid(_commands_button):
+		return
+	_commands_panel.visible = not _commands_panel.visible
+	_commands_button.text = "ЗАКРЫТЬ" if _commands_panel.visible else "КОМАНДЫ"
+
+
+func _open_settings() -> void:
+	if is_instance_valid(_commands_panel) and _commands_panel.visible:
+		_toggle_commands_panel()
+	if is_instance_valid(_settings_panel):
+		_settings_panel.open_panel()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		if is_instance_valid(_settings_panel) and _settings_panel.visible:
+			_settings_panel.close_panel()
+		elif not _game_over:
+			if not _paused:
+				_toggle_pause()
+			else:
+				_toggle_pause()
+	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_pause_for_background()
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		if _paused and is_instance_valid(_toast_manager):
+			_toast_manager.show_toast("Бой приостановлен", 2.5, "Ⅱ")
+
+
+func _pause_for_background() -> void:
+	if _game_over:
+		return
+	if not _paused:
+		_paused = true
+		get_tree().paused = true
+	if is_instance_valid(_pause_button):
+		_pause_button.text = "ПРОДОЛЖИТЬ"
+	# CampaignState.save_campaign() intentionally refuses to write during a
+	# tactical battle, preserving the last safe strategic save and battle result.
+
+
+
+
 func _raycast(screen_position: Vector2) -> Dictionary:
 	var ray_origin: Vector3 = _camera.project_ray_origin(screen_position)
 	var ray_direction: Vector3 = _camera.project_ray_normal(screen_position)
@@ -795,6 +854,8 @@ func _select_all_player_units() -> void:
 			if unit.team == PLAYER_TEAM:
 				_selected_units.append(unit)
 				unit.set_selected(true)
+	if not _selected_units.is_empty():
+		Haptics.tap(10)
 	_refresh_ui()
 
 
@@ -1080,14 +1141,15 @@ func _refresh_ui() -> void:
 		]
 		var target_text := "ЦЕЛЬ: враг отмечен" if is_instance_valid(_focused_target) else "ЦЕЛЬ: не выбрана"
 		var commander_level := int(CampaignState.player_hero.get("level", 1))
-		_help_label.text = "КОМАНДИР УР.%d · 4 РОЛИ ВОЙСК · %s · %s · ЗУМ %.0f" % [
+		_help_label.text = "МЕСТНОСТЬ: %s · КОМАНДИР УР.%d · %s · %s · ЗУМ %.0f" % [
+			_battlefield_biome_name,
 			commander_level,
 			_get_formation_name(),
 			target_text,
 			_camera.size,
 		]
 	if is_instance_valid(_mode_button):
-		_mode_button.text = "МАРШ: ВКЛ" if _attack_move_enabled else "МАРШ: ВЫКЛ"
+		_mode_button.text = "МАРШ ВКЛ" if _attack_move_enabled else "МАРШ"
 	if is_instance_valid(_add_button):
 		_add_button.text = "ДОБОР: ВКЛ" if _additive_selection else "ДОБОР: ВЫКЛ"
 	if is_instance_valid(_formation_button):

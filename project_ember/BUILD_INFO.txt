@@ -1,0 +1,4 @@
+Project Ember v0.17.1 — Godot 4.7.2 QA Pipeline
+Target: Godot 4.7.2-stable official / GL Compatibility
+QA: import + all smoke tests + Xvfb/Mesa visual capture at 4 zoom levels
+Android runtime validation: still requires the physical device

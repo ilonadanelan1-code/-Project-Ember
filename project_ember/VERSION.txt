@@ -1,8 +1,18 @@
-Project Ember v0.7.0
-- Added persistent player and enemy commanders with dedicated tactical units and visuals.
-- Added commander aura, Battle Cry, enemy commander ability AI and cooldown controls.
-- Added commander experience, levels, skill points and Leadership/Tactics/Might progression.
-- Added commander health persistence, wounds and recovery across campaign turns.
-- Added city-panel hero profile and skill-upgrade interface.
-- Added automated hero progression, tactical ability and save/load smoke tests.
-- Godot 4.3 CI validation required before release; v0.7.0 Android touch/UI/balance testing remains pending.
+Project Ember v0.17.1 — Godot 4.7.2 QA Pipeline
+- Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
+- Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
+- Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).
+- Deterministic 4x4 axial macro-regions select one of four artwork variants per biome. Surface sampling remains continuous in shared world coordinates and neighboring biomes blend across shared edges.
+- Reduces the surface repeat period from 560 to 430 world units for ~30% higher texture density at close zoom.
+- Expands the foreground detail atlas from 16 to 24 feathered sprites, balanced across all six biomes, in a 6x4 sheet (3072x2048).
+- Foreground details use one selective MultiMesh batch; no per-object scene nodes.
+- Softens the hex grid and increases its fine-line readability without changing movement/selection outlines.
+- Keeps fog-of-war, roads, territory lines, city markers, GL Compatibility and world-generation versions v1/v2/v3.
+- Existing save formats are unchanged; surface variants are derived from axial coordinates and world seed at render time.
+- Static checks are included. Godot parser/import and physical Android validation remain required; this is a source project, not an APK.
+
+- Adds a Godot 4.7.2 CI workflow with verified official binary SHA-256.
+- Imports all project resources and runs every GDScript smoke test in isolated user-data directories.
+- Captures the strategic map at zoom 0.075, 0.76, 0.90 and 1.25 with software OpenGL Compatibility rendering.
+- Uploads screenshots, per-zoom render metrics and test logs as a GitHub Actions artifact.
+- Adds static resource/hash validation and a Termux bootstrap for publishing this exact source to a dedicated QA branch without modifying main.
