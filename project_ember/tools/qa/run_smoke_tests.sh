@@ -51,12 +51,22 @@ for test_file in "${TESTS[@]}"; do
   echo "===== $test_name ====="
 
   set +e
-  timeout 150s env HOME="$test_home" \
-    XDG_CONFIG_HOME="$test_home/.config" \
-    XDG_DATA_HOME="$test_home/.local/share" \
-    GODOT_SILENCE_ROOT_WARNING=1 \
-    "$GODOT_BIN" --headless --audio-driver Dummy --path "$PROJECT_ROOT" \
-      --script "$resource_path" 2>&1 | tee "$log_file"
+  if [[ -f "$PROJECT_ROOT/tests/$test_name.tscn" ]]; then
+    # Scene-based tests run with the real project Autoload singletons available.
+    timeout 150s env HOME="$test_home" \
+      XDG_CONFIG_HOME="$test_home/.config" \
+      XDG_DATA_HOME="$test_home/.local/share" \
+      GODOT_SILENCE_ROOT_WARNING=1 \
+      "$GODOT_BIN" --headless --audio-driver Dummy --path "$PROJECT_ROOT" \
+        "res://tests/$test_name.tscn" 2>&1 | tee "$log_file"
+  else
+    timeout 150s env HOME="$test_home" \
+      XDG_CONFIG_HOME="$test_home/.config" \
+      XDG_DATA_HOME="$test_home/.local/share" \
+      GODOT_SILENCE_ROOT_WARNING=1 \
+      "$GODOT_BIN" --headless --audio-driver Dummy --path "$PROJECT_ROOT" \
+        --script "$resource_path" 2>&1 | tee "$log_file"
+  fi
   status=${PIPESTATUS[0]}
   set -e
 
