@@ -104,3 +104,4 @@ func _run() -> void:
 		quit(1)
 	else:
 		print("All combat timing smoke tests passed.")
+		quit(0)
