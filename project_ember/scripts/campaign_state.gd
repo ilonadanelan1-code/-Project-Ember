@@ -13,6 +13,7 @@ const WorldLocationCatalogScript = preload("res://scripts/world_location_catalog
 const WorldEventCatalogScript = preload("res://scripts/world_event_catalog.gd")
 const FactionCatalogScript = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
+const CampaignVictoryCatalogScript = preload("res://scripts/campaign_victory_catalog.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -90,6 +91,7 @@ var neutral_locations: Array[Dictionary] = []
 var pending_world_event: Dictionary = {}
 var last_world_event_text: String = ""
 var world_events_resolved: int = 0
+var campaign_victory: Dictionary = CampaignVictoryCatalogScript.create_state()
 var battle_kingdom_id: int = -1
 var battle_target_type: String = "kingdom"
 var battle_location_id: String = ""
@@ -218,6 +220,7 @@ func new_campaign(persist: bool = true) -> void:
 	pending_world_event.clear()
 	last_world_event_text = ""
 	world_events_resolved = 0
+	campaign_victory = CampaignVictoryCatalogScript.create_state()
 	last_kingdom_events.clear()
 	battle_kingdom_id = -1
 	battle_target_type = "kingdom"
@@ -551,6 +554,8 @@ func complete_battle(
 				last_world_event_text = _grant_neutral_location_reward(location_index)
 			else:
 				neutral_locations[location_index] = location
+	if victory and battle_target_type == "kingdom" and battle_kingdom_id >= 0:
+		CampaignVictoryCatalogScript.record_military_victory(campaign_victory, battle_kingdom_id)
 	if battle_kingdom_id >= 0 and battle_kingdom_id < kingdoms.size():
 		var defeated_kingdom: Dictionary = kingdoms[battle_kingdom_id]
 		defeated_kingdom_name = str(defeated_kingdom.get("name", defeated_kingdom_name))
@@ -1110,6 +1115,8 @@ func get_city_queue_summary() -> String:
 
 
 func advance_campaign_turn() -> void:
+	if str(campaign_victory.get("status", "none")) == "claimed":
+		return
 	turn_number += 1
 	_recover_campaign_heroes()
 	player_moves_left = 1
@@ -1157,6 +1164,36 @@ func advance_campaign_turn() -> void:
 	_sync_primary_kingdom()
 	refresh_fog_of_war()
 	_queue_world_event_if_due()
+	CampaignVictoryCatalogScript.evaluate_turn(
+		campaign_victory,
+		turn_number,
+		cities,
+		player_units,
+		player_faction,
+		diplomacy_relations,
+		kingdoms,
+		get_army_upkeep_per_turn()
+	)
+
+
+func get_campaign_victory_progress() -> Dictionary:
+	return CampaignVictoryCatalogScript.get_progress(
+		campaign_victory,
+		turn_number,
+		cities,
+		player_units,
+		player_faction,
+		diplomacy_relations,
+		kingdoms,
+		get_army_upkeep_per_turn()
+	)
+
+
+func choose_campaign_victory(victory_type: String, continue_playing: bool) -> bool:
+	if not CampaignVictoryCatalogScript.choose_victory(campaign_victory, victory_type, continue_playing, turn_number):
+		return false
+	save_campaign()
+	return true
 
 
 func _get_player_diplomacy_sources() -> Array[Vector2i]:
@@ -1691,6 +1728,7 @@ func save_campaign() -> bool:
 		"pending_world_event": pending_world_event,
 		"last_world_event_text": last_world_event_text,
 		"world_events_resolved": world_events_resolved,
+		"campaign_victory": campaign_victory,
 		"kingdoms": kingdoms,
 		"diplomacy_relations": diplomacy_relations,
 		"pending_diplomacy_offers": pending_diplomacy_offers,
@@ -1858,6 +1896,7 @@ func load_campaign() -> bool:
 	pending_world_event = WorldEventCatalogScript.normalize_event(data.get("pending_world_event", {}))
 	last_world_event_text = str(data.get("last_world_event_text", ""))
 	world_events_resolved = maxi(0, int(data.get("world_events_resolved", 0)))
+	campaign_victory = CampaignVictoryCatalogScript.normalize_state(data.get("campaign_victory", {}))
 	var default_kingdoms := KingdomAIScript.create_initial_kingdoms(world_seed)
 	kingdoms.clear()
 	var saved_kingdoms: Variant = data.get("kingdoms", [])
