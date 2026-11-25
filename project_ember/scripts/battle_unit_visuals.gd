@@ -8,8 +8,8 @@ const Palette = preload("res://scripts/art_palette.gd")
 # avoid a cyclic script preload between the unit and its visual builder.
 enum UnitRole { MELEE = 0, RANGED = 1, SPEAR = 2, CAVALRY = 3, COMMANDER = 4 }
 
-## Two-batch low-poly unit models. All static geometry is merged into one vertex-coloured mesh;
-## the weapon/arm/battle-standard is a second mesh that can be animated as one part.
+## Legacy procedural 3D prototype retained for resource experiments only.
+## Not a permitted runtime renderer for Project Ember combat units; production units use pixel-art SpriteFrames.
 
 static func build(team: int, role: int) -> Node3D:
 	var forward := 1.0 if team == 0 else -1.0

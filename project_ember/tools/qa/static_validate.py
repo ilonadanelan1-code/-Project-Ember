@@ -83,6 +83,24 @@ ai_tactics_path = ROOT / "scripts/battle_ai_tactics.gd"
 ai_tactics_text = ai_tactics_path.read_text(encoding="utf-8") if ai_tactics_path.is_file() else ""
 battle_unit_text = (ROOT / "scripts/battle_unit.gd").read_text(encoding="utf-8")
 combat_test_text = (ROOT / "scripts/combat_test.gd").read_text(encoding="utf-8")
+
+# Combat pixel art is mandatory in every playable release, never a low-poly fallback.
+combat_sprite_library_path = ROOT / "scripts/combat_sprite_library.gd"
+combat_sprite_library_text = combat_sprite_library_path.read_text(encoding="utf-8") if combat_sprite_library_path.is_file() else ""
+sprite_policy_path = ROOT / "SPRITE_ART_POLICY.md"
+sprite_policy_text = sprite_policy_path.read_text(encoding="utf-8") if sprite_policy_path.is_file() else ""
+sprite_integration_path = ROOT / "TINY_SWORDS_INTEGRATION.md"
+sprite_integration_text = sprite_integration_path.read_text(encoding="utf-8") if sprite_integration_path.is_file() else ""
+sprite_packager_path = ROOT / "tools/assets/package_playable_release.sh"
+sprite_packager_text = sprite_packager_path.read_text(encoding="utf-8") if sprite_packager_path.is_file() else ""
+sprite_gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8") if (ROOT / ".gitignore").is_file() else ""
+check(all(token in combat_sprite_library_text for token in ["combat_units_atlas.png", "CELL_SIZE := 96", "ROWS_PER_TEAM := 12", "get_frames"]), "Tiny Swords pixel sprite library retains its required atlas layout")
+check(all(token in battle_unit_text for token in ["AnimatedSprite3D.new()", "TEXTURE_FILTER_NEAREST", "CombatSpriteLibraryScript.get_frames(team, role)"]) and "BattleUnitVisualsScript.build(" not in battle_unit_text, "active battle units use nearest-filtered pixel sprites and never fall back to polygon 3D models")
+check("VisualRoot_MissingPixelArtAtlas" in battle_unit_text and "No low-poly substitute" in combat_sprite_library_text, "source-only checkouts report missing pixel art without silently substituting low-poly soldiers")
+check(all(token in sprite_policy_text for token in ["Non-negotiable visual rule", "pixel art", "package_playable_release.sh"]), "combat sprite policy documents the permanent pixel-art requirement")
+check(all(token in sprite_integration_text for token in ["required in every playable release", "combat_units_atlas.png", "package_playable_release.sh"]), "Tiny Swords guide requires the atlas in every playable release")
+check(sprite_packager_path.is_file() and all(token in sprite_packager_text for token in ["combat_units_atlas.png", "atlas_manifest.json", "1152x2304", "unzip -tq"]), "playable release packager validates required pixel art before creating a ZIP")
+check(all(token in sprite_gitignore for token in ["assets/combat/tiny_swords/combat_units_atlas.png", "assets/combat/tiny_swords/atlas_manifest.json"]), "licensed sprite binaries remain excluded from the public source repository")
 check(all(token in battlefield_rules_text for token in ["FOREST_RANGED_TAKEN_MULTIPLIER := 0.82", "HIGHLANDS_RANGED_DEALT_MULTIPLIER := 1.10", "MARSH_INFANTRY_MOVE_MULTIPLIER := 0.82", "MARSH_CAVALRY_MOVE_MULTIPLIER := 0.65"]), "terrain rules contain forest, high-ground and marsh modifiers")
 check("BattlefieldZoneVisualsScript.add_to" in battlefield_text and "terrain_zone_count" in battlefield_text and "BattlefieldZone" in zone_visuals_text, "terrain zones have visible non-colliding markers")
 check(all(token in flanking_text for token in ["SIDE_DAMAGE_MULTIPLIER := 1.10", "REAR_DAMAGE_MULTIPLIER := 1.20", "EXPOSED_DURATION := 1.8"]), "flanking rules contain side, rear and exposed values")

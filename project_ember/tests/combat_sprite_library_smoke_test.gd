@@ -17,9 +17,11 @@ func _check(condition: bool, description: String) -> void:
 
 
 func _run() -> void:
+	var atlas_exists := ResourceLoader.exists("res://assets/combat/tiny_swords/combat_units_atlas.png")
+	_check(Library.has_assets() == atlas_exists, "sprite library availability matches the actual integrated pixel-art atlas")
 	if not Library.has_assets():
-		_check(Library.get_frames(0, 0) == null, "source-only repository safely selects the legacy fallback renderer")
-		_check(Library.get_frames(1, 1) == null, "source-only fallback is safe for both teams and ranged units")
+		_check(Library.get_frames(0, 0) == null, "source-only checkout reports the intentionally omitted licensed pixel-art atlas")
+		_check(Library.get_frames(1, 1) == null, "missing pixel-art atlas never manufactures replacement SpriteFrames")
 	else:
 		var expected := {
 			0: {"idle": 8, "run": 6, "attack_a": 4, "attack_b": 4, "guard": 6},

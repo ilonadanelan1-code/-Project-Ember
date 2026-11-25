@@ -1,7 +1,8 @@
 extends RefCounted
 class_name CombatSpriteLibrary
 
-## Optional Tiny Swords sprite atlas. Missing assets use the original renderer.
+## Required Tiny Swords pixel-art atlas for every playable release.
+## The public source checkout omits this licensed runtime PNG and must not replace it with 3D models.
 const ATLAS_PATH := "res://assets/combat/tiny_swords/combat_units_atlas.png"
 const CAVALRY_ROOT := "res://assets/combat/cavalry/"
 const CELL_SIZE := 96
@@ -22,6 +23,7 @@ const ROWS := {
 static var _atlas: Texture2D
 static var _frames_cache: Dictionary = {}
 static var _cavalry_textures: Dictionary = {}
+static var _missing_asset_warning_printed: bool = false
 
 
 static func has_assets() -> bool:
@@ -37,6 +39,9 @@ static func get_frames(team: int, role: int) -> SpriteFrames:
 	if safe_role == 3:
 		return _get_cavalry_frames(safe_team)
 	if not has_assets():
+		if not _missing_asset_warning_printed:
+			push_warning("CombatSpriteLibrary: required Tiny Swords pixel-art atlas is missing. This source-only checkout is not a playable release; No low-poly substitute will be rendered.")
+			_missing_asset_warning_printed = true
 		return null
 	var cache_key := "%d:%d" % [safe_team, safe_role]
 	if _frames_cache.has(cache_key):
@@ -44,7 +49,7 @@ static func get_frames(team: int, role: int) -> SpriteFrames:
 	if not is_instance_valid(_atlas):
 		_atlas = load(ATLAS_PATH) as Texture2D
 	if not is_instance_valid(_atlas):
-		push_warning("CombatSpriteLibrary: unable to load atlas; using the fallback renderer.")
+		push_warning("CombatSpriteLibrary: unable to load the required pixel-art atlas. No low-poly substitute will be rendered.")
 		return null
 
 	var frames := SpriteFrames.new()

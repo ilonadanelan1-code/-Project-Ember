@@ -243,13 +243,12 @@ func _build_visuals() -> void:
 		_combat_sprite.play("idle")
 		_visual_root.add_child(_combat_sprite)
 	else:
-		# Source-only builds without the licensed atlas keep the original renderer.
-		_visual_root = BattleUnitVisualsScript.build(team, role)
+		# The public source checkout intentionally omits the licensed Tiny Swords atlas.
+		# Never replace pixel-art soldiers with procedural low-poly models.
+		# The playable-release packager refuses to build until the sprite atlas is present.
+		_visual_root = Node3D.new()
+		_visual_root.name = "VisualRoot_MissingPixelArtAtlas"
 		add_child(_visual_root)
-		_body_mesh = _visual_root.get_node("BodyMesh") as MeshInstance3D
-		_action_mesh = _visual_root.get_node("ActionMesh") as MeshInstance3D
-		_action_rest_position = _action_mesh.position
-		_action_rest_rotation = _action_mesh.rotation
 
 	# Keep the original gameplay collision capsule and its role-specific dimensions.
 	var body_radius := 0.38
