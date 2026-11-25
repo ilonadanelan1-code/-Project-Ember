@@ -70,7 +70,7 @@ static func normalize_state(raw: Variant) -> Dictionary:
 	return result
 
 
-static func record_military_victory(state: Dictionary, kingdom_id: int) -> void:
+static func record_military_victory(state: Dictionary, kingdom_id: int, turn_number: int, player_unit_count: int) -> void:
 	if kingdom_id < 0 or kingdom_id >= 9:
 		return
 	var normalized := normalize_state(state)
@@ -79,6 +79,12 @@ static func record_military_victory(state: Dictionary, kingdom_id: int) -> void:
 		wins.append(kingdom_id)
 	wins.sort()
 	normalized["military_wins"] = wins
+	var unlocked: Array = normalized.get("unlocked_types", [])
+	if turn_number >= MIN_CAMPAIGN_TURN and wins.size() >= MILITARY_KINGDOMS_REQUIRED and player_unit_count >= MILITARY_ARMY_REQUIRED and not unlocked.has("military"):
+		unlocked.append("military")
+	normalized["unlocked_types"] = unlocked
+	if str(normalized.get("status", "none")) == "none" and not unlocked.is_empty():
+		normalized["status"] = "offered"
 	state.clear()
 	state.merge(normalized, true)
 
