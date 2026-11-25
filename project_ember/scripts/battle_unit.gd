@@ -30,6 +30,13 @@ enum UnitRole {
 	COMMANDER,
 }
 
+# Enemy units actively seek the opposing army across the tactical field.
+# The player army gets a wider search only when the enemy commander is the
+# last remaining opponent, preventing a battle from stalling after the army falls.
+const ENEMY_AUTO_ENGAGEMENT_RANGE := 30.0
+const LAST_ENEMY_COMMANDER_CHASE_RANGE := 32.0
+const ENEMY_RETREAT_REENGAGE_DELAY := 12.0
+
 const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
 const ArmyUpgradeCatalogScript = preload("res://scripts/army_upgrade_catalog.gd")
 
@@ -71,6 +78,8 @@ var _charge_armed: bool = false
 var _destination: Vector3 = Vector3.ZERO
 var _order_mode: OrderMode = OrderMode.AUTO
 var _target: BattleUnit
+var _retreat_cooldown_timer: float = 0.0
+var _retreat_reengage_after_arrival: bool = false
 static var _active_corpse_count: int = 0
 const CORPSE_KEEP_SECONDS := 8.0
 const CORPSE_FADE_SECONDS := 2.0
@@ -591,15 +600,17 @@ func _update_combat_facing(direction: Vector3) -> void:
 
 func order_move(point: Vector3) -> void:
 	_cancel_pending_combat()
+	_retreat_reengage_after_arrival = false
 	_target = null
 	_destination = Vector3(point.x, 0.0, point.z)
 	_order_mode = OrderMode.MOVE
 
 
 func order_attack(enemy: BattleUnit) -> void:
-	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0 or enemy._is_corpse:
+	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0 or enemy._is_corpse or enemy.team == team:
 		return
 	_cancel_pending_combat()
+	_retreat_reengage_after_arrival = false
 	_target = enemy
 	_order_mode = OrderMode.ATTACK
 	# An explicit player order should not inherit a long cooldown from the previous skirmish.
@@ -608,6 +619,7 @@ func order_attack(enemy: BattleUnit) -> void:
 
 func order_attack_move(point: Vector3) -> void:
 	_cancel_pending_combat()
+	_retreat_reengage_after_arrival = false
 	_target = null
 	_destination = Vector3(point.x, 0.0, point.z)
 	_order_mode = OrderMode.ATTACK_MOVE
@@ -615,6 +627,7 @@ func order_attack_move(point: Vector3) -> void:
 
 func order_hold() -> void:
 	_cancel_pending_combat()
+	_retreat_reengage_after_arrival = false
 	_target = null
 	_order_mode = OrderMode.HOLD
 	velocity = Vector3.ZERO
@@ -622,6 +635,7 @@ func order_hold() -> void:
 
 func order_stop() -> void:
 	_cancel_pending_combat()
+	_retreat_reengage_after_arrival = false
 	_target = null
 	_order_mode = OrderMode.STOP
 	velocity = Vector3.ZERO
@@ -629,6 +643,7 @@ func order_stop() -> void:
 
 func order_retreat() -> void:
 	_cancel_pending_combat()
+	_retreat_reengage_after_arrival = team == 1
 	_target = null
 	var retreat_x := -16.0 if team == 0 else 16.0
 	_destination = Vector3(retreat_x, 0.0, clampf(global_position.z, -11.0, 11.0))
@@ -923,6 +938,7 @@ func _physics_process(delta: float) -> void:
 			_status_marker.queue_free()
 			_status_marker = null
 	_attack_timer = maxf(0.0, _attack_timer - delta * (1.0 + command_speed_bonus + rally_speed_bonus))
+	_retreat_cooldown_timer = maxf(0.0, _retreat_cooldown_timer - delta)
 	_charge_timer = maxf(0.0, _charge_timer - delta)
 	rally_cooldown_timer = maxf(0.0, rally_cooldown_timer - delta)
 	rally_timer = maxf(0.0, rally_timer - delta)
@@ -939,8 +955,16 @@ func _physics_process(delta: float) -> void:
 		if team == 1:
 			_try_auto_rally()
 
-	# Enemy-controlled units withdraw when critically wounded instead of fighting to the last HP.
-	if team == 1 and _order_mode == OrderMode.AUTO and health <= max_health * 0.22:
+	# Ordinary enemy units can disengage once, then return to AUTO and rejoin the
+	# fight after reaching the rear line. Commanders never retreat out of the
+	# battle loop: they remain valid final objectives and can be defeated normally.
+	if (
+		team == 1
+		and role != UnitRole.COMMANDER
+		and _order_mode == OrderMode.AUTO
+		and _retreat_cooldown_timer <= 0.0
+		and health <= max_health * 0.22
+	):
 		order_retreat()
 
 	if _order_mode == OrderMode.RETREAT:
@@ -957,6 +981,10 @@ func _physics_process(delta: float) -> void:
 	match _order_mode:
 		OrderMode.AUTO:
 			search_range = detection_range
+			if team == 1:
+				search_range = maxf(search_range, ENEMY_AUTO_ENGAGEMENT_RANGE)
+			elif _has_only_enemy_commander_remaining():
+				search_range = maxf(search_range, LAST_ENEMY_COMMANDER_CHASE_RANGE)
 		OrderMode.ATTACK_MOVE:
 			search_range = attack_range + 2.5
 		OrderMode.HOLD:
@@ -1098,9 +1126,33 @@ func _move_to_destination() -> void:
 	offset.y = 0.0
 	if offset.length() <= 0.28:
 		velocity = Vector3.ZERO
-		_order_mode = OrderMode.HOLD if _order_mode == OrderMode.RETREAT else OrderMode.AUTO
+		if _order_mode == OrderMode.RETREAT:
+			if _retreat_reengage_after_arrival:
+				# Do not leave an AI unit permanently parked in HOLD after retreat.
+				_order_mode = OrderMode.AUTO
+				_retreat_cooldown_timer = ENEMY_RETREAT_REENGAGE_DELAY
+			else:
+				# A player-issued retreat remains a deliberate hold order.
+				_order_mode = OrderMode.HOLD
+			_retreat_reengage_after_arrival = false
+		else:
+			_order_mode = OrderMode.AUTO
 		return
 	_steer(offset.normalized())
+
+
+func _has_only_enemy_commander_remaining() -> bool:
+	var enemy_count := 0
+	for node in get_tree().get_nodes_in_group("battle_units"):
+		if not node is BattleUnit or node.is_queued_for_deletion():
+			continue
+		var candidate := node as BattleUnit
+		if candidate.team == team or candidate.health <= 0.0 or candidate._is_corpse:
+			continue
+		enemy_count += 1
+		if candidate.role != UnitRole.COMMANDER or enemy_count > 1:
+			return false
+	return enemy_count == 1
 
 
 func _get_separation_vector(radius: float) -> Vector3:
