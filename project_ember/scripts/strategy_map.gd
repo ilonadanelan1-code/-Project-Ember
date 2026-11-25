@@ -2076,13 +2076,13 @@ func _refresh_city_panel() -> void:
 			button.disabled = true
 		else:
 			button.text = "%s\n%s" % [str(spec_data.get("name", specialization_id)), str(spec_data.get("description", ""))]
-			button.disabled = not CampaignState.can_choose_city_specialization(specialization_id)
+			button.disabled = campaign_finished or not CampaignState.can_choose_city_specialization(specialization_id)
 	for improvement_id in _city_province_buttons:
 		var button: Button = _city_province_buttons[improvement_id]
 		var data: Dictionary = CityDevelopmentCatalogScript.get_improvement_data(str(improvement_id))
 		var cell := CampaignState.get_next_province_cell(str(improvement_id))
 		button.text = "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Улучшение")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
-		button.disabled = not CampaignState.can_queue_province_improvement(str(improvement_id))
+		button.disabled = campaign_finished or not CampaignState.can_queue_province_improvement(str(improvement_id))
 		if cell != Vector2i(9999, 9999):
 			button.tooltip_text = "Будет построено на гексе %d:%d" % [cell.x, cell.y]
 		else:
@@ -2101,7 +2101,7 @@ func _refresh_city_panel() -> void:
 		else:
 			var target_level := current_level + 1
 			button.text = "%s · %d→%d\n%d зол. · %d пр.\n%s" % [str(building_data.get("name", building_id)).to_upper(), current_level, target_level, int(upgrade_data.get("gold_cost", 0)), int(upgrade_data.get("production_cost", 0)), str(upgrade_data.get("description", ""))]
-			button.disabled = not CampaignState.can_queue_city_building_upgrade(str(building_id))
+			button.disabled = campaign_finished or not CampaignState.can_queue_city_building_upgrade(str(building_id))
 	if is_instance_valid(_city_upkeep_label):
 		_city_upkeep_label.text = CampaignState.get_army_upkeep_summary()
 	_city_queue_label.text = CampaignState.get_city_queue_summary()
@@ -2126,10 +2126,10 @@ func _refresh_city_panel() -> void:
 		var skill_rank := clampi(int(hero_skills.get(skill_id, 0)), 0, 5)
 		var skill_button: Button = _hero_skill_buttons[skill_id]
 		skill_button.text = "%s\nРАНГ %d/5" % [str(skill_names.get(skill_id, skill_id)).to_upper(), skill_rank]
-		skill_button.disabled = int(hero.get("skill_points", 0)) <= 0 or skill_rank >= 5
+		skill_button.disabled = campaign_finished or int(hero.get("skill_points", 0)) <= 0 or skill_rank >= 5
 
 	if is_instance_valid(_settler_button):
-		_settler_button.disabled = not CampaignState.can_queue_settler()
+		_settler_button.disabled = campaign_finished or not CampaignState.can_queue_settler()
 	for building_id in _city_building_buttons:
 		var button: Button = _city_building_buttons[building_id]
 		var data: Dictionary = CampaignState.get_city_building_data(str(building_id))
@@ -2141,7 +2141,7 @@ func _refresh_city_panel() -> void:
 			button.disabled = true
 		else:
 			button.text = "%s\n%d зол. · %d пр.\n%s" % [str(data.get("name", "Здание")), int(data.get("gold_cost", 0)), int(data.get("production_cost", 0)), str(data.get("description", ""))]
-			button.disabled = not CampaignState.can_queue_building(str(building_id))
+			button.disabled = campaign_finished or not CampaignState.can_queue_building(str(building_id))
 
 	for role_id in _city_recruit_buttons:
 		var role_name := str(role_id)
@@ -2150,7 +2150,7 @@ func _refresh_city_panel() -> void:
 		var unlock_building := str(recruit_data.get("unlock_building", "barracks"))
 		var building_data: Dictionary = CampaignState.get_city_building_data(unlock_building)
 		var unlocked := CampaignState.city_has_building(unlock_building)
-		recruit_button.disabled = not CampaignState.can_queue_recruit(role_name)
+		recruit_button.disabled = campaign_finished or not CampaignState.can_queue_recruit(role_name)
 		if not unlocked:
 			recruit_button.text = "%s\nНУЖНО: %s" % [str(recruit_data.get("name", "Отряд")).to_upper(), str(building_data.get("name", "Здание")).to_upper()]
 		else:
@@ -2181,7 +2181,7 @@ func _refresh_city_panel() -> void:
 				int(upgrade_data.get("gold_cost", 0)),
 				str(upgrade_data.get("description", "")),
 			]
-		upgrade_button.disabled = not CampaignState.can_purchase_army_upgrade(role_name)
+		upgrade_button.disabled = campaign_finished or not CampaignState.can_purchase_army_upgrade(role_name)
 
 
 func _get_army_composition_text() -> String:
