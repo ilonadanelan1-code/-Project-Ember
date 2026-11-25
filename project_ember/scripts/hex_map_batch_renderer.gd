@@ -32,6 +32,7 @@ render_mode blend_mix;
 uniform vec2 quad_size = vec2(63.6948, 70.4895);
 uniform float texture_period = 430.0;
 uniform float biome_blend_width = 17.0;
+uniform sampler2D surface_atlas : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D biome_mask : filter_nearest, repeat_disable;
 const float ATLAS_PANEL_SIZE = 717.0;
 const float ATLAS_GUTTER = 51.0;
@@ -63,7 +64,7 @@ vec2 surface_atlas_uv(float variant, vec2 surface_uv) {
 }
 
 vec4 sample_surface(float variant, vec2 surface_uv) {
-    return texture(TEXTURE, surface_atlas_uv(variant, surface_uv));
+    return texture(surface_atlas, surface_atlas_uv(variant, surface_uv));
 }
 
 void fragment() {
@@ -211,6 +212,7 @@ func _ready() -> void:
     var terrain_shader := Shader.new()
     terrain_shader.code = TERRAIN_SHADER_CODE
     _terrain_material.shader = terrain_shader
+    _terrain_material.set_shader_parameter("surface_atlas", _surface_texture)
     _terrain_material.set_shader_parameter("quad_size", BASE_QUAD_SIZE)
     _terrain_material.set_shader_parameter("texture_period", WORLD_TEXTURE_PERIOD)
     _terrain_material.set_shader_parameter("biome_blend_width", BIOME_BLEND_WIDTH)
