@@ -2477,7 +2477,7 @@ func _attack_kingdom(kingdom_id: int) -> void:
 
 
 func _advance_turn() -> void:
-	if CampaignState.campaign_lost or CampaignState.battle_in_progress:
+	if CampaignState.campaign_lost or CampaignState.battle_in_progress or str(CampaignState.campaign_victory.get("status", "none")) == "claimed":
 		return
 	# A turn can be ended early; any unused movement point is simply forfeited.
 	CampaignState.advance_campaign_turn()
@@ -2581,7 +2581,7 @@ func _refresh_ui() -> void:
 	if is_instance_valid(_attack_button):
 		var selected_kingdom_valid := _selected_kingdom_id >= 0 and _selected_kingdom_id < CampaignState.kingdoms.size()
 		var selected_army_cell := WorldGeneratorScript.array_to_cell(CampaignState.kingdoms[_selected_kingdom_id].get("army_cell", [])) if selected_kingdom_valid else CampaignState.enemy_cell
-		_attack_button.disabled = not selected_kingdom_valid or _hex_distance(CampaignState.player_cell, selected_army_cell) > 1 or CampaignState.player_units.is_empty()
+		_attack_button.disabled = not selected_kingdom_valid or _hex_distance(CampaignState.player_cell, selected_army_cell) > 1 or CampaignState.player_units.is_empty() or str(CampaignState.campaign_victory.get("status", "none")) == "claimed"
 	var campaign_finished := str(CampaignState.campaign_victory.get("status", "none")) == "claimed"
 	if is_instance_valid(_turn_button):
 		_turn_button.disabled = CampaignState.campaign_lost or campaign_finished
@@ -2590,7 +2590,7 @@ func _refresh_ui() -> void:
 	if is_instance_valid(_city_button):
 		_city_button.disabled = CampaignState.cities.is_empty() or CampaignState.campaign_lost or campaign_finished
 	if is_instance_valid(_found_city_button):
-		_found_city_button.disabled = not CampaignState.settler_active or not CampaignState.can_found_city(CampaignState.settler_cell) or not _is_traversable(CampaignState.settler_cell)
+		_found_city_button.disabled = campaign_finished or not CampaignState.settler_active or not CampaignState.can_found_city(CampaignState.settler_cell) or not _is_traversable(CampaignState.settler_cell)
 	if is_instance_valid(_city_panel) and _city_panel.visible:
 		_refresh_city_panel()
 	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
