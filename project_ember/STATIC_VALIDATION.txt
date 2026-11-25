@@ -1,0 +1,3 @@
+Static validation for v0.17.1 completed locally: 19/19 checks passed. Atlas PNG dimensions and SHA-256 hashes match the manifest; all literal res:// references resolve; 18 smoke tests and the Godot QA workflow are present; shell scripts pass bash -n; the Python validator compiles.
+
+Godot 4.7.2 import, parser, shader compilation, behavioral smoke tests and visual screenshot capture are delegated to the checksum-pinned GitHub Actions workflow. They are not claimed as passed until the workflow has run on the uploaded QA branch. Physical Android GPU validation remains separate.

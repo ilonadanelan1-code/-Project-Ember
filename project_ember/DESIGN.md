@@ -74,3 +74,40 @@ Diplomacy will support relations, war, peace, alliances and trade. These systems
 5. Diplomacy and AI kingdoms.
 6. World generation and content.
 7. Art, UI polish, animation and sound.
+
+
+## Visual direction — v0.8.0
+
+The visual target is stylized low-poly fantasy: readable unit silhouettes, painterly terrain colors, dark bronze UI frames and restrained gold accents. The visual layer is deliberately separate from campaign records and tactical combat stats.
+
+- Strategic map hex coordinates, terrain IDs, movement validation and city ownership remain authoritative. The map renderer adds shadows, terrain motifs, settlement silhouettes and banner markers without changing cell interactions.
+- Tactical terrain is generated from lightweight meshes and MultiMesh batches. The ground collision body and camera are returned to the existing tactical controller unchanged.
+- BattleUnit retains all health, damage, pathing, selection, attack and order behavior. A dedicated visual builder supplies a multi-part infantry, archer, spearman, cavalry or commander model; the existing collision capsule remains on the gameplay root.
+- All props use built-in Godot meshes and runtime materials. No external asset downloads or heavy rendering features are required.
+- Rendering remains on Godot 4.3 GL Compatibility. Battlefield shadows are enabled, but the environment uses compact geometry and batched vegetation to stay appropriate for Android.
+
+## v0.8.0 implementation boundaries
+
+The visual overhaul must not alter campaign save keys, unit role identifiers, tactical damage calculations, movement speeds, formation slot calculations or input mapping. Visual smoke tests cover the new procedural environment and unit-model builders; the existing campaign, roster and hero progression tests remain required.
+
+
+## Art direction — v0.9.0
+
+The visual constraints, palette, faction identifiers and readability rules are documented in [ART_BIBLE.md](ART_BIBLE.md). Runtime color constants live in `scripts/art_palette.gd`. The project remains on Godot 4.3 GL Compatibility.
+
+
+## Unit visual architecture — v0.9.1
+
+Each troop uses two merged vertex-coloured mesh batches: a static body and a single action part. Team/role combinations are cached, and both batches share one material. The selection/target ring is one mesh that switches cached material; the health bar appears only when the unit is selected, targeted or wounded.
+
+Animation is driven by the existing BattleUnit process without Skeletons or extra animation nodes. Attack damage, attack cadence, movement, target selection, collision and formation placement remain controlled by the original combat methods. Defeated units leave the combat group immediately; a limited number of visual corpses remain for 8–10 seconds based on quality settings.
+
+The core BattleUnit scene budget is eight nodes including its collision capsule, selection indicator and health-bar meshes. CI creates 50 units and verifies the node budget and mesh/material reuse.
+
+## Tactical biomes and terrain — v0.9.2
+
+Battlefield presentation now resolves one of four biomes — grassland, woodland, highlands or marsh — from the six neighboring strategic hexes around the player's battle-origin cell. A deterministic seed derived from that cell keeps the ground dressing repeatable between runs. The tactical biome ID and seed are runtime presentation state only and are not added to the campaign save format.
+
+Each biome uses a dedicated ground texture/palette and quality-scaled decoration profile. Woodland adds fallen logs and denser tree dressing; highlands add low rock shelves and more stones; marsh adds shallow decorative pools and reeds. The biome name is shown in the tactical HUD.
+
+Terrain geometry is currently visual-only. The existing flat ground collision body, collision bounds, unit movement plane, spawn positions and formation calculations remain authoritative and unchanged. This keeps decorative rocks, pools and vegetation from blocking unit control. Gameplay effects from elevation, water and cover remain a later balance feature.

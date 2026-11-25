@@ -1,12 +1,12 @@
 # Project Ember
 
-Godot 4 fantasy 4X strategy with real-time tactical combat. Current source release: **v0.7.0 — Hero Commanders**.
+Current source release: **v0.17.1 — Godot 4.7.2 QA Pipeline**.
 
-- [Design source of truth](project_ember/DESIGN.md)
+- [Project design](project_ember/DESIGN.md)
+- [Art Bible](project_ember/ART_BIBLE.md)
 - [Android import and play guide](project_ember/ANDROID_START.md)
-- [Tactical controls](project_ember/TACTICAL_CONTROLS.md)
-- [Hero progression and commander abilities](project_ember/HERO_PROGRESSION.md)
+- [QA pipeline](project_ember/tools/qa/README.md)
 
-v0.7.0 adds persistent ruler progression, three skill branches, commander battlefield auras, an active Battle Cry ability, commander health persistence and enemy commander AI. Godot 4.3 CI validates project import, both scene startups, campaign and roster regression checks, hero progression, and packages the Godot source project.
+The QA workflow pins the official Godot 4.7.2 editor binary, verifies its SHA-256, imports all resources, runs all GDScript smoke tests, and captures the strategic map at four zoom levels. Screenshots, render metrics and logs are uploaded as a GitHub Actions artifact. Android GPU performance still requires a physical-device report.
 
-The archive is a Godot source project, not an APK. Test the new commander controls and UI layout in Godot Android Editor before replacing the previous working ZIP.
+This is a Godot source project, not an APK.

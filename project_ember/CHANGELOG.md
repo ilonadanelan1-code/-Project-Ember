@@ -1,71 +1,61 @@
-# Changelog — Project Ember
+# Changelog
 
-## v0.7.0 — Hero Commanders and Progression
+## v0.17.0 — 24-Scene Painted Biomes & World Details
+- Replaced composite biome contact-sheet sampling with 24 independent source scenes (four per biome).
+- Raised close-zoom sampling density by changing the global period to 430 world units.
+- Added edge blending across neighboring surface variants and biomes.
+- Expanded the foreground detail batch to 24 masked sprites across all six biomes.
+- Softened the hex grid. No campaign/save schema change.
 
-- Added a persistent ruler hero and enemy commander to every campaign.
-- Added commander combat units with their own health, level-scaled health/damage/armor, distinct 3D crown and armor visuals, and independent persistence outside the 24-troop recruitment cap.
-- Added a passive commander aura that improves nearby allied damage and movement.
-- Added the active **Battle Cry** ability: nearby allies receive healing and a temporary combat buff. It has a tactics-scaled cooldown and a touch-screen button plus the Q keyboard shortcut.
-- Added enemy commander AI that uses Battle Cry when its nearby force is wounded.
-- Added post-battle hero experience from kills, damage and victory; each level grants one skill point.
-- Added Leadership, Tactics and Might skill branches, with five ranks each.
-- Added commander health persistence, defeated-hero wounds and recovery over campaign turns.
-- Added hero profile and skill-upgrade UI to the city panel, plus commander level and ability status in the tactical interface.
-- Kept older saves compatible by supplying default hero records when hero data is absent.
-- Added automated hero progression, ability, aura, wound recovery and save/load smoke tests.
+## v0.17.0 — 24-scene Painted Biomes
+- Rebuilt the world atlas from 24 separate scene crops (four variants per biome) instead of sampling 2x2 contact sheets as one surface.
+- Added deterministic 4x4 axial artwork regions and smooth crossfades across neighboring region/biome borders.
+- Added second-nearest-edge blending near three-cell corners.
+- Reduced repeat period to 560 world units and made each crop periodic through edge crossfading.
+- Corrected mountain overlay masks so their left/right edges feather instead of forming rectangular cutouts.
+- Reduced detail object footprint and replaced dynamic dictionaries with typed transform/color buffers.
 
-## v0.6.0 — Expanded roster and battlefield command update
+# Changelog
 
-- Added a centralized unit catalog so economy, recruitment, campaign saves and tactical combat share one source of truth for unit data.
-- Added spearmen with extra armor, longer melee reach and a damage bonus against cavalry.
-- Added cavalry with higher health and movement speed plus a reusable charge strike after a fast approach.
-- Added an archery range and stable as city buildings; both require completed barracks.
-- Expanded army capacity from 16 to 24 units.
-- Added persistent recruitment and save validation for all four unit roles while keeping old melee/ranged saves compatible.
-- Updated city recruitment UI to show all roles and their specific building unlocks.
-- Added cavalry wing placement and spear / sword / archer rank behavior to line, column and wedge movement orders.
-- Added drag-box selection, additive selection support, four touch-screen and keyboard control groups, battlefield panning and gesture zoom.
-- Added selected-army composition readout and surviving-unit composition to battle results.
-- Added automated roster, unlock, recruitment, stat and save-normalization smoke tests.
-- Android device testing is still required for touch gestures, UI fit and in-game balance.
+## v0.17.0 — Painted Biome Blending & World Details
 
-## v0.5.3 — Audit fixes and strict validation
+- Increased surface sampling density by reducing the world texture period from 1600 to 760 map units.
+- Expanded the surface atlas to 4096x4096 with seven 1245px panels and mipmap-safe gutters.
+- Added a campaign-seeded biome mask and symmetric shader blending between different neighboring biomes to remove hard per-hex color cuts.
+- Added a 16-sprite detail atlas derived from existing artwork: forest groves, alpine ridges, meadow clusters, water/islet details, farmland patches and marsh reeds.
+- Added one deterministic foreground-detail MultiMesh batch, streamed only for explored cells and culled at distant zoom.
+- Softened the cartographic grid so it remains readable without dominating the painted terrain.
+- Preserved old world-generator versions, saves, AI, combat and campaign logic.
 
-- Repaired the city production-queue summary parser error.
-- Fixed the undefined recruitment label in `queue_recruit()`.
-- Added explicit types where Godot 4.3 could not infer values from the campaign autoload.
-- Changed the tactical scene root to Node3D to match its 3D script.
-- Preserved unreadable campaign saves before starting a replacement campaign; disables automatic overwriting if preservation fails.
-- Ensured newly produced settlers spawn on an in-bounds, unoccupied map hex.
-- Made CI fail when Godot logs script, parse or engine errors, even if the process exits with code zero.
-- Added campaign smoke tests for queueing, recruitment, army capacity, multiple-city income and save/load.
-- Physical Android import, touch input and device runtime validation remain pending.
 
-## v0.5.2 — Reliability and UI audit
+## v0.15.0 — Varied Painted Terrain & Regional Start
 
-- Replaced unbounded city production `while` loop with a bounded queue pass (maximum 32 orders per city turn).
-- Added a defensive army-size check when completing recruitment orders.
-- Repaired mojibake in campaign messages and queue labels.
-- Explicitly set button focus and mouse-filter behavior in both strategic and tactical interfaces.
-- Added Godot 4.3 headless import and startup checks to the packaging workflow.
-- Android touch/runtime behavior still requires validation on a physical device.
+- Replaced the one-image-per-biome atlas with 24 visual compositions from 12 distinct painted source images and mirrored counterparts: four visual variants each for meadows, forests, highlands, water, farmland and marsh.
+- Added six rotations per painting, giving 144 terrain-art variants plus a dedicated distant LOD tile in a 13×12 atlas.
+- Atlas tiles now use flat top-down terrain surfaces with subtle hex borders. A single batched grid overlay provides strategic cell readability.
+- Per-cell art selection is deterministic and seeded by axial coordinates; neighboring cells in a biome can use different artwork rather than repeating the same stamp.
+- Added world generator v3 with a more balanced opening region. Versions 1 and 2 remain available for old saves without changing their terrain.
+- Kept the existing one-MultiMesh renderer, fog-of-war, roads, boundaries, cities, AI, combat and save structure.
 
-## v0.5.1 — Tactical timer fix
+## v0.14.0 — Coherent Biomes & Painted Hex World
 
-- Fixed battle timer minute calculation to avoid integer-division warnings in GDScript.
-- Explicitly typed elapsed seconds, minutes and remaining seconds; clamped negative elapsed time to zero.
-- Runtime test on Godot Android Editor is still pending.
+- New campaigns use connected, multi-scale biome generation instead of independently randomized terrain per hex.
+- Added farmland and marsh terrain families. Forest, highland and water zones form coherent regional shapes.
+- Added world-generation versioning to saves. Legacy saves default to generator v1 and preserve their original terrain layout.
+- Rebuilt the original painted atlas around eight terrain and landmark motifs.
+- Enlarged settlement and capital silhouettes for mobile readability.
+- Added regression checks for terrain distribution, biome adjacency, atlas selection and save migration.
 
-## v0.5.0 — Settlements and expansion
+## v0.13.3 — Painted Atlas Shader Correction
 
-- Expanded the strategic map to 91 hexes and adjusted hex size for mobile viewport.
-- Added up to five cities, each with independent population, food, gold, production, buildings and production queue.
-- Added settler production (45 gold, 10 production, one population), movement and city founding at least three hexes from existing cities.
-- Added city selection and claimed territory highlighting.
-- Preserved legacy single-city save data when loading older campaigns.
-- Restored tactical combat scripts and scenes in the extracted source tree.
-- Runtime test on Godot Android Editor is still pending.
+- Fixed the strategic terrain shader to capture MultiMesh instance COLOR in `vertex()` before Godot multiplies fragment `COLOR` by the default texture at unmodified UV coordinates.
+- Atlas selection and tint now use the captured varying; this prevents double sampling and corrupted atlas-cell selection.
+- Added shader-source regression checks.
 
-## v0.4.0 — First city and economy loop
 
-- Added city resources, population, buildings, construction queue, recruitment and campaign saving.
+## v0.16.0 — Continuous Painted World Surfaces
+- Removed the per-hex art-stamp rendering model that caused a checkerboard/mosaic appearance.
+- Added six large, mirrored-seamless painted biome surfaces sampled in shared world coordinates.
+- Added a dedicated low-detail topographic surface for continent LOD.
+- Added a procedural antialiased hex mask and reduced grid contrast.
+- Kept the single MultiMesh draw batch and all campaign/world-generation versions.

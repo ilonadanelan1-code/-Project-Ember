@@ -1,40 +1,30 @@
-# Android Start — Project Ember v0.7.0
+# Android Start — Project Ember v0.17.0
 
-1. Extract the ZIP archive.
-2. Open Godot Android Editor and import the extracted `project.godot` file.
-3. Wait for project import, then press Play.
+1. Распакуй ZIP в отдельную папку. Не перезаписывай v0.16.0 и предыдущие версии.
+2. В Godot Android Editor открой `project.godot` и дождись импорта двух атласов: `world_surface_atlas.png` и `world_detail_atlas.png`. На первом открытии импорт может занять больше времени из-за mipmap-уровней.
+3. Запусти проект. Для проверки визуальных ресурсов можно использовать текущую кампанию: генератор и сохранения не менялись.
+4. Проверь `zoom 0.900`: рисунок должен продолжаться через соседние гексы, а крупные детали ландшафта — появляться выборочно поверх поверхности.
+5. Проверь `zoom 0.075`: foreground detail batch должен отключаться, а карта переходить в спокойный LOD.
+6. Сними Performance Report на обоих масштабах. Нужны FPS, Draw Calls, Objects, Video Memory и число экземпляров карты.
 
-## Strategy, city and recruitment
+## Что изменено
+- 24 самостоятельные сцены поверхности: по четыре для каждого из шести биомов. Источники разделены из прежних коллажей; ни один контакт-лист не используется как единая текстура.
+- 4×4 axial macro-region выбирает один художественный вариант на крупную область; текстура всё равно сэмплируется по общим мировым координатам.
+- Соседние биомы и варианты мягко смешиваются у общей границы гексов.
+- Период выборки уменьшен до 430 world units для более высокой детализации на близком масштабе.
+- Добавлен второй пакетный слой из 24 крупных деталей: цветочные поля, кроны, горные гряды, берега, поля и болота.
+- Гекс-сетка ослаблена; один MultiMesh рельефа и один MultiMesh деталей.
+- Генераторы миров v1/v2/v3, ИИ, бои и формат сохранений не изменялись.
 
-- Build Barracks to unlock swordsmen and spearmen.
-- Build an Archery Range (requires Barracks) to unlock archers.
-- Build a Stable (requires Barracks) to unlock cavalry.
-- Army capacity is 24 troops. New recruits join the strategic army when their production order completes.
-- Open a city to view the ruler's level, experience, wounds and skill points.
-- Spend skill points in Leadership, Tactics or Might. Each branch can be raised to rank 5.
+## Проверка
+Это исходный Godot-проект, не APK. В этой среде не удалось запустить Godot Parser/Shader Compiler, поэтому обязательны импорт в Godot 4.7.2 и проверка на Android. Не удаляй подтверждённую рабочую версию до этого теста.
 
-## Commander and tactical battle
 
-- The ruler appears on the battlefield as a commander. The enemy army also has a commander.
-- A commander's passive aura strengthens nearby friendly troops.
-- Tap **БОЕВОЙ КЛИЧ** during battle to heal nearby allies and give them a temporary damage and movement bonus. The button shows its remaining cooldown.
-- Keyboard shortcut for Battle Cry: `Q`.
-- Commander experience is earned from battle kills, damage and victory. Each level grants one skill point.
-- If the ruler is defeated, the commander returns wounded and recovers over subsequent campaign turns; the campaign save retains health and progression.
+## QA pipeline (v0.17.1)
 
-## Tactical controls
-
-- Tap a friendly unit to select it. Tap another friendly unit with **ДОБОР** enabled to add/remove it.
-- Drag across the battlefield to select all friendly units inside the rectangle.
-- Tap an enemy with units selected to focus their attacks on it.
-- Tap empty ground to move selected troops to a formation. Toggle **МАРШ** for attack-move orders.
-- **ДЕРЖАТЬ** defends the current positions; **СТОП** cancels movement; **ОТСТУП** orders selected troops to withdraw.
-- Cycle **ЛИНИЯ / КОЛОННА / КЛИН** to change formation layout.
-- Use **ЗАПИСЬ** and **ГР. 1–4** to save and recall groups on touch devices.
-- On a keyboard, use `A` for attack-move, `H` for hold, `S` for stop, `Q` for Battle Cry, `R` to restart the isolated battle, and arrow keys to pan.
-
-## Validation status
-
-GitHub Actions validates GDScript import, strategic/tactical scene startup, campaign economy/recruitment/persistence, the four-role unit roster and hero progression/commander abilities on Godot 4.3.
-
-The v0.6.0 source was previously confirmed to run on the target phone. This v0.7.0 update still needs a fresh Android Editor import and hands-on test of commander visuals, Battle Cry touch input, skill buttons, UI scaling and battle balance. Keep the previous ZIP until those checks are complete.
+- Target engine is pinned to Godot 4.7.2 stable. The matching official Linux editor binary is checksum-verified by `.github/workflows/ember-qa.yml`.
+- Every `tests/*_smoke_test.gd` test runs in its own temporary user-data directory.
+- The visual capture runner saves strategic-map screenshots at zoom 0.075, 0.76, 0.90 and 1.25 and writes a JSON summary with tile/detail batch counts and RenderingServer metrics.
+- GitHub Actions uploads the complete QA bundle even when a test fails, so logs and screenshots can be inspected.
+- On Android, keep sending the in-game Performance Report together with a screenshot at zoom 0.900. CI uses Mesa software rendering and is not a substitute for measuring the physical Android GPU.
+- To activate the workflow for the current v0.17.1 source, use `INSTALL_EMBER_QA_PIPELINE.sh` from the accompanying release package. It creates a dedicated `qa/godot-4.7.2-visual-pipeline-v0.17.1` branch and opens a PR; `main` and PR #4 remain untouched.

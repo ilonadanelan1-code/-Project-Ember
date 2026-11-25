@@ -1,1 +1,1 @@
-Project Ember v0.7.0 — Godot 4.3 source project. Import project.godot in Godot Android Editor. Includes persistent ruler progression and battlefield commander abilities.
+Source project ZIP for Godot 4.7.2 stable / GL Compatibility. Includes 24-scene painted biome atlas, 24-sprite detail atlas, existing gameplay and save systems, 18 GDScript smoke tests, a pinned Godot 4.7.2 GitHub Actions QA workflow, static resource validation, and four-scale visual screenshot capture. Not an APK.
