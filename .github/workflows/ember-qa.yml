@@ -81,6 +81,7 @@ jobs:
         run: project_ember/tools/qa/run_smoke_tests.sh project_ember
 
       - name: Capture strategic map at four zoom levels
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +90,7 @@ jobs:
             env LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=4.5COMPAT \
             "$GODOT_BIN" --path project_ember --rendering-method gl_compatibility \
               --rendering-driver opengl3 --audio-driver Dummy \
-              --script res://tools/qa/visual_capture.gd -- "$EMBER_QA_ARTIFACTS/visual" \
+              res://tools/qa/visual_capture.tscn -- "$EMBER_QA_ARTIFACTS/visual" \
               2>&1 | tee "$EMBER_QA_ARTIFACTS/logs/visual-capture.log"
 
       - name: Upload QA bundle (also on failure)
