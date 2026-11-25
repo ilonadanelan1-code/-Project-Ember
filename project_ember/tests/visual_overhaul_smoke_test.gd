@@ -79,8 +79,13 @@ func _run() -> void:
 	_check(source_checkout_stays_mesh_free, "source-only checkout never substitutes low-poly meshes when licensed pixel art is absent")
 
 	var material_count_after_spawn := VisualCacheScript.get_material_count()
+	var health_before_hit := units[0].health
 	units[0].take_damage(1.0)
-	_check(units[0]._hit_flash_timer > 0.0, "hit feedback is safe with or without the source-checkout atlas")
+	_check(units[0].health < health_before_hit, "damage updates unit health in sprite and source-only builds")
+	if is_instance_valid(units[0]._combat_sprite):
+		_check(units[0]._hit_flash_timer > 0.0, "pixel-sprite hit feedback starts when the licensed atlas is present")
+	else:
+		_check(not CombatSpriteLibraryScript.has_assets() and not _contains_mesh_node(units[0].get_node("VisualRoot")), "missing licensed art never produces a procedural hit-flash substitute")
 	var flash_material_count := VisualCacheScript.get_material_count()
 	units[1].take_damage(1.0)
 	_check(VisualCacheScript.get_material_count() == flash_material_count, "repeated hit feedback does not create per-unit materials")
