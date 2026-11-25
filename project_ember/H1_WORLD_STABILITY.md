@@ -16,10 +16,12 @@ This pass stabilizes the existing world-event and neutral-location systems befor
 
 ## H1 completion checklist
 
-- [ ] Godot 4.7.2 resource import and script compilation pass.
-- [ ] World-event, world-campaign, and neutral-location smoke tests pass.
-- [ ] Full smoke-test suite passes.
-- [ ] Legacy campaign save/load remains compatible.
+- [x] Godot 4.7.2 resource import and script compilation pass.
+- [x] World-event, world-campaign, and neutral-location smoke tests pass.
+- [x] Full Godot 4.7.2 smoke-test suite passes (32 passed / 0 failed).
+- [x] Existing campaign save/load checks pass; save schema version remains 1 and the legacy `reveal_radius` event key remains supported.
 - [ ] Android Editor test confirms touch behavior, fog of war, and stable performance.
 
-Android device validation remains a separate requirement after CI.
+QA workflow: [run 45648940100](https://github.com/ilonadanelan1-code/-Project-Ember/actions/runs/45648940100).
+
+Android GPU, touch interaction, and FPS validation remain open until tested on a physical Android device.
