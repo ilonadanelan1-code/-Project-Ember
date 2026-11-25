@@ -45,7 +45,25 @@ func _run() -> void:
 
 	state.settler_active = true
 	state.settler_cell = Vector2i(0, 3)
-	_check(state.found_city(state.settler_cell), "settler can found a city at legal distance")
+	var neutral_founding_cell := Vector2i(9999, 9999)
+	for radius in range(3, 25):
+		for q in range(-radius, radius + 1):
+			for r in range(-radius, radius + 1):
+				var offset := Vector2i(q, r)
+				if WorldGeneratorScript.hex_distance(Vector2i.ZERO, offset) != radius:
+					continue
+				var candidate := state.city_cell + offset
+				if state.can_found_city(candidate):
+					neutral_founding_cell = candidate
+					break
+			if neutral_founding_cell != Vector2i(9999, 9999):
+				break
+		if neutral_founding_cell != Vector2i(9999, 9999):
+			break
+	_check(neutral_founding_cell != Vector2i(9999, 9999), "campaign contains neutral land legally available for settlement")
+	if neutral_founding_cell != Vector2i(9999, 9999):
+		state.settler_cell = neutral_founding_cell
+		_check(state.found_city(neutral_founding_cell), "settler can found a city on neutral land")
 	_check(state.cities.size() == 2, "new city is added to the campaign")
 	_check(state.city_name == "Сосновый Дол", "new city becomes the active city")
 
