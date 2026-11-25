@@ -1,5 +1,7 @@
-Build: Project Ember v0.18.1 — Hex Terrain API Fix
+Build: Project Ember v0.19.0 — Combat Animation Pass
 Engine: Godot 4.7.2-stable / GL Compatibility
 Map assets: 448 named hex tiles / 6 WebP atlases / 64px / shared TerrainConnect TileSet
-Renderer: native TileMapLayer ground + deterministic feature layer
-QA status: local static validation 26/26; Godot import, runtime smoke tests and Android device validation still required.
+Combat visuals: optional AnimatedSprite3D sprites for melee, archer and lancer; original mounted cavalry renderer retained
+Combat feedback: alternating attacks, archer shooting, lancer thrust, hit flash and directional recoil
+Asset note: Tiny Swords atlas is local-only; public repository includes integration code and atlas builder, not the artwork
+QA: Godot parser and source-only fallback smoke test required; physical Android test required for this build
