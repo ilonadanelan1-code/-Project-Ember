@@ -103,7 +103,7 @@ func _run() -> void:
 	state.complete_battle(battle_players, no_enemy_survivors, true, {"player_kills": 0, "player_damage": 0.0})
 	_check(int(state.last_battle_result.get("player_unit_xp_awarded", 0)) == 6, "battle completion records survivor XP")
 	_check(int(state.last_battle_result.get("player_unit_promotions", 0)) == 1, "battle completion records a veterancy promotion")
-	_check(int(state.player_units[0].get("experience", 0)) == 46, "battle completion retains the promoted unit's cumulative XP")
+	_check(int(state.player_units[0].get("experience", 0)) == 40, "battle completion retains the promoted unit's post-battle cumulative XP without awarding it twice")
 
 	state.free()
 	elite.free()
