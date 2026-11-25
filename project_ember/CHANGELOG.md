@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.19.2 — Melee Contact Hotfix
+- Restores the original melee reach when starting an attack.
+- Commits a melee strike through its visible contact frame rather than rechecking a smaller radius after the wind-up.
+- Prevents small target movement from cancelling a valid hit.
+- Adds a regression test for a moving target.
+- Preserves combat stats, AI, ranged timing, animations and save data.
+
 ## v0.19.1 — Combat Readability Pass
 - Applies melee damage at the weapon-contact frame rather than at swing start.
 - Delays arrow creation until the bow release frame.

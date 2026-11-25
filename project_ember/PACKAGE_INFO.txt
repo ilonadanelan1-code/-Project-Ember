@@ -1,10 +1,10 @@
-Project Ember v0.19.1 — Combat Readability Pass
+Project Ember v0.19.2 — Melee Contact Hotfix
 Godot 4.7.2 stable / GL Compatibility source project for Android.
 
-The integrated owner ZIP includes the Hex Terrain Bundle and a locally generated Tiny Swords combat atlas. Swordsmen, archers and spearmen use animated pixel-art units; cavalry retains its mounted renderer.
+Includes the complete v0.19.1 project and locally integrated Tiny Swords combat atlas.
 
-Melee damage is applied at the weapon-contact frame. Arrows are spawned at bow release. Units face their current targets, ignore dead/corpse targets, cancel unfinished actions on new orders, and use guard/defence poses between attacks. Lancer proportions are adjusted without stretching the long pike.
+Fixes melee units failing to land valid hits: melee units now enter the wind-up at their original role attack range. When a strike begins, its hit remains committed until the weapon-contact frame, unless the target dies or is removed. The previous extra contact-distance recheck no longer silently discards moving targets.
 
-Unit stats, damage values, attack cooldowns, armor, AI, collision and saves are preserved. Public source CI omits the separately licensed sprite atlas and tests the fallback renderer.
+Animation-timed melee contact, bow release, target-facing, guard/defence recovery and corpse checks remain enabled. Unit stats, damage, cooldowns, armor, AI, collision and saves are preserved.
 
-Not an APK. Open project.godot in Godot 4.7.2 Android Editor and allow the first import to finish.
+Not an APK. Open project.godot in Godot 4.7.2 Android Editor and allow first import to finish.

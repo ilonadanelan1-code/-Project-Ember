@@ -439,12 +439,14 @@ func _tick_pending_combat(delta: float) -> void:
 			if is_instance_valid(enemy) and not enemy.is_queued_for_deletion() and enemy.health > 0.0 and not enemy._is_corpse:
 				var hit_offset := enemy.global_position - global_position
 				hit_offset.y = 0.0
-				if hit_offset.length() <= _get_melee_engagement_range() + 0.20:
-					if _pending_hit_charge:
-						_charge_timer = 4.5
-						_charge_armed = false
-						_play_battle_feedback("charge", "cavalry", global_position + Vector3(0.0, 0.35, 0.0), team, hit_offset.normalized())
-					enemy.take_damage(_pending_hit_damage, self)
+				# Once a melee swing starts inside attack range, its hit is committed.
+				# Rechecking a tiny radius at the later contact frame caused valid
+				# attacks to disappear when the target moved during the wind-up.
+				if _pending_hit_charge:
+					_charge_timer = 4.5
+					_charge_armed = false
+					_play_battle_feedback("charge", "cavalry", global_position + Vector3(0.0, 0.35, 0.0), team, hit_offset.normalized())
+				enemy.take_damage(_pending_hit_damage, self)
 			_pending_hit_target = null
 			_pending_hit_damage = 0.0
 			_pending_hit_timer = -1.0
@@ -460,13 +462,7 @@ func _tick_pending_combat(delta: float) -> void:
 
 
 func _get_melee_engagement_range() -> float:
-	match role:
-		UnitRole.MELEE, UnitRole.COMMANDER:
-			return maxf(0.80, attack_range - 0.32)
-		UnitRole.SPEAR:
-			return maxf(1.10, attack_range - 0.16)
-		UnitRole.CAVALRY:
-			return maxf(1.20, attack_range - 0.16)
+	# Keep the original role range; animation timing must not shorten gameplay reach.
 	return attack_range
 
 

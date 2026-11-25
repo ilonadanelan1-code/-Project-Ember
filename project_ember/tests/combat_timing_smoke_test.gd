@@ -42,6 +42,14 @@ func _run() -> void:
 	_check(is_equal_approx(target.health, health_before), "target remains unharmed before contact")
 	attacker._tick_pending_combat(0.04)
 	_check(target.health < health_before, "damage applies when contact timer reaches zero")
+	_check(is_equal_approx(attacker._get_melee_engagement_range(), attacker.attack_range), "melee wind-up starts at the original role attack range")
+
+	var moving_target := _make_unit(arena, 1, 0, Vector3(attacker.attack_range, 0.0, 1.0))
+	var moving_target_health := moving_target.health
+	attacker._begin_melee_attack(moving_target, 17.0, false)
+	moving_target.position.x += 0.55
+	attacker._tick_pending_combat(0.20)
+	_check(moving_target.health < moving_target_health, "committed melee swing still connects after small target movement during wind-up")
 
 	attacker._target = target
 	attacker._begin_melee_attack(target, 25.0, false)
