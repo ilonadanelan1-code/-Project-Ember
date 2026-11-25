@@ -9,3 +9,13 @@ Python static QA syntax validation: passed
 Godot 4.7.2 parser/import/runtime and Android GPU/touch/FPS validation: pending; engine executable unavailable in the build container
 Save schema: version 1 retained
 Package type: Godot source project, not an APK
+
+Combat hotfix based on the v0.29.0 release line:
+- Enemy-controlled units actively acquire and advance toward opposing units across the tactical field.
+- When only the enemy commander remains, the player army expands its automatic search range and pursues the final commander.
+- Enemy commanders no longer retreat out of the battle at critical health.
+- Ordinary enemy units return to AUTO after completing a retreat, with a recovery delay, instead of becoming permanently stuck in HOLD.
+- No campaign save schema, unit IDs, or diplomacy IDs are changed.
+
+Regression coverage: battle_engagement_smoke_test.gd checks final-commander pursuit, commander damage, enemy aggression, and re-engagement after retreat.
+Godot 4.7.2 validation: pending on the hotfix branch.
