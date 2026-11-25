@@ -661,8 +661,8 @@ func _on_mobile_map_two_finger_pan(delta: Vector2) -> void:
 	_pan_map(delta)
 
 
-func _on_mobile_map_double_tap(position: Vector2) -> void:
-	_zoom_map(1.2, position)
+func _on_mobile_map_double_tap(tap_position: Vector2) -> void:
+	_zoom_map(1.2, tap_position)
 
 
 
@@ -2425,4 +2425,11 @@ func _is_traversable(cell: Vector2i) -> bool:
 
 
 func _hex_distance(a: Vector2i, b: Vector2i) -> int:
-	return int((absi(a.x - b.x) + absi(a.y - b.y) + absi((a.x + a.y) - (b.x + b.y))) / 2)
+	var axial_distance_sum := (
+		absi(a.x - b.x)
+		+ absi(a.y - b.y)
+		+ absi((a.x + a.y) - (b.x + b.y))
+	)
+	# The axial hex-distance sum is always even, so shifting right by one
+	# performs exact integer halving without a division warning.
+	return axial_distance_sum >> 1
