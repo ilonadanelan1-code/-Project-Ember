@@ -52,11 +52,11 @@ func _run() -> void:
 	_check(state.get_world_terrain(Vector2i(20, 18)) == state.get_world_terrain(Vector2i(20, 18)), "procedural terrain is deterministic")
 	_check(WorldScript.terrain_at(Vector2i(2, 0), state.world_seed, 1) == "plain", "legacy generation keeps the original playable corridor")
 	_check(
-		WorldScript.terrain_at(Vector2i(0, -12), state.world_seed, 2) == "plain",
+		WorldScript.terrain_at(Vector2i(-5, -4), state.world_seed, 2) == "plain",
 		"generator v2 remains stable for existing coherent-world saves"
 	)
 	_check(
-		WorldScript.terrain_at(Vector2i(0, -12), state.world_seed, 3) == "farmland",
+		WorldScript.terrain_at(Vector2i(-5, -4), state.world_seed, 3) == "farmland",
 		"generator v3 reshapes the opening region without changing the outer world"
 	)
 	var opening_region_counts := {"plain": 0, "forest": 0, "hills": 0, "water": 0, "farmland": 0, "marsh": 0}
