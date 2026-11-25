@@ -1,1 +1,25 @@
-Project Ember v0.7.0 — Godot 4.3 source project. Import project.godot in Godot Android Editor. Includes persistent ruler progression and battlefield commander abilities.
+Project Ember v0.29.0 — Diplomacy & AI Kingdoms
+Godot 4.7.2 stable / GL Compatibility source project for Android landscape. This is not an APK. Based on v0.28.0.
+
+Feature summary:
+- Five deterministic AI personality IDs: aggressor, merchant, isolationist, honorable and expansionist.
+- A canonical relationship matrix for the player and all nine AI kingdoms: 45 pair records, relation range -100..+100.
+- Timed peace/trade/alliance/tribute/vassal treaties and unlimited war state.
+- Trade and alliance add 2 gold per turn to each living signatory; tribute and vassalage transfer up to 3 gold per turn without reducing the payer below zero.
+- Player proposals for trade, alliance, peace, tribute and vassalage; deterministic acceptance chance and incoming AI proposals.
+- War declarations, battle provocation, border tension, war exhaustion, AI-AI wars and peace after exhaustion.
+- AI armies select only realms with an active war treaty as strategic targets.
+- Mobile kingdom panel exposes relationship, personality, treaty, war cause and available actions.
+- No fourth resource or new kingdom/unit/building IDs are introduced.
+
+Compatibility:
+- Optional `diplomacy_relations` and `pending_diplomacy_offers` root JSON fields are added.
+- SAVE_VERSION remains 1. Legacy saves receive a deterministic 45-pair relationship matrix and an empty pending-offer list.
+- Existing role, building, resource and kingdom IDs are unchanged.
+
+Validation:
+- Static QA: 162/162 checks passed.
+- `tests/diplomacy_smoke_test.gd` is included as source; it was not executed.
+- 31 GDScript smoke-test sources are included, not run.
+- Python validator syntax compilation passed.
+- Godot 4.7.2 parser/import, scene launch, save/load runtime and Android touch/GPU/FPS checks were not run because the engine executable is unavailable in the build environment.

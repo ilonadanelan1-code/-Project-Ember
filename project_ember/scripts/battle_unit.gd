@@ -1,6 +1,15 @@
 class_name BattleUnit
 extends CharacterBody3D
 
+const BattleUnitVisualsScript = preload("res://scripts/battle_unit_visuals.gd")
+const CombatSpriteLibraryScript = preload("res://scripts/combat_sprite_library.gd")
+const VisualCacheScript = preload("res://scripts/visual_cache.gd")
+const Palette = preload("res://scripts/art_palette.gd")
+const BattlefieldRulesScript = preload("res://scripts/battlefield_rules.gd")
+const BattleFlankingScript = preload("res://scripts/battle_flanking.gd")
+const CombatStatusCatalogScript = preload("res://scripts/combat_status_catalog.gd")
+const BattleAITacticsScript = preload("res://scripts/battle_ai_tactics.gd")
+
 signal eliminated(unit: BattleUnit, killer: BattleUnit)
 
 enum OrderMode {
@@ -22,6 +31,7 @@ enum UnitRole {
 }
 
 const UNIT_CATALOG_SCRIPT = preload("res://scripts/unit_catalog.gd")
+const ArmyUpgradeCatalogScript = preload("res://scripts/army_upgrade_catalog.gd")
 
 @export var team: int = 0 # 0 = player, 1 = enemy
 @export_enum("Мечник", "Лучник", "Копейщик", "Кавалерист", "Командир") var role: int = UnitRole.MELEE
@@ -52,6 +62,8 @@ var health: float
 var starting_health: float = -1.0
 var kills: int = 0
 var damage_dealt: float = 0.0
+var experience: int = 0
+var army_upgrade_rank: int = 0
 var _attack_timer: float = 0.0
 var _charge_timer: float = 0.0
 var _moving_fast: bool = false
@@ -59,13 +71,58 @@ var _charge_armed: bool = false
 var _destination: Vector3 = Vector3.ZERO
 var _order_mode: OrderMode = OrderMode.AUTO
 var _target: BattleUnit
+static var _active_corpse_count: int = 0
+const CORPSE_KEEP_SECONDS := 8.0
+const CORPSE_FADE_SECONDS := 2.0
+
 var _selection_ring: MeshInstance3D
-var _target_ring: MeshInstance3D
+var _health_background: MeshInstance3D
 var _health_fill: MeshInstance3D
 var _health_fill_material: StandardMaterial3D
+var _visual_root: Node3D
+var _body_mesh: MeshInstance3D
+var _action_mesh: MeshInstance3D
+var _action_rest_position: Vector3 = Vector3.ZERO
+var _action_rest_rotation: Vector3 = Vector3.ZERO
+var _combat_sprite: AnimatedSprite3D
+var _active_attack_animation: StringName = &""
+var _attack_variant: bool = false
+var _hit_recoil_timer: float = 0.0
+var _hit_recoil_direction: Vector3 = Vector3.ZERO
+var _attack_lunge_direction: Vector3 = Vector3.ZERO
+var _sprite_facing_flip: bool = false
+var _pending_hit_target: BattleUnit
+var _pending_hit_damage: float = 0.0
+var _pending_hit_timer: float = -1.0
+var _pending_hit_charge: bool = false
+var _pending_projectile_target: BattleUnit
+var _pending_projectile_timer: float = -1.0
+var _animation_clock: float = 0.0
+var _attack_animation_elapsed: float = -1.0
+var _attack_animation_duration: float = 0.38
+var _attack_animation_is_charge: bool = false
+var _rally_animation_timer: float = 0.0
+var _hit_flash_timer: float = 0.0
+var _is_selected: bool = false
+var _is_targeted: bool = false
+var _is_corpse: bool = false
+var _corpse_elapsed: float = 0.0
+var _corpse_roll_direction: float = 1.0
+
+# Tactical terrain is derived from the active battle and is never written to campaign saves.
+var battlefield_biome_id: String = "grassland"
+var battlefield_seed: int = 841207
+var battlefield_field_size: Vector2 = Vector2(38.0, 26.0)
+var combat_facing_direction: Vector3 = Vector3.RIGHT
+var exposed_timer: float = 0.0
+var flank_attack_count: int = 0
+var _pending_hit_exposes_target: bool = false
+var _status_marker: Label3D
+
 
 
 func _ready() -> void:
+	combat_facing_direction = Vector3.RIGHT if team == 0 else Vector3.LEFT
 	_apply_role_stats()
 	health = max_health if starting_health < 0.0 else clampf(starting_health, 0.0, max_health)
 	collision_layer = 2
@@ -105,55 +162,104 @@ func _apply_role_stats() -> void:
 	armor = float(data.get("armor", 0.0))
 	anti_cavalry_multiplier = float(data.get("anti_cavalry_multiplier", 1.0))
 	charge_multiplier = float(data.get("charge_multiplier", 1.0))
+	var veterancy_data := UNIT_CATALOG_SCRIPT.get_veterancy_data(experience)
+	attack_damage *= float(veterancy_data.get("damage_multiplier", 1.0))
+	armor += float(veterancy_data.get("armor_bonus", 0.0))
+	var upgrade_data := ArmyUpgradeCatalogScript.get_bonuses(_get_role_id(), army_upgrade_rank)
+	attack_damage *= float(upgrade_data.get("damage_multiplier", 1.0))
+	armor += float(upgrade_data.get("armor_bonus", 0.0))
+	anti_cavalry_multiplier += float(upgrade_data.get("anti_cavalry_bonus", 0.0))
+	charge_multiplier += float(upgrade_data.get("charge_bonus", 0.0))
 
 
 func _get_role_id() -> String:
 	return UNIT_CATALOG_SCRIPT.get_role_for_battle_index(role)
 
+func _play_battle_feedback(effect_id: String, sound_id: String, world_position: Vector3, source_team: int, direction: Vector3 = Vector3.ZERO) -> void:
+	var scene_tree := get_tree()
+	if scene_tree == null:
+		return
+	var manager := scene_tree.get_first_node_in_group("battle_effects")
+	if not is_instance_valid(manager):
+		return
+	if not effect_id.is_empty() and manager.has_method("spawn_effect"):
+		manager.call("spawn_effect", effect_id, world_position, source_team, direction)
+	if not sound_id.is_empty() and manager.has_method("play_sound"):
+		manager.call("play_sound", sound_id, world_position)
+
+
+func _get_damage_sound(attacker: BattleUnit) -> String:
+	if not is_instance_valid(attacker):
+		return "arrow_impact"
+	match attacker.role:
+		UnitRole.SPEAR:
+			return "spear"
+		UnitRole.CAVALRY:
+			return "cavalry"
+		UnitRole.RANGED:
+			return "arrow_impact"
+		_:
+			return "melee"
+
 
 func _build_visuals() -> void:
-	var body_mesh := MeshInstance3D.new()
-	var body_material := StandardMaterial3D.new()
-	if team == 0:
-		body_material.albedo_color = Color(0.16, 0.48, 0.95)
+	var sprite_frames := CombatSpriteLibraryScript.get_frames(team, role)
+	if is_instance_valid(sprite_frames):
+		_visual_root = Node3D.new()
+		_visual_root.name = "VisualRoot"
+		add_child(_visual_root)
+		_combat_sprite = AnimatedSprite3D.new()
+		_combat_sprite.name = "CombatSprite"
+		_combat_sprite.sprite_frames = sprite_frames
+		_combat_sprite.position.y = 1.12 if role == UnitRole.CAVALRY else 0.80
+		_combat_sprite.pixel_size = 0.026 if role == UnitRole.CAVALRY else 0.0175
+		_combat_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		_combat_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_combat_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		_combat_sprite.shaded = false
+		_combat_sprite.transparent = true
+		_combat_sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_sprite_facing_flip = team == 1
+		_combat_sprite.flip_h = _sprite_facing_flip
+		if role == UnitRole.COMMANDER:
+			_combat_sprite.scale = Vector3.ONE * 1.10
+		elif role == UnitRole.SPEAR:
+			# The lancer sheet includes a long pike; enlarge the sprite so the
+			# soldier remains legible at the same zoom as other infantry.
+			_combat_sprite.scale = Vector3(1.08, 1.42, 1.0)
+		elif role == UnitRole.CAVALRY:
+			_combat_sprite.scale = Vector3(1.05, 1.05, 1.0)
+		_combat_sprite.play("idle")
+		_visual_root.add_child(_combat_sprite)
 	else:
-		body_material.albedo_color = Color(0.88, 0.20, 0.17)
-	body_material.roughness = 0.82
+		# Source-only builds without the licensed atlas keep the original renderer.
+		_visual_root = BattleUnitVisualsScript.build(team, role)
+		add_child(_visual_root)
+		_body_mesh = _visual_root.get_node("BodyMesh") as MeshInstance3D
+		_action_mesh = _visual_root.get_node("ActionMesh") as MeshInstance3D
+		_action_rest_position = _action_mesh.position
+		_action_rest_rotation = _action_mesh.rotation
 
+	# Keep the original gameplay collision capsule and its role-specific dimensions.
 	var body_radius := 0.38
-	var body_height := 1.45
-	var body_y := 0.76
+	var body_height := 1.65
+	var body_y := 0.84
 	if role == UnitRole.RANGED:
-		body_radius = 0.29
-		body_height = 1.30
-		body_y = 0.68
+		body_radius = 0.32
+		body_height = 1.55
+		body_y = 0.78
 	elif role == UnitRole.SPEAR:
-		body_radius = 0.34
-		body_height = 1.42
-		body_y = 0.73
+		body_radius = 0.36
+		body_height = 1.65
+		body_y = 0.84
 	elif role == UnitRole.CAVALRY:
-		body_radius = 0.30
-		body_height = 1.20
-		body_y = 1.02
+		body_radius = 0.60
+		body_height = 1.85
+		body_y = 0.88
 	elif role == UnitRole.COMMANDER:
-		body_radius = 0.43
-		body_height = 1.62
-		body_y = 0.86
-
-	if role == UnitRole.CAVALRY:
-		_add_cavalry_mount()
-	var body_capsule := CapsuleMesh.new()
-	body_capsule.radius = body_radius
-	body_capsule.height = body_height
-	body_mesh.mesh = body_capsule
-	body_mesh.position.y = body_y
-	if role == UnitRole.COMMANDER:
-		body_material.metallic = 0.52
-		body_material.roughness = 0.48
-	body_mesh.material_override = body_material
-	add_child(body_mesh)
-	if role == UnitRole.COMMANDER:
-		_add_commander_visuals()
+		body_radius = 0.46
+		body_height = 2.10
+		body_y = 1.05
 
 	var collision := CollisionShape3D.new()
 	var capsule_shape := CapsuleShape3D.new()
@@ -163,188 +269,103 @@ func _build_visuals() -> void:
 	collision.shape = capsule_shape
 	add_child(collision)
 
-	if role == UnitRole.SPEAR:
-		_add_spear_visual()
-	_create_role_marker()
-
-	_selection_ring = MeshInstance3D.new()
-	var ring_mesh := TorusMesh.new()
-	ring_mesh.inner_radius = 0.48
-	ring_mesh.outer_radius = 0.58
-	_selection_ring.mesh = ring_mesh
-	_selection_ring.position.y = 0.055
-	var ring_material := StandardMaterial3D.new()
-	ring_material.albedo_color = Color(1.0, 0.88, 0.22)
-	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_selection_ring.material_override = ring_material
-	_selection_ring.visible = false
-	add_child(_selection_ring)
-
-	_target_ring = MeshInstance3D.new()
-	var target_ring_mesh := TorusMesh.new()
-	target_ring_mesh.inner_radius = 0.64
-	target_ring_mesh.outer_radius = 0.76
-	_target_ring.mesh = target_ring_mesh
-	_target_ring.position.y = 0.075
-	var target_ring_material := StandardMaterial3D.new()
-	target_ring_material.albedo_color = Color(1.0, 0.38, 0.12)
-	target_ring_material.emission_enabled = true
-	target_ring_material.emission = Color(0.8, 0.12, 0.025)
-	target_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_target_ring.material_override = target_ring_material
-	_target_ring.visible = false
-	add_child(_target_ring)
-
+	_create_selection_ring()
 	_create_health_bar()
 
 
-func _add_cavalry_mount() -> void:
-	var mount := MeshInstance3D.new()
-	var mount_mesh := CapsuleMesh.new()
-	mount_mesh.radius = 0.46
-	mount_mesh.height = 1.75
-	mount.mesh = mount_mesh
-	mount.rotation.x = PI / 2.0
-	mount.position = Vector3(0.0, 0.48, 0.0)
-	var mount_material := StandardMaterial3D.new()
-	mount_material.albedo_color = Color(0.36, 0.22, 0.13) if team == 0 else Color(0.27, 0.16, 0.12)
-	mount_material.roughness = 0.9
-	mount.material_override = mount_material
-	add_child(mount)
-
-	var saddle := MeshInstance3D.new()
-	var saddle_mesh := BoxMesh.new()
-	saddle_mesh.size = Vector3(0.54, 0.18, 0.72)
-	saddle.mesh = saddle_mesh
-	saddle.position = Vector3(0.0, 0.79, 0.0)
-	var saddle_material := StandardMaterial3D.new()
-	saddle_material.albedo_color = Color(0.72, 0.48, 0.17)
-	saddle.material_override = saddle_material
-	add_child(saddle)
+func _create_status_marker() -> void:
+	_status_marker = Label3D.new()
+	_status_marker.name = "StatusExposedMarker"
+	_status_marker.text = "!"
+	_status_marker.font_size = 64
+	_status_marker.pixel_size = 0.0045
+	_status_marker.outline_size = 12
+	_status_marker.modulate = Color(1.0, 0.68, 0.20, 1.0)
+	_status_marker.position = Vector3(0.0, 2.30, 0.0)
+	_status_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_status_marker.visible = false
+	add_child(_status_marker)
 
 
-func _add_commander_visuals() -> void:
-	var shoulder_material := StandardMaterial3D.new()
-	shoulder_material.albedo_color = Color(0.78, 0.58, 0.20)
-	shoulder_material.metallic = 0.72
-	for side in [-1.0, 1.0]:
-		var shoulder := MeshInstance3D.new()
-		var shoulder_mesh := SphereMesh.new()
-		shoulder_mesh.radius = 0.22
-		shoulder_mesh.height = 0.26
-		shoulder.mesh = shoulder_mesh
-		shoulder.position = Vector3(0.0, 1.24, side * 0.38)
-		shoulder.material_override = shoulder_material
-		add_child(shoulder)
-
-	var crown := MeshInstance3D.new()
-	var crown_mesh := CylinderMesh.new()
-	crown_mesh.top_radius = 0.17
-	crown_mesh.bottom_radius = 0.23
-	crown_mesh.height = 0.16
-	crown.mesh = crown_mesh
-	crown.position = Vector3(0.0, 1.79, 0.0)
-	var crown_material := StandardMaterial3D.new()
-	crown_material.albedo_color = Color(0.95, 0.72, 0.22)
-	crown_material.metallic = 0.88
-	crown_material.roughness = 0.24
-	crown.material_override = crown_material
-	add_child(crown)
-
-	var jewel := MeshInstance3D.new()
-	var jewel_mesh := SphereMesh.new()
-	jewel_mesh.radius = 0.075
-	jewel_mesh.height = 0.15
-	jewel.mesh = jewel_mesh
-	jewel.position = Vector3(0.0, 1.90, -0.02)
-	var jewel_material := StandardMaterial3D.new()
-	jewel_material.albedo_color = Color(0.25, 0.85, 0.78)
-	jewel_material.emission_enabled = true
-	jewel_material.emission = Color(0.08, 0.35, 0.30)
-	jewel.material_override = jewel_material
-	add_child(jewel)
+func apply_exposed(duration: float = BattleFlankingScript.EXPOSED_DURATION) -> void:
+	if health <= 0.0 or _is_corpse:
+		return
+	exposed_timer = maxf(exposed_timer, duration)
+	if not is_instance_valid(_status_marker):
+		_create_status_marker()
+	_status_marker.visible = true
 
 
-func _add_spear_visual() -> void:
-	var spear := MeshInstance3D.new()
-	var shaft := CylinderMesh.new()
-	shaft.top_radius = 0.025
-	shaft.bottom_radius = 0.035
-	shaft.height = 1.65
-	spear.mesh = shaft
-	spear.position = Vector3(0.34, 1.0, -0.02)
-	spear.rotation.z = -0.24
-	var shaft_material := StandardMaterial3D.new()
-	shaft_material.albedo_color = Color(0.42, 0.29, 0.16)
-	spear.material_override = shaft_material
-	add_child(spear)
-
-	var spear_tip := MeshInstance3D.new()
-	var tip_mesh := CylinderMesh.new()
-	tip_mesh.top_radius = 0.0
-	tip_mesh.bottom_radius = 0.085
-	tip_mesh.bottom_radius = 0.085
-	tip_mesh.height = 0.22
-	spear_tip.mesh = tip_mesh
-	spear_tip.position = Vector3(0.53, 1.80, -0.02)
-	spear_tip.rotation.z = -0.24
-	var tip_material := StandardMaterial3D.new()
-	tip_material.albedo_color = Color(0.76, 0.81, 0.87)
-	spear_tip.material_override = tip_material
-	add_child(spear_tip)
+func get_combat_facing_direction() -> Vector3:
+	return combat_facing_direction
 
 
-func _create_role_marker() -> void:
-	var marker := MeshInstance3D.new()
-	var marker_mesh := SphereMesh.new()
-	marker_mesh.radius = 0.13
-	marker_mesh.height = 0.26
-	marker.mesh = marker_mesh
-	marker.position = Vector3(0.0, 1.53, 0.0)
+func get_terrain_effects() -> Dictionary:
+	return BattlefieldRulesScript.get_effects_at_position(
+		global_position,
+		battlefield_biome_id,
+		battlefield_field_size,
+		battlefield_seed,
+		role
+	)
 
-	var marker_material := StandardMaterial3D.new()
-	match role:
-		UnitRole.RANGED:
-			marker_material.albedo_color = Color(1.0, 0.76, 0.20)
-			marker_material.emission_enabled = true
-			marker_material.emission = Color(0.65, 0.30, 0.04)
-		UnitRole.SPEAR:
-			marker_material.albedo_color = Color(0.34, 0.88, 0.58)
-		UnitRole.CAVALRY:
-			marker_material.albedo_color = Color(0.92, 0.67, 0.28)
-			marker_material.emission_enabled = true
-			marker_material.emission = Color(0.35, 0.18, 0.04)
-		_:
-			marker_material.albedo_color = Color(0.78, 0.84, 0.92)
-	marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	marker.material_override = marker_material
-	add_child(marker)
+
+func _create_selection_ring() -> void:
+	_selection_ring = MeshInstance3D.new()
+	_selection_ring.name = "SelectionRing"
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 0.48
+	ring_mesh.outer_radius = 0.58
+	ring_mesh.rings = 6
+	ring_mesh.ring_segments = 12
+	_selection_ring.mesh = VisualCacheScript.get_mesh("unit:ring:shared_mesh", func() -> Mesh:
+		return ring_mesh
+	)
+	_selection_ring.position.y = 0.055
+	_selection_ring.material_override = VisualCacheScript.get_material("unit:ring:selection", func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Palette.GOLD_LIGHT
+		material.emission_enabled = true
+		material.emission = Palette.GOLD.darkened(0.55)
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	)
+	_selection_ring.visible = false
+	add_child(_selection_ring)
 
 
 func _create_health_bar() -> void:
-	var bar_root := Node3D.new()
-	bar_root.position = Vector3(0.0, 2.02 if role == UnitRole.CAVALRY else 1.82, 0.0)
-	add_child(bar_root)
+	var bar_y := 2.02 if role == UnitRole.CAVALRY else 1.82
 
-	var background := MeshInstance3D.new()
+	_health_background = MeshInstance3D.new()
+	_health_background.name = "HealthBackground"
 	var background_mesh := BoxMesh.new()
 	background_mesh.size = Vector3(1.02, 0.10, 0.08)
-	background.mesh = background_mesh
-	var background_material := StandardMaterial3D.new()
-	background_material.albedo_color = Color(0.025, 0.03, 0.035, 1.0)
-	background_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	background.material_override = background_material
-	bar_root.add_child(background)
+	_health_background.mesh = VisualCacheScript.get_mesh("unit:health:background_mesh", func() -> Mesh:
+		return background_mesh
+	)
+	_health_background.position.y = bar_y
+	_health_background.material_override = VisualCacheScript.get_material("unit:health:background", func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Palette.UI_BRONZE_DARK
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	)
+	_health_background.visible = false
+	add_child(_health_background)
 
 	_health_fill = MeshInstance3D.new()
+	_health_fill.name = "HealthFill"
 	var fill_mesh := BoxMesh.new()
 	fill_mesh.size = Vector3(0.92, 0.065, 0.09)
-	_health_fill.mesh = fill_mesh
-	_health_fill_material = StandardMaterial3D.new()
-	_health_fill_material.albedo_color = Color(0.20, 0.88, 0.32, 1.0)
-	_health_fill_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_health_fill.mesh = VisualCacheScript.get_mesh("unit:health:fill_mesh", func() -> Mesh:
+		return fill_mesh
+	)
+	_health_fill.position.y = bar_y
+	_health_fill_material = _get_health_material("good")
 	_health_fill.material_override = _health_fill_material
-	bar_root.add_child(_health_fill)
+	_health_fill.visible = false
+	add_child(_health_fill)
 
 
 func _update_health_bar() -> void:
@@ -353,56 +374,261 @@ func _update_health_bar() -> void:
 	var ratio := clampf(health / maxf(max_health, 1.0), 0.0, 1.0)
 	_health_fill.scale.x = maxf(ratio, 0.001)
 	_health_fill.position.x = -0.46 * (1.0 - ratio)
-	if ratio > 0.55:
-		_health_fill_material.albedo_color = Color(0.20, 0.88, 0.32, 1.0)
-	elif ratio > 0.25:
-		_health_fill_material.albedo_color = Color(1.0, 0.67, 0.16, 1.0)
-	else:
-		_health_fill_material.albedo_color = Color(0.92, 0.20, 0.16, 1.0)
+	var health_band := "good"
+	if ratio <= 0.25:
+		health_band = "critical"
+	elif ratio <= 0.55:
+		health_band = "warning"
+	_health_fill_material = _get_health_material(health_band)
+	_health_fill.material_override = _health_fill_material
+	var show_bar := _is_selected or _is_targeted or ratio < 0.999
+	_health_background.visible = show_bar
+	_health_fill.visible = show_bar
+
+
+func _get_health_material(band: String) -> StandardMaterial3D:
+	var color := Palette.HEALTH_GOOD
+	if band == "warning":
+		color = Palette.HEALTH_WARNING
+	elif band == "critical":
+		color = Palette.HEALTH_CRITICAL
+	return VisualCacheScript.get_material("unit:health:" + band, func() -> Material:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		return material
+	) as StandardMaterial3D
 
 
 func set_selected(value: bool) -> void:
-	if is_instance_valid(_selection_ring):
-		_selection_ring.visible = value
+	_is_selected = value
+	_refresh_selection_visuals()
 
 
 func set_targeted(value: bool) -> void:
-	if is_instance_valid(_target_ring):
-		_target_ring.visible = value
+	_is_targeted = value
+	_refresh_selection_visuals()
+
+
+func _refresh_selection_visuals() -> void:
+	if is_instance_valid(_selection_ring):
+		_selection_ring.visible = _is_selected or _is_targeted
+		var target_material := _is_targeted
+		_selection_ring.material_override = VisualCacheScript.get_material(
+			"unit:ring:target" if target_material else "unit:ring:selection",
+			func() -> Material:
+				var material := StandardMaterial3D.new()
+				material.albedo_color = Palette.WARNING if target_material else Palette.GOLD_LIGHT
+				material.emission_enabled = true
+				material.emission = Palette.WARNING.darkened(0.3) if target_material else Palette.GOLD.darkened(0.55)
+				material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				return material
+		)
+		_selection_ring.scale = Vector3.ONE * (1.18 if _is_targeted else 1.0)
+	_update_health_bar()
+
+
+func play_attack_animation(is_charge_attack: bool = false) -> void:
+	if health <= 0.0:
+		return
+	_attack_animation_elapsed = 0.0
+	_attack_animation_is_charge = is_charge_attack
+	if is_instance_valid(_combat_sprite):
+		_active_attack_animation = CombatSpriteLibraryScript.get_attack_animation(role, _attack_variant, is_charge_attack)
+		if role == UnitRole.MELEE or role == UnitRole.COMMANDER:
+			_attack_variant = not _attack_variant
+		_combat_sprite.speed_scale = 1.18 if is_charge_attack else 1.0
+		_attack_animation_duration = CombatSpriteLibraryScript.get_animation_duration(
+			_combat_sprite.sprite_frames,
+			_active_attack_animation
+		)
+		_combat_sprite.play(_active_attack_animation)
+	else:
+		_attack_animation_duration = 0.48 if is_charge_attack else (0.42 if role == UnitRole.SPEAR else 0.36)
+
+
+func _trigger_rally_animation() -> void:
+	_rally_animation_timer = 0.95
+
+
+func _trigger_hit_flash(attacker: BattleUnit = null) -> void:
+	if is_instance_valid(_combat_sprite):
+		_combat_sprite.modulate = Color(1.28, 1.20, 1.10, 1.0)
+		_hit_recoil_timer = 0.17
+		_hit_recoil_direction = Vector3.ZERO
+		if is_instance_valid(attacker) and attacker != self:
+			var recoil := global_position - attacker.global_position
+			recoil.y = 0.0
+			if recoil.length_squared() > 0.001:
+				_hit_recoil_direction = recoil.normalized()
+	else:
+		var flash_material := BattleUnitVisualsScript.get_hit_flash_material()
+		if is_instance_valid(_body_mesh):
+			_body_mesh.material_overlay = flash_material
+		if is_instance_valid(_action_mesh):
+			_action_mesh.material_overlay = flash_material
+	_hit_flash_timer = 0.13
+
+
+func _clear_hit_flash() -> void:
+	if is_instance_valid(_body_mesh):
+		_body_mesh.material_overlay = null
+	if is_instance_valid(_action_mesh):
+		_action_mesh.material_overlay = null
+	if is_instance_valid(_combat_sprite):
+		_combat_sprite.modulate = Color.WHITE
+	_hit_flash_timer = 0.0
+	_hit_recoil_timer = 0.0
+
+
+func _cancel_pending_combat() -> void:
+	_pending_hit_target = null
+	_pending_hit_damage = 0.0
+	_pending_hit_timer = -1.0
+	_pending_hit_charge = false
+	_pending_hit_exposes_target = false
+	_pending_projectile_target = null
+	_pending_projectile_timer = -1.0
+	_attack_animation_elapsed = -1.0
+	_attack_animation_is_charge = false
+	_active_attack_animation = &""
+	if is_instance_valid(_combat_sprite):
+		_combat_sprite.speed_scale = 1.0
+		_combat_sprite.play("idle")
+
+
+func _tick_pending_combat(delta: float) -> void:
+	if _pending_hit_timer >= 0.0:
+		_pending_hit_timer -= delta
+		if _pending_hit_timer <= 0.0:
+			var enemy := _pending_hit_target
+			if is_instance_valid(enemy) and not enemy.is_queued_for_deletion() and enemy.health > 0.0 and not enemy._is_corpse:
+				var hit_offset := enemy.global_position - global_position
+				hit_offset.y = 0.0
+				# Once a melee swing starts inside attack range, its hit is committed.
+				# Rechecking a tiny radius at the later contact frame caused valid
+				# attacks to disappear when the target moved during the wind-up.
+				if _pending_hit_charge:
+					_charge_timer = 4.5
+					_charge_armed = false
+					_play_battle_feedback("charge", "cavalry", global_position + Vector3(0.0, 0.35, 0.0), team, hit_offset.normalized())
+				enemy.take_damage(_pending_hit_damage, self)
+				if _pending_hit_exposes_target:
+					flank_attack_count += 1
+					enemy.apply_exposed(BattleFlankingScript.EXPOSED_DURATION)
+			_pending_hit_target = null
+			_pending_hit_damage = 0.0
+			_pending_hit_timer = -1.0
+			_pending_hit_charge = false
+			_pending_hit_exposes_target = false
+	if _pending_projectile_timer >= 0.0:
+		_pending_projectile_timer -= delta
+		if _pending_projectile_timer <= 0.0:
+			var enemy := _pending_projectile_target
+			if is_instance_valid(enemy) and not enemy.is_queued_for_deletion() and enemy.health > 0.0 and not enemy._is_corpse:
+				_fire_projectile(enemy)
+			_pending_projectile_target = null
+			_pending_projectile_timer = -1.0
+
+
+func _get_melee_engagement_range() -> float:
+	# Keep the original role range; animation timing must not shorten gameplay reach.
+	return attack_range
+
+
+func _begin_melee_attack(enemy: BattleUnit, damage: float, charge_attack: bool, exposes_target: bool = false) -> void:
+	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0 or enemy._is_corpse:
+		return
+	var direction := enemy.global_position - global_position
+	direction.y = 0.0
+	if direction.length_squared() > 0.001:
+		_attack_lunge_direction = direction.normalized()
+		_update_combat_facing(direction)
+	play_attack_animation(charge_attack)
+	_pending_hit_target = enemy
+	_pending_hit_damage = damage
+	_pending_hit_charge = charge_attack
+	_pending_hit_exposes_target = exposes_target
+	_pending_hit_timer = CombatSpriteLibraryScript.get_contact_time(role) if is_instance_valid(_combat_sprite) else (0.205 if role == UnitRole.CAVALRY else (0.13 if role == UnitRole.SPEAR else 0.155))
+
+
+func _begin_ranged_attack(enemy: BattleUnit) -> void:
+	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0 or enemy._is_corpse:
+		return
+	var direction := enemy.global_position - global_position
+	direction.y = 0.0
+	_update_combat_facing(direction)
+	play_attack_animation()
+	_pending_projectile_target = enemy
+	_pending_projectile_timer = CombatSpriteLibraryScript.get_contact_time(role) if is_instance_valid(_combat_sprite) else 0.20
+
+
+func _update_combat_facing(direction: Vector3) -> void:
+	if direction.length_squared() <= 0.001:
+		return
+	var flat_direction := direction
+	flat_direction.y = 0.0
+	flat_direction = flat_direction.normalized()
+	combat_facing_direction = flat_direction
+	if is_instance_valid(_combat_sprite):
+		var screen_right := Vector3.RIGHT
+		var active_camera := get_viewport().get_camera_3d()
+		if is_instance_valid(active_camera):
+			screen_right = active_camera.global_transform.basis.x
+			screen_right.y = 0.0
+			if screen_right.length_squared() > 0.001:
+				screen_right = screen_right.normalized()
+		var side := flat_direction.dot(screen_right)
+		if absf(side) > 0.04:
+			_sprite_facing_flip = side < 0.0
+			_combat_sprite.flip_h = _sprite_facing_flip
+	elif is_instance_valid(_visual_root):
+		var desired_angle := atan2(-flat_direction.z, flat_direction.x)
+		if team == 1:
+			desired_angle -= PI
+		_visual_root.rotation.y = lerp_angle(_visual_root.rotation.y, desired_angle, 0.42)
 
 
 func order_move(point: Vector3) -> void:
+	_cancel_pending_combat()
 	_target = null
 	_destination = Vector3(point.x, 0.0, point.z)
 	_order_mode = OrderMode.MOVE
 
 
 func order_attack(enemy: BattleUnit) -> void:
-	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion():
+	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.health <= 0.0 or enemy._is_corpse:
 		return
+	_cancel_pending_combat()
 	_target = enemy
 	_order_mode = OrderMode.ATTACK
-
+	# An explicit player order should not inherit a long cooldown from the previous skirmish.
+	_attack_timer = minf(_attack_timer, 0.10)
+	velocity = Vector3.ZERO
 
 func order_attack_move(point: Vector3) -> void:
+	_cancel_pending_combat()
 	_target = null
 	_destination = Vector3(point.x, 0.0, point.z)
 	_order_mode = OrderMode.ATTACK_MOVE
 
 
 func order_hold() -> void:
+	_cancel_pending_combat()
 	_target = null
 	_order_mode = OrderMode.HOLD
 	velocity = Vector3.ZERO
 
 
 func order_stop() -> void:
+	_cancel_pending_combat()
 	_target = null
 	_order_mode = OrderMode.STOP
 	velocity = Vector3.ZERO
 
 
 func order_retreat() -> void:
+	_cancel_pending_combat()
 	_target = null
 	var retreat_x := -16.0 if team == 0 else 16.0
 	_destination = Vector3(retreat_x, 0.0, clampf(global_position.z, -11.0, 11.0))
@@ -437,7 +663,9 @@ func activate_rally() -> bool:
 			affected += 1
 	if affected <= 0:
 		return false
+	_trigger_rally_animation()
 	rally_cooldown_timer = maxf(14.0, 28.0 - float(commander_tactics) * 2.5)
+	_play_battle_feedback("rally", "rally", global_position + Vector3(0.0, 0.85, 0.0), team)
 	return true
 
 
@@ -479,11 +707,21 @@ func _try_auto_rally() -> void:
 		activate_rally()
 
 
-func take_damage(amount: float, attacker: BattleUnit = null) -> void:
-	if health <= 0.0:
+func take_damage(amount: float, attacker: BattleUnit = null, is_ranged: bool = false) -> void:
+	if health <= 0.0 or _is_corpse:
 		return
-	var mitigated_damage := maxf(1.0, amount - armor)
-	var applied_damage := minf(health, maxf(mitigated_damage, 0.0))
+	var effective_armor := armor
+	if _order_mode == OrderMode.HOLD and is_instance_valid(attacker) and attacker != self:
+		if BattleFlankingScript.classify_attack(attacker, self) == BattleFlankingScript.FRONT:
+			effective_armor += 1.0
+	var mitigated_damage := maxf(1.0, amount - effective_armor)
+	if is_ranged:
+		var terrain_effects := get_terrain_effects()
+		mitigated_damage *= float(terrain_effects.get("ranged_damage_taken_multiplier", 1.0))
+	if exposed_timer > 0.0:
+		var exposed_data := CombatStatusCatalogScript.get_data(CombatStatusCatalogScript.EXPOSED)
+		mitigated_damage *= float(exposed_data.get("incoming_damage_multiplier", 1.10))
+	var applied_damage := minf(health, maxf(1.0, mitigated_damage))
 	health = maxf(0.0, health - applied_damage)
 	if is_instance_valid(attacker) and attacker != self:
 		attacker.damage_dealt += applied_damage
@@ -491,14 +729,199 @@ func take_damage(amount: float, attacker: BattleUnit = null) -> void:
 	if health <= 0.0:
 		if is_instance_valid(attacker) and attacker != self:
 			attacker.kills += 1
+		_play_battle_feedback("death", "death", global_position + Vector3(0.0, 0.65, 0.0), team)
 		eliminated.emit(self, attacker)
+		_begin_death()
+	elif is_instance_valid(_combat_sprite) or is_instance_valid(_body_mesh) or is_instance_valid(_action_mesh):
+		_trigger_hit_flash(attacker)
+		var source_team := attacker.team if is_instance_valid(attacker) else team
+		_play_battle_feedback("impact", _get_damage_sound(attacker), global_position + Vector3(0.0, 0.95, 0.0), source_team)
+func _begin_death() -> void:
+	remove_from_group("battle_units")
+	collision_layer = 0
+	collision_mask = 0
+	set_physics_process(false)
+	_attack_animation_elapsed = -1.0
+	_cancel_pending_combat()
+	_rally_animation_timer = 0.0
+	_hit_flash_timer = 0.0
+	_clear_hit_flash()
+	if is_instance_valid(_selection_ring):
+		_selection_ring.visible = false
+	if is_instance_valid(_status_marker):
+		_status_marker.queue_free()
+		_status_marker = null
+	if is_instance_valid(_health_background):
+		_health_background.visible = false
+	if is_instance_valid(_health_fill):
+		_health_fill.visible = false
+
+	var corpse_limit := 7
+	# Resolve the settings autoload dynamically. This script is also loaded by
+	# headless --script smoke tests before project autoloads are registered.
+	var settings_node := get_node_or_null("/root/GameSettings")
+	if is_instance_valid(settings_node):
+		var graphics_quality := int(settings_node.get("graphics_quality"))
+		if graphics_quality == 0: # LOW
+			corpse_limit = 3
+		elif graphics_quality == 2: # HIGH
+			corpse_limit = 12
+	if _active_corpse_count >= corpse_limit:
 		queue_free()
+		return
+	_is_corpse = true
+	_corpse_elapsed = 0.0
+	_corpse_roll_direction = -1.0 if velocity.x >= 0.0 else 1.0
+	_active_corpse_count += 1
+	set_process(true)
+
+
+func _process_corpse(delta: float) -> void:
+	_corpse_elapsed += delta
+	if not is_instance_valid(_visual_root):
+		queue_free()
+		return
+	var fall := clampf(_corpse_elapsed / 0.42, 0.0, 1.0)
+	var fall_eased := fall * fall * (3.0 - 2.0 * fall)
+	_visual_root.rotation.z = _corpse_roll_direction * (PI * 0.48) * fall_eased
+	_visual_root.position.y = -0.08 * fall_eased
+	if _corpse_elapsed > CORPSE_KEEP_SECONDS:
+		var sink := clampf((_corpse_elapsed - CORPSE_KEEP_SECONDS) / CORPSE_FADE_SECONDS, 0.0, 1.0)
+		_visual_root.position.y = lerpf(-0.08, -1.45, sink)
+		_visual_root.scale = Vector3.ONE * (1.0 - sink * 0.72)
+	if _corpse_elapsed >= CORPSE_KEEP_SECONDS + CORPSE_FADE_SECONDS:
+		queue_free()
+
+
+func _exit_tree() -> void:
+	if _is_corpse:
+		_active_corpse_count = maxi(0, _active_corpse_count - 1)
+		_is_corpse = false
+
+
+func _process(delta: float) -> void:
+	if _is_corpse:
+		_process_corpse(delta)
+		return
+	if health <= 0.0 or not is_instance_valid(_visual_root):
+		return
+	var moving := velocity.length_squared() > 0.08
+	_animation_clock += delta * (7.0 if moving else 1.8)
+	var low_lod := false
+	var active_camera := get_viewport().get_camera_3d()
+	if is_instance_valid(active_camera):
+		low_lod = active_camera.size >= 34.0 or active_camera.global_position.distance_to(global_position) >= 42.0
+	var recoil_offset := Vector3.ZERO
+	if _hit_recoil_timer > 0.0:
+		_hit_recoil_timer = maxf(0.0, _hit_recoil_timer - delta)
+		var recoil_progress := 1.0 - (_hit_recoil_timer / 0.17)
+		recoil_offset = _hit_recoil_direction * (sin(recoil_progress * PI) * 0.20)
+	var lunge_offset := Vector3.ZERO
+	if _attack_animation_elapsed >= 0.0 and _attack_animation_duration > 0.01:
+		var attack_progress := clampf(_attack_animation_elapsed / _attack_animation_duration, 0.0, 1.0)
+		lunge_offset = _attack_lunge_direction * (sin(attack_progress * PI) * 0.10)
+	var bob_amount := 0.006 if low_lod else (0.042 if moving else 0.010)
+	_visual_root.position = Vector3(recoil_offset.x + lunge_offset.x, sin(_animation_clock) * bob_amount, recoil_offset.z + lunge_offset.z)
+	var breathing := 1.0 + sin(_animation_clock * 0.48) * (0.003 if low_lod else 0.008)
+	if is_instance_valid(_body_mesh):
+		_body_mesh.scale.y = breathing
+	var facing_direction := velocity
+	if _has_valid_target():
+		facing_direction = _target.global_position - global_position
+		facing_direction.y = 0.0
+	if facing_direction.length_squared() > 0.03:
+		_update_combat_facing(facing_direction)
+		if not is_instance_valid(_combat_sprite) and role == UnitRole.CAVALRY and not low_lod:
+			_visual_root.rotation.z = lerpf(_visual_root.rotation.z, -0.045 if _moving_fast else -0.018, minf(delta * 5.0, 1.0))
+	elif not is_instance_valid(_combat_sprite):
+		_visual_root.rotation.z = lerpf(_visual_root.rotation.z, 0.0, minf(delta * 4.0, 1.0))
+	if is_instance_valid(_combat_sprite):
+		_update_combat_sprite_animation(delta, moving)
+	else:
+		_update_action_animation(delta, moving, low_lod)
+	if _hit_flash_timer > 0.0:
+		_hit_flash_timer = maxf(0.0, _hit_flash_timer - delta)
+		if _hit_flash_timer <= 0.0:
+			_clear_hit_flash()
+
+func _update_combat_sprite_animation(delta: float, moving: bool) -> void:
+	if not is_instance_valid(_combat_sprite):
+		return
+	_rally_animation_timer = maxf(0.0, _rally_animation_timer - delta)
+	if _attack_animation_elapsed >= 0.0:
+		_attack_animation_elapsed += delta
+		if _attack_animation_elapsed < _attack_animation_duration and _combat_sprite.is_playing():
+			return
+		_attack_animation_elapsed = -1.0
+		_attack_animation_is_charge = false
+		_active_attack_animation = &""
+		_combat_sprite.speed_scale = 1.0
+	if _rally_animation_timer > 0.0 and role == UnitRole.COMMANDER and _combat_sprite.sprite_frames.has_animation("guard"):
+		_set_combat_sprite_animation(&"guard")
+	elif moving:
+		_set_combat_sprite_animation(&"run")
+	elif _attack_timer > 0.28:
+		var recovery := CombatSpriteLibraryScript.get_recovery_animation(role, _combat_sprite.sprite_frames)
+		_set_combat_sprite_animation(recovery)
+	else:
+		_set_combat_sprite_animation(&"idle")
+
+func _set_combat_sprite_animation(animation_name: StringName) -> void:
+	if not is_instance_valid(_combat_sprite) or not _combat_sprite.sprite_frames.has_animation(animation_name):
+		return
+	if _combat_sprite.animation != animation_name or not _combat_sprite.is_playing():
+		_combat_sprite.play(animation_name)
+
+
+func _update_action_animation(delta: float, moving: bool, low_lod: bool) -> void:
+	if not is_instance_valid(_action_mesh):
+		return
+	var action_rotation := 0.0
+	var action_offset := Vector3.ZERO
+	if moving and not low_lod:
+		action_rotation = sin(_animation_clock) * (0.075 if role != UnitRole.CAVALRY else 0.12)
+
+	if _attack_animation_elapsed >= 0.0:
+		_attack_animation_elapsed += delta
+		var progress := clampf(_attack_animation_elapsed / maxf(_attack_animation_duration, 0.01), 0.0, 1.0)
+		var pulse := sin(progress * PI)
+		if not low_lod:
+			match role:
+				UnitRole.MELEE:
+					action_rotation += -0.88 * pulse * (1.15 if _attack_animation_is_charge else 1.0)
+				UnitRole.SPEAR:
+					action_offset.x += (1.15 if _attack_animation_is_charge else 0.62) * pulse * (1.0 if team == 0 else -1.0)
+				UnitRole.RANGED:
+					action_rotation += -0.42 * pulse
+					action_offset.x -= 0.10 * pulse * (1.0 if team == 0 else -1.0)
+				UnitRole.CAVALRY:
+					action_rotation += -1.0 * pulse * (1.25 if _attack_animation_is_charge else 0.8)
+				UnitRole.COMMANDER:
+					action_rotation += -0.62 * pulse
+		if progress >= 1.0:
+			_attack_animation_elapsed = -1.0
+			_attack_animation_is_charge = false
+
+	if _rally_animation_timer > 0.0:
+		_rally_animation_timer = maxf(0.0, _rally_animation_timer - delta)
+		if not low_lod:
+			var rally_progress := 1.0 - (_rally_animation_timer / 0.95)
+			action_rotation += -0.48 * sin(rally_progress * PI)
+
+	_action_mesh.position = _action_rest_position + action_offset
+	_action_mesh.rotation = _action_rest_rotation + Vector3(0.0, 0.0, action_rotation)
 
 
 func _physics_process(delta: float) -> void:
 	if health <= 0.0:
 		return
 
+	_tick_pending_combat(delta)
+	if exposed_timer > 0.0:
+		exposed_timer = maxf(0.0, exposed_timer - delta)
+		if exposed_timer <= 0.0 and is_instance_valid(_status_marker):
+			_status_marker.queue_free()
+			_status_marker = null
 	_attack_timer = maxf(0.0, _attack_timer - delta * (1.0 + command_speed_bonus + rally_speed_bonus))
 	_charge_timer = maxf(0.0, _charge_timer - delta)
 	rally_cooldown_timer = maxf(0.0, rally_cooldown_timer - delta)
@@ -561,45 +984,62 @@ func _physics_process(delta: float) -> void:
 
 
 func _has_valid_target() -> bool:
-	return is_instance_valid(_target) and not _target.is_queued_for_deletion()
-
+	return (
+		is_instance_valid(_target)
+		and not _target.is_queued_for_deletion()
+		and _target.health > 0.0
+		and not _target._is_corpse
+	)
 
 func _attack_or_chase() -> void:
+	if not _has_valid_target():
+		velocity = Vector3.ZERO
+		return
 	var offset: Vector3 = _target.global_position - global_position
 	offset.y = 0.0
 	var distance: float = offset.length()
-
+	_update_combat_facing(offset)
+	if _attack_animation_elapsed >= 0.0:
+		velocity = Vector3.ZERO
+		return
 	if role == UnitRole.RANGED:
 		_ranged_combat(offset, distance)
 		return
-
-	if distance <= attack_range:
+	var engagement_range := _get_melee_engagement_range()
+	if distance <= engagement_range:
 		velocity = Vector3.ZERO
 		if _attack_timer <= 0.0:
-			var strike_damage := get_strike_damage_against(_target) * (1.0 + command_damage_bonus + rally_damage_bonus)
-			if role == UnitRole.CAVALRY and _charge_armed and _charge_timer <= 0.0:
-				_charge_timer = 4.5
-				_charge_armed = false
-			_target.take_damage(strike_damage, self)
+			var attack_arc := BattleFlankingScript.classify_attack(self, _target)
+			var strike_damage := get_strike_damage_against(_target, attack_arc) * (1.0 + command_damage_bonus + rally_damage_bonus)
+			var terrain_effects := get_terrain_effects()
+			var charge_attack := role == UnitRole.CAVALRY and _charge_armed and _charge_timer <= 0.0 and bool(terrain_effects.get("charge_allowed", true))
+			var exposes_target := role != UnitRole.RANGED and BattleFlankingScript.exposes_target(attack_arc)
+			_begin_melee_attack(_target, strike_damage, charge_attack, exposes_target)
 			_attack_timer = attack_cooldown
 	elif _order_mode == OrderMode.HOLD:
-		# Hold means defend this exact position, not chase a target.
 		_target = null
 		velocity = Vector3.ZERO
 	else:
 		_steer(offset.normalized())
 
-
-func get_strike_damage_against(target: BattleUnit) -> float:
+func get_strike_damage_against(target: BattleUnit, attack_arc: String = BattleFlankingScript.FRONT) -> float:
 	var strike_damage := attack_damage
 	if role == UnitRole.SPEAR and is_instance_valid(target) and target.role == UnitRole.CAVALRY:
 		strike_damage *= anti_cavalry_multiplier
 	if role == UnitRole.CAVALRY and _charge_armed and _charge_timer <= 0.0:
-		strike_damage *= charge_multiplier
+		var terrain_effects := get_terrain_effects()
+		if bool(terrain_effects.get("charge_allowed", true)):
+			strike_damage *= charge_multiplier
+	if role != UnitRole.RANGED:
+		strike_damage *= BattleFlankingScript.get_damage_multiplier(attack_arc)
 	return strike_damage
 
 
 func _ranged_combat(offset: Vector3, distance: float) -> void:
+	_update_combat_facing(offset)
+	if _attack_animation_elapsed >= 0.0:
+		velocity = Vector3.ZERO
+		return
 	if distance > attack_range:
 		if _order_mode == OrderMode.HOLD:
 			_target = null
@@ -608,17 +1048,16 @@ func _ranged_combat(offset: Vector3, distance: float) -> void:
 			_steer(offset.normalized())
 		return
 
-	# Archers try to stay around their preferred firing distance.
-	# HOLD intentionally disables this repositioning so the line stays in place.
-	if _order_mode != OrderMode.HOLD and distance < preferred_range - 1.0:
+	# A direct attack order takes priority over preferred-range spacing.
+	# Otherwise an archer can retreat rather than shoot its selected target.
+	if _order_mode != OrderMode.ATTACK and _order_mode != OrderMode.HOLD and distance < preferred_range - 1.0:
 		_steer(-offset.normalized())
 		return
 
 	velocity = Vector3.ZERO
 	if _attack_timer <= 0.0:
-		_fire_projectile(_target)
+		_begin_ranged_attack(_target)
 		_attack_timer = attack_cooldown
-
 
 func _fire_projectile(enemy: BattleUnit) -> void:
 	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion():
@@ -626,10 +1065,13 @@ func _fire_projectile(enemy: BattleUnit) -> void:
 	var projectile := CombatProjectile.new()
 	projectile.target = enemy
 	projectile.source = self
-	projectile.damage = attack_damage * (1.0 + command_damage_bonus + rally_damage_bonus)
+	var terrain_effects := get_terrain_effects()
+	projectile.damage = attack_damage * (1.0 + command_damage_bonus + rally_damage_bonus) * float(terrain_effects.get("ranged_damage_dealt_multiplier", 1.0))
 	projectile.speed = projectile_speed
 	get_parent().add_child(projectile)
-	projectile.global_position = global_position + Vector3(0.0, 1.05, 0.0)
+	var launch_position := global_position + Vector3(0.0, 1.05, 0.0)
+	projectile.global_position = launch_position
+	_play_battle_feedback("muzzle", "bow", launch_position, team, (enemy.global_position - launch_position).normalized())
 
 
 func _steer(direction: Vector3) -> void:
@@ -639,10 +1081,15 @@ func _steer(direction: Vector3) -> void:
 	var desired_direction := direction.normalized()
 	var separation := _get_separation_vector(1.15)
 	if separation.length_squared() > 0.001:
-		desired_direction = (desired_direction + separation * 0.8).normalized()
-	velocity = desired_direction * move_speed * (1.0 + command_speed_bonus + rally_speed_bonus)
-	_moving_fast = role == UnitRole.CAVALRY and velocity.length() >= move_speed * 0.75
-	if _moving_fast and _charge_timer <= 0.0:
+		desired_direction = (desired_direction + separation * 0.42).normalized()
+	var terrain_effects := get_terrain_effects()
+	var terrain_speed_multiplier := float(terrain_effects.get("movement_multiplier", 1.0))
+	velocity = desired_direction * move_speed * (1.0 + command_speed_bonus + rally_speed_bonus) * terrain_speed_multiplier
+	var charge_allowed := bool(terrain_effects.get("charge_allowed", true))
+	_moving_fast = role == UnitRole.CAVALRY and charge_allowed and velocity.length() >= move_speed * 0.75
+	if not charge_allowed:
+		_charge_armed = false
+	elif _moving_fast and _charge_timer <= 0.0:
 		_charge_armed = true
 
 
@@ -662,7 +1109,7 @@ func _get_separation_vector(radius: float) -> Vector3:
 		if not node is BattleUnit:
 			continue
 		var other := node as BattleUnit
-		if other == self or other.health <= 0.0:
+		if other == self or other.team != team or other.health <= 0.0 or other._is_corpse:
 			continue
 		var away: Vector3 = global_position - other.global_position
 		away.y = 0.0
@@ -671,10 +1118,9 @@ func _get_separation_vector(radius: float) -> Vector3:
 			separation += away.normalized() * ((radius - distance) / radius)
 	return separation
 
-
 func _find_nearest_enemy(max_distance: float) -> BattleUnit:
-	var nearest: BattleUnit = null
-	var nearest_distance: float = max_distance
+	var best_target: BattleUnit = null
+	var best_score := -INF
 
 	for node in get_tree().get_nodes_in_group("battle_units"):
 		if not node is BattleUnit:
@@ -683,8 +1129,12 @@ func _find_nearest_enemy(max_distance: float) -> BattleUnit:
 		if candidate == self or candidate.team == team or candidate.health <= 0.0 or candidate.is_queued_for_deletion():
 			continue
 		var distance: float = global_position.distance_to(candidate.global_position)
-		if distance < nearest_distance:
-			nearest_distance = distance
-			nearest = candidate
+		if distance > max_distance:
+			continue
+		var health_ratio := candidate.health / maxf(1.0, candidate.max_health)
+		var score := BattleAITacticsScript.get_target_score(role, candidate.role, distance, health_ratio)
+		if score > best_score:
+			best_score = score
+			best_target = candidate
 
-	return nearest
+	return best_target

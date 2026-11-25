@@ -1,0 +1,40 @@
+{
+  "image": "bush-common_shadow.png",
+  "width": 248,
+  "height": 64,
+  "cellWidth": 62,
+  "cellHeight": 64,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "bush-common_0_shadow",
+      "x": 0,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    },
+    {
+      "name": "bush-common_90_shadow",
+      "x": 62,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    },
+    {
+      "name": "bush-common_180_shadow",
+      "x": 124,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    },
+    {
+      "name": "bush-common_270_shadow",
+      "x": 186,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    }
+  ]
+}

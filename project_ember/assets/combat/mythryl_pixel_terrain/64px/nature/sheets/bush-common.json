@@ -1,0 +1,40 @@
+{
+  "image": "bush-common.png",
+  "width": 248,
+  "height": 64,
+  "cellWidth": 62,
+  "cellHeight": 64,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "bush-common_0",
+      "x": 0,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    },
+    {
+      "name": "bush-common_90",
+      "x": 62,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    },
+    {
+      "name": "bush-common_180",
+      "x": 124,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    },
+    {
+      "name": "bush-common_270",
+      "x": 186,
+      "y": 0,
+      "w": 62,
+      "h": 64
+    }
+  ]
+}

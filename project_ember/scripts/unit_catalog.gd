@@ -8,6 +8,42 @@ const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
 const ROLE_CAVALRY := "cavalry"
 
+const VETERANCY_TIERS := [
+	{"rank": 0, "id": "recruit", "name": "Новобранец", "xp_required": 0, "damage_multiplier": 1.00, "armor_bonus": 0.0},
+	{"rank": 1, "id": "trained", "name": "Обученный", "xp_required": 40, "damage_multiplier": 1.03, "armor_bonus": 0.0},
+	{"rank": 2, "id": "veteran", "name": "Ветеран", "xp_required": 100, "damage_multiplier": 1.06, "armor_bonus": 1.0},
+	{"rank": 3, "id": "elite", "name": "Элитный", "xp_required": 180, "damage_multiplier": 1.10, "armor_bonus": 2.0},
+]
+
+
+static func get_veterancy_rank(experience: int) -> int:
+	var rank := 0
+	for tier in VETERANCY_TIERS:
+		if experience >= int(tier.get("xp_required", 0)):
+			rank = int(tier.get("rank", 0))
+	return rank
+
+
+static func get_veterancy_data(experience: int) -> Dictionary:
+	var rank := get_veterancy_rank(experience)
+	return VETERANCY_TIERS[rank].duplicate(true)
+
+
+static func get_battle_experience(kills: int, damage_dealt: float) -> int:
+	# Survivors earn a small participation award plus capped contribution XP.
+	return clampi(6 + maxi(0, kills) * 8 + floori(maxf(0.0, damage_dealt) / 30.0), 6, 30)
+
+static func get_army_upkeep(army: Array) -> int:
+	var total := 0.0
+	for unit in army:
+		if not unit is Dictionary:
+			continue
+		var role_id := str(unit.get("role", ROLE_MELEE))
+		var data := get_data(role_id)
+		total += maxf(0.0, float(data.get("upkeep", 0.8)))
+	return ceili(total)
+
+
 static func role_ids() -> Array[String]:
 	return [ROLE_MELEE, ROLE_RANGED, ROLE_SPEAR, ROLE_CAVALRY]
 
@@ -34,6 +70,7 @@ static func get_data(role_id: String) -> Dictionary:
 				"armor": 2.0,
 				"gold_cost": 20,
 				"production_cost": 3,
+				"upkeep": 0.8,
 				"unlock_building": "barracks",
 			}
 		ROLE_RANGED:
@@ -52,6 +89,7 @@ static func get_data(role_id: String) -> Dictionary:
 				"armor": 0.0,
 				"gold_cost": 24,
 				"production_cost": 4,
+				"upkeep": 0.8,
 				"unlock_building": "archery_range",
 			}
 		ROLE_SPEAR:
@@ -71,6 +109,7 @@ static func get_data(role_id: String) -> Dictionary:
 				"anti_cavalry_multiplier": 1.65,
 				"gold_cost": 22,
 				"production_cost": 4,
+				"upkeep": 0.9,
 				"unlock_building": "barracks",
 			}
 		ROLE_CAVALRY:
@@ -90,6 +129,7 @@ static func get_data(role_id: String) -> Dictionary:
 				"charge_multiplier": 1.6,
 				"gold_cost": 42,
 				"production_cost": 7,
+				"upkeep": 1.4,
 				"unlock_building": "stable",
 			}
 	return {}

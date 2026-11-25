@@ -1,0 +1,164 @@
+PASS: project.godot exists
+PASS: strategic map scene exists
+PASS: combined 64px Hex Terrain TileSet exists
+PASS: Hex Terrain Bundle license is included
+PASS: six lossless WebP terrain atlases are included
+PASS: TileSet contains 448 uniquely named authored hex tiles
+PASS: all six TileSet atlas source paths resolve
+PASS: TileSet uses 64px pointy-top horizontal-offset hex cells
+PASS: atlas enumeration uses the supported TileSetSource index API
+PASS: all deterministic feature placements reference authored TileSet tiles
+PASS: version metadata exists
+PASS: cavalry animation manifest parses
+PASS: blue cavalry runtime atlas exists
+PASS: blue cavalry atlas uses normalized 88x82 cells
+PASS: blue cavalry manifest records verified animation frame counts
+PASS: red cavalry runtime atlas exists
+PASS: red cavalry atlas uses normalized 88x82 cells
+PASS: red cavalry manifest records verified animation frame counts
+PASS: battlefield uses crisp pixel-isometric ground tiles
+PASS: terrain rules contain forest, high-ground and marsh modifiers
+PASS: terrain zones have visible non-colliding markers
+PASS: flanking rules contain side, rear and exposed values
+PASS: combat status catalog defines exposed vulnerability
+PASS: role-aware AI target preferences are defined
+PASS: battle units apply terrain, flanking, exposed and hold mechanics
+PASS: battle report and campaign results include flank statistics
+PASS: terrain, flank and AI smoke-test sources are present
+PASS: all existing campaign unit role IDs remain unchanged
+PASS: existing 24-unit army capacity remains unchanged
+PASS: campaign save schema remains version 1
+PASS: city loading uses unique local variable names and avoids the duplicate loaded_buildings parser error
+PASS: city record parameter no longer shadows Node.name
+PASS: world ownership lookup avoids city_cell shadowing
+PASS: city distance checks reuse the typed hex-distance helper instead of integer-division expressions
+PASS: province queue validation uses explicit Variant, Array and bool types
+PASS: unit veterancy defines recruit, trained, veteran and elite thresholds
+PASS: unit battle experience uses a capped deterministic formula
+PASS: army upgrade catalog covers all four stable roles with two ranks
+PASS: battle units apply per-unit veterancy and campaign upgrade bonuses
+PASS: campaign records and root save persist individual XP and army upgrades
+PASS: AI kingdom normalization preserves veterancy experience
+PASS: city UI exposes army training, upgrade purchase and veteran ranks
+PASS: unit progression smoke test is included
+PASS: city development data catalog exists
+PASS: three city levels define population thresholds and province capacity
+PASS: four city specializations are data-driven
+PASS: four terrain-bound province improvements are catalogued
+PASS: all six existing buildings have level-two and level-three upgrades
+PASS: city specialization and province improvements modify only the three existing incomes
+PASS: army upkeep is calculated in the unit catalog and rounded up to whole gold
+PASS: all existing unit roles have upkeep values in the central unit catalog
+PASS: player city development and upkeep results are persisted in existing save schema
+PASS: campaign state exposes city upgrade, province and income APIs
+PASS: AI kingdoms use city specializations, faction-aware upkeep, improvements and upgrades
+PASS: AI capital prioritizes a gold market before repeated recruitment
+PASS: mobile city panel exposes specialization, provinces, building upgrades and upkeep
+PASS: city development smoke test is included
+PASS: old city records receive safe level-one and empty-province defaults
+PASS: Mythryl Pixel Terrain licence is included
+PASS: Mythryl Pixel Terrain asset notes are included
+PASS: Mythryl 64px isometric ground atlas exists
+PASS: Mythryl ground atlas is 512x512 and pixel aligned
+PASS: Mythryl ground atlas manifest parses
+PASS: Mythryl atlas packs four grass, four dirt, sixteen blends, four water and forty-six coast shapes
+PASS: Mythryl ground, cliff, tree, bush, rock and flower resources are present
+PASS: battlefield ground is assembled as a single isometric mesh batch
+PASS: billboard Sprite3D props use the BaseMaterial3D nearest-filter enum
+PASS: Gridwright Strategy UI licence is included
+PASS: Pixel Fantasy Map Icons licence is included
+PASS: Gridwright PNG variants are present (288 found)
+PASS: Pixel Fantasy map and settlement PNG variants are present (114 found)
+PASS: central GameIconCatalog script exists
+PASS: icon catalog covers current resource, unit and strategic marker roles
+PASS: strategic city and army markers use the supplied map icon pack
+PASS: HUD and city panel use iconized live resource values
+PASS: pixel UI button icons explicitly use nearest-neighbour filtering
+PASS: icon integration smoke test exists
+PASS: combat units use billboarded sprite animations when local art is present
+PASS: project is tagged for Godot 4.7 and GL Compatibility
+PASS: world surface manifest parses
+PASS: world_surface_atlas.png exists
+PASS: world_surface_atlas.png dimensions are 4096x4096
+PASS: world_surface_atlas.png SHA-256 matches manifest
+PASS: world_detail_atlas.png exists
+PASS: world_detail_atlas.png dimensions are 3072x2048
+PASS: world_detail_atlas.png SHA-256 matches manifest
+PASS: surface atlas manifest records 24 independent scene crops
+PASS: detail atlas manifest records 24 detail sprites
+PASS: all literal res:// references resolve (139 source/resource files scanned)
+PASS: at least 24 smoke tests are present (31 found)
+PASS: native Hex TileSet renderer exists
+PASS: Hex TileSet smoke-test scene exists
+PASS: visual screenshot runner exists
+PASS: smoke test runner exists
+PASS: project-context GDScript parser exists
+PASS: project-context parser scene exists
+PASS: GitHub Actions QA workflow exists
+PASS: editor cache is not packaged in the source tree
+PASS: deterministic neutral location catalog exists
+PASS: five neutral location types are catalogued
+PASS: neutral location count and spacing are bounded
+PASS: location generation is deterministic and save-normalized
+PASS: starting exploration targets have a deterministic fallback to preserve minimum local density
+PASS: location type selection respects its terrain catalog
+PASS: neutral guard rosters, guardian health and rewards are data-driven
+PASS: lightweight campaign event catalog exists
+PASS: six campaign events use a five-turn cadence
+PASS: events have lookup, choice validation and legacy normalization APIs
+PASS: campaign state integrates persistent location battles, rewards, event effects and population-cap validation
+PASS: world exploration data persists without changing save schema version
+PASS: AI expansion and army movement avoid neutral location tiles
+PASS: strategic map draws explored locations and opens neutral battles on tap
+PASS: mobile map includes two large event choice buttons
+PASS: neutral location smoke test is included
+PASS: campaign event smoke test is included
+PASS: cleared neutral sites remain in map history under the victorious army
+PASS: abandoned wagon validates both food and gold reward branches
+PASS: data-driven faction catalog exists
+PASS: four distinct starter peoples are catalogued
+PASS: four distinct starter cultures are catalogued
+PASS: six selectable faction traits are catalogued
+PASS: faction data requires exactly two distinct selected traits
+PASS: faction effects are resolved through shared data helpers
+PASS: stacked recruitment bonuses are capped at 25 percent
+PASS: faction bonuses modify only existing economy, army and province systems
+PASS: old saves can receive a neutral legacy faction identity
+PASS: campaign state owns faction selection and persists it as an optional save field
+PASS: faction data loads with a legacy fallback without changing save schema version
+PASS: selected faction affects starting reserves, income, recruitment, upkeep and province capacity
+PASS: faction scouting traits modify fog-of-war vision
+PASS: nine AI kingdoms use faction identities and matching economy/army modifiers
+PASS: AI kingdoms receive one-time faction starting reserves and veteran traits
+PASS: mobile faction founding panel exposes people, culture and two trait choices
+PASS: faction setup controls use mobile-sized targets and show a derived kingdom name
+PASS: faction setup content scrolls on short landscape screens while confirmation stays fixed
+PASS: new campaign blocks map actions until the faction is confirmed
+PASS: faction setup hides a persistent map-command panel until the founding choice is confirmed
+PASS: selected kingdom identity is shown in city and kingdom information panels
+PASS: faction creation smoke-test source is included
+PASS: faction smoke test guards against duplicate bonuses and checks AI starting XP
+PASS: data-driven diplomacy catalog exists
+PASS: five deterministic AI diplomatic personalities are defined
+PASS: diplomacy relationship range and treaty durations are data-driven
+PASS: diplomacy stores canonical player and AI pair records
+PASS: legacy relationship records are normalized with bounded values and explicit war causes
+PASS: AI negotiation uses explainable weighted and deterministic decision logic
+PASS: border proximity creates bounded deterministic diplomatic tension
+PASS: war exhaustion can produce expiring AI peace proposals
+PASS: AI-AI and player diplomacy supports trade, alliances, tribute and vassalage
+PASS: AI treaty creation preserves same-turn relation changes
+PASS: diplomacy proximity checks accept typed strategic map sources
+PASS: campaign state integrates diplomatic actions, offers and contract income
+PASS: optional diplomacy save fields preserve legacy save schema version
+PASS: war causes, peace resolution and stale-offer validation are persisted
+PASS: trade and tribute payments use capped existing gold and player border sources
+PASS: dead AI kingdoms do not receive treaty income or pay diplomacy upkeep
+PASS: AI armies only target realms with an active war treaty
+PASS: mobile kingdom interface exposes relationship details and incoming proposals
+PASS: diplomacy UI explains personality, relation, war cause and treaty actions
+PASS: diplomacy acceptance checks current treaty state
+PASS: diplomacy smoke-test source is included
+PASS: diplomacy tests cover treaty persistence, border tension and stale offers
+
+Static QA: 162/162 checks passed

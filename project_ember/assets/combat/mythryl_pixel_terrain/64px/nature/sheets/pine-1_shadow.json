@@ -1,0 +1,40 @@
+{
+  "image": "pine-1_shadow.png",
+  "width": 784,
+  "height": 281,
+  "cellWidth": 196,
+  "cellHeight": 281,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "pine-1_0_shadow",
+      "x": 0,
+      "y": 0,
+      "w": 196,
+      "h": 281
+    },
+    {
+      "name": "pine-1_90_shadow",
+      "x": 196,
+      "y": 0,
+      "w": 196,
+      "h": 281
+    },
+    {
+      "name": "pine-1_180_shadow",
+      "x": 392,
+      "y": 0,
+      "w": 196,
+      "h": 281
+    },
+    {
+      "name": "pine-1_270_shadow",
+      "x": 588,
+      "y": 0,
+      "w": 196,
+      "h": 281
+    }
+  ]
+}

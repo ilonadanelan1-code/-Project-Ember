@@ -1,0 +1,12 @@
+Tiny Swords (Free Pack)
+Artist: Pixel Frog
+Source: https://pixelfrog-assets.itch.io/tiny-swords
+
+The combat sprites in this personal Project Ember build are derived from the
+Tiny Swords Free Pack supplied by the project owner. The pack's creator permits
+use and modification in games; attribution is appreciated. The original pack
+and derived atlas must not be redistributed or sold as a standalone asset pack.
+
+This atlas is included only as part of the user's integrated game project.
+Do not copy the atlas, its frames, or the original unit PNG sheets into a
+public source repository or distribute them separately from the game.

@@ -1,0 +1,27 @@
+[gd_resource type="TileSet" load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="../cliffs/sheets/crags-grass_full.png" id="t0"]
+[ext_resource type="Texture2D" path="../cliffs/sheets/crags-grass-sides_full.png" id="t1"]
+
+[sub_resource type="TileSetAtlasSource" id="s0"]
+resource_name = "crags-grass_full"
+texture = ExtResource("t0")
+texture_region_size = Vector2i(64, 72)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 20)
+
+[sub_resource type="TileSetAtlasSource" id="s1"]
+resource_name = "crags-grass-sides_full"
+texture = ExtResource("t1")
+texture_region_size = Vector2i(64, 72)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 20)
+
+[resource]
+resource_name = "Cliffs"
+tile_shape = 1
+tile_layout = 5
+tile_size = Vector2i(64, 32)
+
+sources/0 = SubResource("s0")
+sources/1 = SubResource("s1")

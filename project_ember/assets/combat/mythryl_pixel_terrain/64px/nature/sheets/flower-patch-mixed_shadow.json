@@ -1,0 +1,40 @@
+{
+  "image": "flower-patch-mixed_shadow.png",
+  "width": 152,
+  "height": 32,
+  "cellWidth": 38,
+  "cellHeight": 32,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "flower-patch-mixed_0_shadow",
+      "x": 0,
+      "y": 0,
+      "w": 38,
+      "h": 32
+    },
+    {
+      "name": "flower-patch-mixed_90_shadow",
+      "x": 38,
+      "y": 0,
+      "w": 38,
+      "h": 32
+    },
+    {
+      "name": "flower-patch-mixed_180_shadow",
+      "x": 76,
+      "y": 0,
+      "w": 38,
+      "h": 32
+    },
+    {
+      "name": "flower-patch-mixed_270_shadow",
+      "x": 114,
+      "y": 0,
+      "w": 38,
+      "h": 32
+    }
+  ]
+}

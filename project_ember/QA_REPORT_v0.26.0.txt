@@ -1,0 +1,31 @@
+PROJECT EMBER v0.26.0 — QA REPORT
+Date: 2026-11-25
+Base: v0.25.0 Army Veterancy & Upgrades
+
+STATIC VALIDATION
+- Result: 93/93 passed.
+- Checked project resources and local res:// references, asset manifests/checksums, stable role/building/resource IDs, 24-unit capacity, save schema version, city level thresholds, specialization catalog, province improvement terrain rules, building upgrade catalog, economy modifiers, upkeep values, save/load fields, AI city behavior, mobile UI integration and smoke-test presence.
+- Python syntax validation: python3 -m py_compile tools/qa/static_validate.py passed.
+- Additional source checks: changed GDScript files use tab indentation and have balanced (), [] and {} delimiters. This is a lightweight lexical check, not a GDScript parser.
+
+NEW AUTOMATED TEST SOURCE
+- tests/city_development_smoke_test.gd
+- Covers city level thresholds and province capacity, one-time specialization, calculated income, building upgrade completion, province improvement completion and income, army upkeep, old city/AI defaults, AI turn processing and campaign save/load persistence.
+- 27 GDScript smoke-test source files are present; the existing wildcard runner will discover the new test.
+
+ECONOMY REGRESSION GUARD
+- AI capital order selection now prefers a market before repeat recruitment, avoiding a treasury trap when upkeep equals base gold income.
+- Army upkeep aggregation is implemented in unit_catalog.gd alongside the per-role upkeep values.
+
+NOT EXECUTED
+- Godot 4.7.2 import and GDScript parser.
+- GDScript smoke-test execution.
+- Actual strategic map and city UI runtime.
+- Android Editor import, physical save migration/load and touch layout.
+- Android GPU/FPS and thermal checks.
+
+REASON
+No Godot executable is available in the build container. Static validation, source delimiter checks and the presence of smoke-test files must not be interpreted as runtime certification.
+
+RECOMMENDATION
+Open project.godot in Godot 4.7.2 Android Editor, import resources, then run tools/qa/run_smoke_tests.sh where a Godot executable is available. Test a COPY of a v0.25.0 save before using the new package as the primary campaign.

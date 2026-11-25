@@ -1,0 +1,34 @@
+PROJECT EMBER v0.22.0 — STRATEGY & UI ICON INTEGRATION
+QA report
+Date: 2026-11-25
+Base package: v0.21.1 — Pixel Terrain Type Fix
+Engine target: Godot 4.7.2 stable / GL Compatibility
+
+CHANGES CHECKED
+- Pixel Fantasy Map Icons and Gridwright Strategy UI packs are included with both source licences.
+- Player/AI cities select blue/red capital sprites and distinct town/village sprites.
+- Strategic armies use crossed-swords map markers; an active settler uses the worker sprite.
+- Mobile HUD and city panel show live gold, food and stored-production values with supplied icons.
+- Building and recruitment controls use contextual supplied sprites.
+- Icon textures are drawn with nearest-neighbour filtering in the map and icon UI controls.
+- No new stock types, campaign save fields, game rules, unit costs, AI behavior or combat rules were added.
+
+STATIC QA
+- Static validation: 59/59 checks passed.
+- All literal res:// file references resolve (119 source/resource files scanned).
+- Gridwright PNG variants: 288 present.
+- Pixel Fantasy PNG variants: 114 present.
+- Both asset-pack licences present.
+- Icon integration smoke-test source added; the Godot-run test itself was not executed here.
+- Project ZIP CRC integrity is checked at packaging time.
+
+NOT CLAIMED
+- Godot 4.7.2 editor import, GDScript parser and runtime smoke tests were not executed because the engine executable is unavailable in this container.
+- Android visual validation, texture import confirmation and GPU/FPS testing remain pending on the target phone.
+
+ANDROID CHECKLIST
+1. Import v0.22.0 in Godot 4.7.2 Android Editor.
+2. Verify strategic settlement, army and settler icons.
+3. Verify top HUD and city-panel resource values update after turns.
+4. Verify building/recruitment button icons and touch targets.
+5. Load an existing v0.21.1 save and start a new campaign.

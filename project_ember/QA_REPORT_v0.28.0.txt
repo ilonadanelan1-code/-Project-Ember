@@ -1,0 +1,27 @@
+Project Ember v0.28.0 — QA Report
+Date: 2026-11-25
+Base: v0.27.2 — GDScript Typing & Warning Hotfix
+
+FEATURE
+- Added four playable peoples, four cultures and six traits. Exactly two different traits are required per newly founded player kingdom.
+- Added faction effects to the existing three-resource economy, role recruitment costs, troop upkeep, army vision and province capacity.
+- Added one-time resource/experience starting bonuses for the player and newly generated AI kingdoms.
+- Added deterministic faction identities and faction-aware income/recruit/upkeep for all nine AI kingdoms.
+- Added a new campaign setup panel with editable kingdom naming, compact landscape layout, scrollable descriptions and a fixed confirmation button.
+- New campaign map controls are hidden and blocked until the faction selection is confirmed.
+
+COMPATIBILITY
+- Added optional `player_faction` and `kingdoms[].faction` fields.
+- `SAVE_VERSION` remains 1. Legacy player saves receive neutral `legacy` faction data. Legacy AI records receive deterministic identity from their fallback kingdom record; initial resources/XP are not granted retroactively.
+- No existing role, building or resource IDs changed. No fourth resource added.
+
+STATIC VALIDATION
+- Result: 140/140 checks passed.
+- Checks include faction catalog cardinalities, exactly two distinct traits, stacked modifier caps, player save fallback, AI faction identities and starting bonuses, fixed mobile confirmation button, map-input gating and source references.
+- Python validator: `python3 -m py_compile tools/qa/static_validate.py` passed.
+
+GODOT / DEVICE VALIDATION
+- Godot 4.7.2 executable is unavailable in this build environment.
+- `faction_setup_smoke_test.gd` is included but was not executed.
+- Godot parser/import, runtime scene launch, player save/load, Android touch layout and GPU/FPS checks remain pending.
+- This package is a Godot source project, not an APK.

@@ -1,0 +1,121 @@
+{
+ "icons": {
+  "command": {
+   "move": {
+    "name": "Move",
+    "hotkey": "M",
+    "icon16": "PNG/1x/icons_command_16/move.png",
+    "icon32": "PNG/1x/icons_command_32/move.png",
+    "white16": "PNG/1x/icons_command_white_16/move.png"
+   },
+   "attack": {
+    "name": "Attack",
+    "hotkey": "A",
+    "icon16": "PNG/1x/icons_command_16/attack.png",
+    "icon32": "PNG/1x/icons_command_32/attack.png",
+    "white16": "PNG/1x/icons_command_white_16/attack.png"
+   },
+   "stop": {
+    "name": "Stop",
+    "hotkey": "S",
+    "icon16": "PNG/1x/icons_command_16/stop.png",
+    "icon32": "PNG/1x/icons_command_32/stop.png",
+    "white16": "PNG/1x/icons_command_white_16/stop.png"
+   },
+   "hold": {
+    "name": "Hold position",
+    "hotkey": "H",
+    "icon16": "PNG/1x/icons_command_16/hold.png",
+    "icon32": "PNG/1x/icons_command_32/hold.png",
+    "white16": "PNG/1x/icons_command_white_16/hold.png"
+   },
+   "gather": {
+    "name": "Gather",
+    "hotkey": "G",
+    "icon16": "PNG/1x/icons_command_16/gather.png",
+    "icon32": "PNG/1x/icons_command_32/gather.png",
+    "white16": "PNG/1x/icons_command_white_16/gather.png"
+   },
+   "build": {
+    "name": "Build",
+    "hotkey": "B",
+    "icon16": "PNG/1x/icons_command_16/build.png",
+    "icon32": "PNG/1x/icons_command_32/build.png",
+    "white16": "PNG/1x/icons_command_white_16/build.png"
+   },
+   "rally": {
+    "name": "Set rally point",
+    "hotkey": "Y",
+    "icon16": "PNG/1x/icons_command_16/rally.png",
+    "icon32": "PNG/1x/icons_command_32/rally.png",
+    "white16": "PNG/1x/icons_command_white_16/rally.png"
+   },
+   "cancel": {
+    "name": "Cancel",
+    "hotkey": "X",
+    "icon16": "PNG/1x/icons_command_16/cancel.png",
+    "icon32": "PNG/1x/icons_command_32/cancel.png",
+    "white16": "PNG/1x/icons_command_white_16/cancel.png"
+   }
+  },
+  "resource": {
+   "gold": {
+    "name": "Gold",
+    "icon16": "PNG/1x/icons_resource_16/gold.png",
+    "icon32": "PNG/1x/icons_resource_32/gold.png",
+    "white16": "PNG/1x/icons_resource_white_16/gold.png"
+   },
+   "wood": {
+    "name": "Wood",
+    "icon16": "PNG/1x/icons_resource_16/wood.png",
+    "icon32": "PNG/1x/icons_resource_32/wood.png",
+    "white16": "PNG/1x/icons_resource_white_16/wood.png"
+   },
+   "stone": {
+    "name": "Stone",
+    "icon16": "PNG/1x/icons_resource_16/stone.png",
+    "icon32": "PNG/1x/icons_resource_32/stone.png",
+    "white16": "PNG/1x/icons_resource_white_16/stone.png"
+   },
+   "food": {
+    "name": "Food",
+    "icon16": "PNG/1x/icons_resource_16/food.png",
+    "icon32": "PNG/1x/icons_resource_32/food.png",
+    "white16": "PNG/1x/icons_resource_white_16/food.png"
+   }
+  },
+  "unit": {
+   "infantry": {
+    "name": "Infantry",
+    "icon16": "PNG/1x/icons_unit_16/infantry.png",
+    "icon32": "PNG/1x/icons_unit_32/infantry.png",
+    "white16": "PNG/1x/icons_unit_white_16/infantry.png"
+   },
+   "archer": {
+    "name": "Archer",
+    "icon16": "PNG/1x/icons_unit_16/archer.png",
+    "icon32": "PNG/1x/icons_unit_32/archer.png",
+    "white16": "PNG/1x/icons_unit_white_16/archer.png"
+   },
+   "cavalry": {
+    "name": "Cavalry",
+    "icon16": "PNG/1x/icons_unit_16/cavalry.png",
+    "icon32": "PNG/1x/icons_unit_32/cavalry.png",
+    "white16": "PNG/1x/icons_unit_white_16/cavalry.png"
+   },
+   "worker": {
+    "name": "Worker",
+    "icon16": "PNG/1x/icons_unit_16/worker.png",
+    "icon32": "PNG/1x/icons_unit_32/worker.png",
+    "white16": "PNG/1x/icons_unit_white_16/worker.png"
+   }
+  }
+ },
+ "teams": [
+  "blue",
+  "red",
+  "green",
+  "yellow"
+ ],
+ "note": "hotkeys are suggestions; key glyph sprites are in key_glyphs"
+}

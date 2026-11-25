@@ -1,0 +1,160 @@
+{
+ "tile": 64,
+ "groups": [
+  "trees",
+  "bushes",
+  "plants",
+  "flowers",
+  "grass",
+  "mushrooms",
+  "rocks",
+  "pebbles",
+  "paths"
+ ],
+ "looks": {
+  "summer": "Green leaves."
+ },
+ "note": "Every image of a piece is the same size, its pivot (the point it stands on) on the same pixel. Sheets have a row per look, in the order listed, and a column per turn.",
+ "pieces": {
+  "bush-common": {
+   "group": "bushes",
+   "metres": 1.1,
+   "frame": {
+    "width": 62,
+    "height": 64
+   },
+   "pivot": {
+    "x": 31,
+    "y": 47
+   },
+   "turns": [
+    0,
+    90,
+    180,
+    270
+   ],
+   "sheet": "nature/sheets/bush-common.png",
+   "shadowSheet": "nature/sheets/bush-common_shadow.png",
+   "looks": {
+    "summer": [
+     "nature/bushes/bush-common/bush-common_0.png",
+     "nature/bushes/bush-common/bush-common_90.png",
+     "nature/bushes/bush-common/bush-common_180.png",
+     "nature/bushes/bush-common/bush-common_270.png"
+    ]
+   }
+  },
+  "common-tree-1": {
+   "group": "trees",
+   "metres": 5.4,
+   "frame": {
+    "width": 154,
+    "height": 247
+   },
+   "pivot": {
+    "x": 77,
+    "y": 207
+   },
+   "turns": [
+    0,
+    90,
+    180,
+    270
+   ],
+   "sheet": "nature/sheets/common-tree-1.png",
+   "shadowSheet": "nature/sheets/common-tree-1_shadow.png",
+   "looks": {
+    "summer": [
+     "nature/trees/common-tree-1/common-tree-1_0.png",
+     "nature/trees/common-tree-1/common-tree-1_90.png",
+     "nature/trees/common-tree-1/common-tree-1_180.png",
+     "nature/trees/common-tree-1/common-tree-1_270.png"
+    ]
+   }
+  },
+  "pine-1": {
+   "group": "trees",
+   "metres": 6.4,
+   "frame": {
+    "width": 196,
+    "height": 281
+   },
+   "pivot": {
+    "x": 98,
+    "y": 231
+   },
+   "turns": [
+    0,
+    90,
+    180,
+    270
+   ],
+   "sheet": "nature/sheets/pine-1.png",
+   "shadowSheet": "nature/sheets/pine-1_shadow.png",
+   "looks": {
+    "summer": [
+     "nature/trees/pine-1/pine-1_0.png",
+     "nature/trees/pine-1/pine-1_90.png",
+     "nature/trees/pine-1/pine-1_180.png",
+     "nature/trees/pine-1/pine-1_270.png"
+    ]
+   }
+  },
+  "rock-medium-1": {
+   "group": "rocks",
+   "metres": 1.3,
+   "frame": {
+    "width": 82,
+    "height": 79
+   },
+   "pivot": {
+    "x": 41,
+    "y": 57
+   },
+   "turns": [
+    0,
+    90,
+    180,
+    270
+   ],
+   "sheet": "nature/sheets/rock-medium-1.png",
+   "shadowSheet": "nature/sheets/rock-medium-1_shadow.png",
+   "looks": {
+    "summer": [
+     "nature/rocks/rock-medium-1/rock-medium-1_0.png",
+     "nature/rocks/rock-medium-1/rock-medium-1_90.png",
+     "nature/rocks/rock-medium-1/rock-medium-1_180.png",
+     "nature/rocks/rock-medium-1/rock-medium-1_270.png"
+    ]
+   }
+  },
+  "flower-patch-mixed": {
+   "group": "flowers",
+   "metres": 0.3,
+   "frame": {
+    "width": 38,
+    "height": 32
+   },
+   "pivot": {
+    "x": 19,
+    "y": 21
+   },
+   "turns": [
+    0,
+    90,
+    180,
+    270
+   ],
+   "sheet": "nature/sheets/flower-patch-mixed.png",
+   "shadowSheet": "nature/sheets/flower-patch-mixed_shadow.png",
+   "looks": {
+    "summer": [
+     "nature/flowers/flower-patch-mixed/flower-patch-mixed_0.png",
+     "nature/flowers/flower-patch-mixed/flower-patch-mixed_90.png",
+     "nature/flowers/flower-patch-mixed/flower-patch-mixed_180.png",
+     "nature/flowers/flower-patch-mixed/flower-patch-mixed_270.png"
+    ]
+   }
+  }
+ }
+}

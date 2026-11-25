@@ -1,0 +1,30 @@
+Project Ember v0.29.0 — QA Report
+Date: 2026-11-25
+Base: v0.28.0 — Faction Founding & Kingdom Identity
+
+FEATURE
+- Added five deterministic AI diplomatic personalities: aggressor, merchant, isolationist, honorable and expansionist.
+- Added 45 canonical pair records for the player and all nine AI kingdoms, with relationship range -100..+100.
+- Added timed trade, alliance, tribute and vassal treaties; war and peace states; four-turn truces; war exhaustion; border tension and deterministic negotiations.
+- Added incoming AI proposals, player response handling and stale-offer validation.
+- Added gold income/transfers using existing city treasuries; dead kingdoms do not receive or pay treaty income.
+- AI armies select only a player/AI target with an active war treaty.
+- Added a scrollable mobile diplomacy panel with personality, relation, treaty, war cause and available actions.
+- No fourth resource or existing role/building/resource/kingdom IDs were added or renamed.
+
+COMPATIBILITY
+- Added optional root save fields `diplomacy_relations` and `pending_diplomacy_offers`.
+- `SAVE_VERSION` remains 1. Legacy saves receive a deterministic relationship matrix and an empty pending-offer list.
+- Existing unit, building, resource and kingdom IDs remain unchanged.
+
+STATIC VALIDATION
+- Result: 162/162 checks passed.
+- Checks include relationship matrix cardinality, personality catalog, normalization, deterministic negotiation, border tension, AI-AI war/peace, treaty persistence, income limits, dead-kingdom filtering, AI war targeting, UI integration, save compatibility and test-source presence.
+- Python validator syntax: `python3 -m py_compile tools/qa/static_validate.py` passed.
+
+GDSCRIPT / GODOT / DEVICE VALIDATION
+- `tests/diplomacy_smoke_test.gd` is included as source but was not executed.
+- Total GDScript smoke-test sources included: 31; not executed.
+- Godot 4.7.2 executable is unavailable in this build environment.
+- Godot parser/import, runtime scene launch, in-engine smoke tests, campaign save/load, Android touch layout and GPU/FPS validation remain pending.
+- This package is a Godot source project, not an APK.

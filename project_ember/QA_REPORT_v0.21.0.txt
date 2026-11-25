@@ -1,0 +1,45 @@
+PROJECT EMBER v0.21.0 — MYTHRYL PIXEL TERRAIN BATTLEFIELD
+QA report
+Date: 2026-11-25
+Engine target: Godot 4.7.2 stable / GL Compatibility
+Base package: Project Ember v0.20.0 — Pixel Cavalry & 2.5D Battlefield
+
+IMPLEMENTED
+- Replaced only the tactical battlefield's previous Tactics Terrain surface/dressing with the user-supplied Mythryl Studio 2D Pixel Terrain 64px Free Edition.
+- Built a 512x512 atlas with 74 cells: 4 grass variants, 4 dirt variants, 16 grass/dirt transitions, 4 shallow-water variants and 46 shoreline shapes.
+- Creates isometric 64x32 diamond ground cells on a 2:1 grid and batches the full surface into one SurfaceTool mesh / one MeshInstance3D.
+- Uses nearest-neighbour filtering and alpha scissor for crisp transparent diamond corners.
+- Adds the pack's common trees, pines, bushes, rocks, flower patches and grass-cliff blocks.
+- Uses biome-aware deterministic placement for grassland, woodland, highlands and marsh. The marsh adds a shallow pool with coastline transitions.
+- Keeps the original battlefield floor and collision geometry, size 38x26, collision layer 1 / mask 0, camera transform and movement rules unchanged.
+- Terrain props are visual-only and add no StaticBody3D or movement-blocking collider.
+
+UNCHANGED
+- Cavalry atlas PNGs, manifest, horse animations, infantry sprite atlas, BattleUnit scripts, combat sprite library, combat effects, combat timing, unit stats, collision capsules, orders, AI, projectiles, strategic map, campaign logic and save data were not edited.
+- The previous v0.20.0 package remains a separate backup.
+
+STATIC QA
+- Static validation: 48/48 passed.
+- Battlefield/unit preservation check: 20 selected combat, cavalry, sprite-atlas and scene files match v0.20.0 byte-for-byte.
+- All literal res:// references resolved in the scanned source/resource files.
+- Mythryl atlas PNG: 512x512; manifest: 74 slots / 46 coast masks.
+- ZIP integrity test: PASS — final archive CRC check completed after packaging.
+
+NOT EXECUTED IN THIS BUILD ENVIRONMENT
+- Godot 4.7.2 editor import and GDScript parser were not run because the Godot binary could not be obtained in this container.
+- Godot smoke tests, engine-rendered screenshots, Android import and Android GPU/FPS measurements were not executed.
+- TERRAIN_LAYOUT_PREVIEW_NOT_ENGINE_RENDER.png is a 2D composite of the supplied artwork for layout review, not a screenshot from the running game.
+
+ASSET / LICENSE NOTES
+- The Mythryl Studio Free Edition license and README are included under assets/combat/mythryl_pixel_terrain/.
+- The asset pack permits inclusion in a game project but does not permit redistribution as a standalone reusable asset pack. The files are therefore included only inside this integrated Project Ember project package.
+- The 64px pack's free edition contains summer grass, dirt, shallow water, grass cliffs and the listed nature props; it does not include the full edition's additional seasons and materials.
+
+DEVICE CHECK REQUIRED
+1. Open the project in Godot 4.7.2 Android Editor and allow the first asset import to finish.
+2. Enter a battle and inspect the four biomes at close and far zoom.
+3. Check shoreline transitions in marsh and depth/order of trees and cliff sprites.
+4. Confirm that units remain fully visible and movement/selection work as before.
+5. Send a short battlefield screenshot or recording for the final visual adjustment pass.
+
+This report distinguishes static packaging validation from engine runtime and physical-device verification.

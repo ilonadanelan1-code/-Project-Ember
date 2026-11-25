@@ -1,0 +1,40 @@
+{
+  "image": "grass.png",
+  "width": 256,
+  "height": 32,
+  "cellWidth": 64,
+  "cellHeight": 32,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "grass_1",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass_2",
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass_3",
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass_4",
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    }
+  ]
+}

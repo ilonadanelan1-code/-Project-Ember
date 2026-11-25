@@ -1,0 +1,124 @@
+{
+  "image": "grass-dirt.png",
+  "width": 256,
+  "height": 128,
+  "cellWidth": 64,
+  "cellHeight": 32,
+  "columns": 4,
+  "rows": 4,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "grass-dirt_00",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_01",
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_02",
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_03",
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_04",
+      "x": 0,
+      "y": 32,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_05",
+      "x": 64,
+      "y": 32,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_06",
+      "x": 128,
+      "y": 32,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_07",
+      "x": 192,
+      "y": 32,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_08",
+      "x": 0,
+      "y": 64,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_09",
+      "x": 64,
+      "y": 64,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_10",
+      "x": 128,
+      "y": 64,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_11",
+      "x": 192,
+      "y": 64,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_12",
+      "x": 0,
+      "y": 96,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_13",
+      "x": 64,
+      "y": 96,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_14",
+      "x": 128,
+      "y": 96,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "grass-dirt_15",
+      "x": 192,
+      "y": 96,
+      "w": 64,
+      "h": 32
+    }
+  ]
+}
