@@ -1,4 +1,4 @@
-Project Ember v0.17.3 — Mobile HUD & Map Line Polish
+Project Ember v0.17.4 — Softer Map Grid & Texture Frequency
 - Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
 - Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
 - Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).
@@ -16,7 +16,8 @@ Project Ember v0.17.3 — Mobile HUD & Map Line Polish
 - Calculates UI dp conversion from the viewport/window height ratio, preventing aspect-expanded viewport width from enlarging touch controls on ultrawide Android screens.
 - Caps high-density UI scaling at 1.30 reference pixels per dp, while preserving the user-controlled accessibility scale.
 - Reduces the strategy HUD height and label sizes, keeps 48dp minimum touch targets, and trims vertical button padding.
-- Softens the base hex grid opacity and stroke width without changing territorial borders, roads, shorelines or movement highlights.
+- Further reduces base hex grid opacity and stroke width; territorial borders, roads, shorelines and movement highlights remain separate.
+- Increases the world-surface repeat period from 430 to 560 world units to reduce obvious repeated artwork while preserving detail at normal zoom.
 - Adds smoke assertions for compact mobile layout and map line styling; actual device rendering still requires Android hardware validation.
 
 - Adds a Godot 4.7.2 CI workflow with verified official binary SHA-256.

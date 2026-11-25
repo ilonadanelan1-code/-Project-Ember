@@ -334,7 +334,7 @@ func _draw_hex_grid() -> void:
 			grid_segments.append(corners[edge_index])
 			grid_segments.append(corners[(edge_index + 1) % 6])
 	if not grid_segments.is_empty():
-		draw_multiline(grid_segments, Palette.MAP_HEX_GRID, maxf(0.18, 0.22 * _map_zoom), true)
+		draw_multiline(grid_segments, Palette.MAP_HEX_GRID, maxf(0.16, 0.16 * _map_zoom), true)
 
 
 func _draw_coastlines() -> void:

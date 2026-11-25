@@ -33,7 +33,7 @@ func _run() -> void:
     _check(renderer.get_surface_panel_count() == 25, "24 independent biome scenes plus continent LOD share one atlas")
     _check(renderer.get_surface_variant_count() == 24, "six biomes expose four independent art variants each")
     _check(renderer.get_surface_panel_size() == Vector2i(717, 717), "surface panels use independent painterly scene crops")
-    _check(renderer.get_texture_period() == 430.0, "430-world-unit surface period provides increased source detail at close zoom")
+    _check(renderer.get_texture_period() == 560.0, "560-world-unit surface period reduces repeated artwork while retaining close-zoom detail")
     var mask_texture := renderer.get_biome_mask_texture()
     _check(mask_texture is Texture2D and mask_texture.get_width() == 181 and mask_texture.get_height() == 181, "181x181 surface-variant mask includes the world boundary water ring")
     _check(renderer.get_batched_draw_count() == 0, "empty viewport submits no terrain draw batch")
