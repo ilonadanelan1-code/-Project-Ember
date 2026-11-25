@@ -10,8 +10,7 @@ const TouchGestureRouterScript = preload("res://scripts/touch_gesture_router.gd"
 const ToastManagerScript = preload("res://scripts/toast_manager.gd")
 const ConfirmDialogScript = preload("res://scripts/confirm_dialog.gd")
 const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
-const HexMapBatchRendererScript = preload("res://scripts/hex_map_batch_renderer.gd")
-const WorldDetailBatchRendererScript = preload("res://scripts/world_detail_batch_renderer.gd")
+const HexTerrainTileMapRendererScript = preload("res://scripts/hex_terrain_tilemap_renderer.gd")
 const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const CITY_MARKER_ATLAS: Texture2D = preload("res://assets/map/city_marker_atlas.png")
 
@@ -34,8 +33,7 @@ const NEIGHBOR_OFFSETS: Array[Vector2i] = [
 ]
 
 var _cells: Array[Vector2i] = []
-var _terrain_renderer: HexMapBatchRenderer
-var _world_detail_renderer: WorldDetailBatchRenderer
+var _hex_tileset_renderer: HexTerrainTileMapRenderer
 var _owner_lookup: Dictionary = {}
 var _camera_center_world: Vector2 = Vector2.ZERO
 var _map_zoom: float = 1.08
@@ -81,12 +79,9 @@ func _ready() -> void:
 		CampaignState.new_campaign()
 	_build_map()
 	_camera_center_world = _hex_world_position(CampaignState.player_cell)
-	_terrain_renderer = HexMapBatchRendererScript.new()
-	_terrain_renderer.name = "BatchedWorldTerrain"
-	add_child(_terrain_renderer)
-	_world_detail_renderer = WorldDetailBatchRendererScript.new()
-	_world_detail_renderer.name = "BatchedWorldDetails"
-	add_child(_world_detail_renderer)
+	_hex_tileset_renderer = HexTerrainTileMapRendererScript.new()
+	_hex_tileset_renderer.name = "HexTerrainTileMapRenderer"
+	add_child(_hex_tileset_renderer)
 	_create_ui()
 	add_child(PerfOverlayScript.new())
 	if CampaignState.last_battle_report_pending:
@@ -100,37 +95,28 @@ func _ready() -> void:
 func _draw() -> void:
 	_cells = _get_visible_map_cells()
 	_refresh_owner_lookup()
-	var centers := PackedVector2Array()
-	var colors := PackedColorArray()
-	var terrain_data := PackedColorArray()
-	var terrain_kinds := PackedStringArray()
-	centers.resize(_cells.size())
-	colors.resize(_cells.size())
-	terrain_data.resize(_cells.size())
-	terrain_kinds.resize(_cells.size())
 	for index in range(_cells.size()):
 		var cell: Vector2i = _cells[index]
-		centers[index] = _hex_center(cell)
-		var terrain_kind := CampaignState.get_world_terrain(cell)
-		terrain_kinds[index] = terrain_kind
-		# The terrain texture is sampled in global world coordinates. The payload
-		# stores the axial cell and biome; only fog/ownership brightness is separate.
-		var tint := Color.WHITE
+		var center := _hex_center(cell)
+		var overlay := Color(0.0, 0.0, 0.0, 0.0)
 		var owner_id := int(_owner_lookup.get(cell, -1))
 		if owner_id == -2:
-			tint = tint.lerp(PLAYER_TEAM_COLOR.lightened(0.35), 0.12)
+			overlay = Color(PLAYER_TEAM_COLOR.r, PLAYER_TEAM_COLOR.g, PLAYER_TEAM_COLOR.b, 0.075)
 		elif owner_id >= 0:
-			tint = tint.lerp(_kingdom_color(owner_id), 0.10)
+			var faction_color := _kingdom_color(owner_id)
+			overlay = Color(faction_color.r, faction_color.g, faction_color.b, 0.065)
 		if not CampaignState.is_cell_visible(cell):
-			tint = tint.darkened(0.22)
-		colors[index] = tint
-		# Adjacent cells sample the same global surface field. The painted ground
-		# continues across hex boundaries instead of restarting in each cell.
-		terrain_data[index] = HexMapBatchRendererScript.make_instance_data(cell, terrain_kind)
-	if is_instance_valid(_terrain_renderer):
-		_terrain_renderer.set_map_tiles(_cells, centers, colors, Vector2(63.6948, 70.4895), _map_zoom, terrain_data)
-	if is_instance_valid(_world_detail_renderer):
-		_world_detail_renderer.set_visible_cells(_cells, centers, terrain_kinds, colors, _map_zoom, CampaignState.world_seed)
+			overlay = Color(0.012, 0.020, 0.025, 0.28)
+		if overlay.a > 0.0:
+			draw_colored_polygon(_hex_points(center), overlay)
+
+	if is_instance_valid(_hex_tileset_renderer):
+		_hex_tileset_renderer.set_map_tiles(
+			_cells,
+			_map_zoom,
+			_camera_center_world,
+			get_viewport_rect().size
+		)
 
 	_draw_hex_grid()
 	_draw_coastlines()
@@ -1387,6 +1373,8 @@ func _restart_campaign() -> void:
 func _perform_restart_campaign() -> void:
 	_close_city()
 	CampaignState.new_campaign()
+	if is_instance_valid(_hex_tileset_renderer):
+		_hex_tileset_renderer.invalidate_world()
 	_army_selected = false
 	_settler_selected = false
 	_message_text = "Новая кампания началась. Выбери синюю армию."

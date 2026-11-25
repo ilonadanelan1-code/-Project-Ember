@@ -1,4 +1,5 @@
-Project Ember v0.17.1 — Godot 4.7.2 QA Pipeline
-Target: Godot 4.7.2-stable official / GL Compatibility
-QA: import + all smoke tests + Xvfb/Mesa visual capture at 4 zoom levels
-Android runtime validation: still requires the physical device
+Build: Project Ember v0.18.1 — Hex Terrain API Fix
+Engine: Godot 4.7.2-stable / GL Compatibility
+Map assets: 448 named hex tiles / 6 WebP atlases / 64px / shared TerrainConnect TileSet
+Renderer: native TileMapLayer ground + deterministic feature layer
+QA status: local static validation 26/26; Godot import, runtime smoke tests and Android device validation still required.

@@ -1,12 +1,12 @@
-# Project Ember
+# Project Ember — v0.18.1 QA
 
-Current source release: **v0.17.1 — Godot 4.7.2 QA Pipeline**.
+Source project: **Project Ember v0.18.1 — Hex Terrain API Fix**.
 
-- [Project design](project_ember/DESIGN.md)
-- [Art Bible](project_ember/ART_BIBLE.md)
-- [Android import and play guide](project_ember/ANDROID_START.md)
-- [QA pipeline](project_ember/tools/qa/README.md)
+- Godot project: `project_ember/`
+- Android import guide: `project_ember/ANDROID_START.md`
+- Hex Terrain Bundle and license: `project_ember/assets/hex_terrain/`
+- QA scripts and smoke tests: `project_ember/tools/qa/` and `project_ember/tests/`
 
-The QA workflow pins the official Godot 4.7.2 editor binary, verifies its SHA-256, imports all resources, runs all GDScript smoke tests, and captures the strategic map at four zoom levels. Screenshots, render metrics and logs are uploaded as a GitHub Actions artifact. Android GPU performance still requires a physical-device report.
+The dedicated QA workflow imports the project with official Godot 4.7.2, parses GDScript, runs smoke tests, and captures the strategy map at four zoom levels using Mesa software OpenGL. Android device GPU performance still requires a report from the physical device.
 
-This is a Godot source project, not an APK.
+This is a Godot source project, not an APK. The QA branch does not modify `main`.

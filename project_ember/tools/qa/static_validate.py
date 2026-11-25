@@ -26,6 +26,22 @@ def check(condition: bool, message: str) -> None:
 
 check((ROOT / "project.godot").is_file(), "project.godot exists")
 check((ROOT / "scenes/strategy_map.tscn").is_file(), "strategic map scene exists")
+check((ROOT / "assets/hex_terrain/tileset_64.tres").is_file(), "combined 64px Hex Terrain TileSet exists")
+check((ROOT / "assets/hex_terrain/LICENSE.txt").is_file(), "Hex Terrain Bundle license is included")
+check(len(list((ROOT / "assets/hex_terrain").glob("*_64.webp"))) == 6, "six lossless WebP terrain atlases are included")
+tileset_path = ROOT / "assets/hex_terrain/tileset_64.tres"
+tileset_text = tileset_path.read_text(encoding="utf-8") if tileset_path.is_file() else ""
+tile_names = re.findall(r'custom_data_0 = "([^"]+)"', tileset_text)
+check(len(tile_names) == 448 and len(set(tile_names)) == 448, "TileSet contains 448 uniquely named authored hex tiles")
+atlas_paths = re.findall(r'\[ext_resource type="Texture2D" path="([^"]+)"', tileset_text)
+check(len(atlas_paths) == 6 and all(path.startswith("res://assets/hex_terrain/") and (ROOT / path[6:]).is_file() for path in atlas_paths), "all six TileSet atlas source paths resolve")
+check("tile_size = Vector2i(64, 64)" in tileset_text and "tile_shape = 3" in tileset_text and "tile_offset_axis = 0" in tileset_text, "TileSet uses 64px pointy-top horizontal-offset hex cells")
+renderer_path = ROOT / "scripts/hex_terrain_tilemap_renderer.gd"
+renderer_text = renderer_path.read_text(encoding="utf-8") if renderer_path.is_file() else ""
+check("atlas.get_tiles_count()" in renderer_text and "atlas.get_tile_id(tile_index)" in renderer_text and not re.search(r"\batlas\.get_tiles\s*\(", renderer_text), "atlas enumeration uses the supported TileSetSource index API")
+feature_block = renderer_text.split("const FEATURE_RULES :=", 1)[1].split("\n}", 1)[0] if "const FEATURE_RULES :=" in renderer_text else ""
+feature_tiles = re.findall(r'"([a-z0-9_]+)"', re.sub(r'"(?:plain|forest|hills|water|marsh|tiles|chance)"', "", feature_block))
+check(bool(feature_tiles) and all(any(name.endswith("/" + tile) for name in tile_names) for tile in feature_tiles), "all deterministic feature placements reference authored TileSet tiles")
 check((ROOT / "VERSION.txt").is_file(), "version metadata exists")
 
 project_text = (ROOT / "project.godot").read_text(encoding="utf-8") if (ROOT / "project.godot").exists() else ""
@@ -62,7 +78,7 @@ check(surface.get("independent_scenes") == 24, "surface atlas manifest records 2
 check(detail.get("sprites") == 24, "detail atlas manifest records 24 detail sprites")
 
 # Validate literal local resource paths referenced by project source and scenes.
-resource_ext = {".gd", ".tscn", ".tres", ".res", ".import", ".theme", ".gdshader", ".svg", ".json", ".png", ".wav", ".ogg", ".ttf", ".otf"}
+resource_ext = {".gd", ".tscn", ".tres", ".res", ".import", ".theme", ".gdshader", ".svg", ".json", ".png", ".webp", ".wav", ".ogg", ".ttf", ".otf"}
 path_pattern = re.compile(r"res://[A-Za-z0-9_./-]+")
 missing: set[str] = set()
 scanned = 0
@@ -93,7 +109,9 @@ for item in sorted(missing):
     print("  " + item)
 
 smoke_tests = sorted((ROOT / "tests").glob("*_smoke_test.gd")) if (ROOT / "tests").exists() else []
-check(len(smoke_tests) >= 18, f"at least 18 smoke tests are present ({len(smoke_tests)} found)")
+check(len(smoke_tests) >= 19, f"at least 19 smoke tests are present ({len(smoke_tests)} found)")
+check((ROOT / "scripts/hex_terrain_tilemap_renderer.gd").is_file(), "native Hex TileSet renderer exists")
+check((ROOT / "tests/hex_tileset_renderer_smoke_test.tscn").is_file(), "Hex TileSet smoke-test scene exists")
 check((ROOT / "tools/qa/visual_capture.gd").is_file(), "visual screenshot runner exists")
 check((ROOT / "tools/qa/run_smoke_tests.sh").is_file(), "smoke test runner exists")
 check((ROOT / "tools/qa/parse_all_scripts.gd").is_file(), "project-context GDScript parser exists")

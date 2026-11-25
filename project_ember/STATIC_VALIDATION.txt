@@ -1,3 +1,33 @@
-Static validation for v0.17.1 completed locally: 19/19 checks passed. Atlas PNG dimensions and SHA-256 hashes match the manifest; all literal res:// references resolve; 18 smoke tests and the Godot QA workflow are present; shell scripts pass bash -n; the Python validator compiles.
+PASS: project.godot exists
+PASS: strategic map scene exists
+PASS: combined 64px Hex Terrain TileSet exists
+PASS: Hex Terrain Bundle license is included
+PASS: six lossless WebP terrain atlases are included
+PASS: TileSet contains 448 uniquely named authored hex tiles
+PASS: all six TileSet atlas source paths resolve
+PASS: TileSet uses 64px pointy-top horizontal-offset hex cells
+PASS: atlas enumeration uses the supported TileSetSource index API
+PASS: all deterministic feature placements reference authored TileSet tiles
+PASS: version metadata exists
+PASS: project is tagged for Godot 4.7 and GL Compatibility
+PASS: world surface manifest parses
+PASS: world_surface_atlas.png exists
+PASS: world_surface_atlas.png dimensions are 4096x4096
+PASS: world_surface_atlas.png SHA-256 matches manifest
+PASS: world_detail_atlas.png exists
+PASS: world_detail_atlas.png dimensions are 3072x2048
+PASS: world_detail_atlas.png SHA-256 matches manifest
+PASS: surface atlas manifest records 24 independent scene crops
+PASS: detail atlas manifest records 24 detail sprites
+PASS: all literal res:// references resolve (64 source/resource files scanned)
+PASS: at least 19 smoke tests are present (19 found)
+PASS: native Hex TileSet renderer exists
+PASS: Hex TileSet smoke-test scene exists
+PASS: visual screenshot runner exists
+PASS: smoke test runner exists
+PASS: project-context GDScript parser exists
+PASS: project-context parser scene exists
+PASS: GitHub Actions QA workflow exists
+PASS: editor cache is not packaged in the source tree
 
-Godot 4.7.2 import, parser, shader compilation, behavioral smoke tests and visual screenshot capture are delegated to the checksum-pinned GitHub Actions workflow. They are not claimed as passed until the workflow has run on the uploaded QA branch. Physical Android GPU validation remains separate.
+Static QA: 31/31 checks passed

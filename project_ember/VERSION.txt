@@ -1,4 +1,16 @@
-Project Ember v0.17.6 — Seamless Hex Coverage
+Project Ember v0.18.1 — Hex Terrain API Fix
+- Fixes atlas enumeration using TileSetSource.get_tiles_count() and get_tile_id(); removes the runtime-invalid get_tiles() calls.
+- Integrates the Hex Terrain Bundle: 448 authored pointy-top hex tiles across six 64px atlases.
+- Replaces the painterly per-cell surface renderer with two native Godot TileMapLayers: TerrainConnect ground plus deterministic feature details.
+- Uses the shared 13-terrain TileSet for grass/rock, dirt/grass, deep/shallow water and marsh shoreline transitions.
+- Maps the existing axial world into the bundle horizontal-offset grid without changing world generation, campaign saves, unit logic or city coordinates.
+- Keeps fog of war, ownership tint, roads, territory borders, cities, armies, settler markers and movement highlights in StrategyMap above the TileMap.
+- Includes the bundle license beside all six lossless WebP atlases; the original TileSet resource is preserved.
+- The current generator populates grassland, forest, farmland, hills, water and marsh. Desert and snow atlases are included and ready for future biome generation.
+- Adds a dedicated smoke test for all 448 tiles, atlas sources, hex grid settings and explored-cell rendering.
+
+## Previous v0.17.x rendering notes
+
 - Uses 24 independent painterly surface scenes: four separate artwork crops for each of six biomes, plus one subdued continent LOD panel.
 - Splits the previous biome contact-sheet panels into individual crops; no four-image collage is sampled as one continuous surface.
 - Stores 24 scenes in a guarded 5x5 atlas (4096x4096; 717px panel content; 51px mip gutters).

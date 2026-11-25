@@ -2,7 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-path="res://.godot/imported/world_surface_atlas.png.emberv17.ctex"
+uid="uid://dv4mgllo1hfcl"
+path="res://.godot/imported/world_surface_atlas.png-4816fc21132aa8d4055e292f96c72e0b.ctex"
 metadata={
 "vram_texture": false
 }
@@ -10,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/map/world_surface_atlas.png"
-dest_files=["res://.godot/imported/world_surface_atlas.png.emberv17.ctex"]
+dest_files=["res://.godot/imported/world_surface_atlas.png-4816fc21132aa8d4055e292f96c72e0b.ctex"]
 
 [params]
 
@@ -28,5 +29,6 @@ process/fix_alpha_border=true
 process/premult_alpha=true
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1

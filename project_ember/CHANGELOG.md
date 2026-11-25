@@ -59,3 +59,17 @@
 - Added a dedicated low-detail topographic surface for continent LOD.
 - Added a procedural antialiased hex mask and reduced grid contrast.
 - Kept the single MultiMesh draw batch and all campaign/world-generation versions.
+
+
+## v0.18.1 — Hex Terrain API Fix
+
+- Fixed atlas tile enumeration to use the Godot 4 `TileSetSource.get_tiles_count()` and `get_tile_id()` API instead of the nonexistent `TileSetAtlasSource.get_tiles()` method.
+- Updated the terrain renderer's atlas tile count so the performance report and the 448-tile smoke test use the same supported API.
+
+## v0.18.0 — Hex Terrain Bundle Integration
+
+- Added the complete 448-tile, six-atlas Hex Terrain Bundle in its 64px Godot TileSet form.
+- Replaced the continuous painted-surface renderer with native TileMapLayer ground and feature layers using the pack's shared TerrainConnect rules.
+- Kept the existing world generator, axial coordinates, campaign saves, fog of war, roads, ownership overlays, city markers and army controls.
+- Added deterministic trees, rocks, reeds, flowers, reefs and other feature tiles on safe interior ground cells.
+- Included the asset license and a dedicated 448-tile renderer smoke test.

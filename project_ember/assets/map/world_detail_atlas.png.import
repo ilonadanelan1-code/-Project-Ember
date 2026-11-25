@@ -2,7 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-path="res://.godot/imported/world_detail_atlas.png.emberv17.ctex"
+uid="uid://gbv7pylbc5fg"
+path="res://.godot/imported/world_detail_atlas.png-da8cfb7f53a1b5dcfe3ca6e80764b153.ctex"
 metadata={
 "vram_texture": false
 }
@@ -10,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/map/world_detail_atlas.png"
-dest_files=["res://.godot/imported/world_detail_atlas.png.emberv17.ctex"]
+dest_files=["res://.godot/imported/world_detail_atlas.png-da8cfb7f53a1b5dcfe3ca6e80764b153.ctex"]
 
 [params]
 
@@ -28,5 +29,6 @@ process/fix_alpha_border=true
 process/premult_alpha=true
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1

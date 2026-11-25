@@ -65,8 +65,8 @@ func _run() -> void:
             continue
 
         var visible_cells: Array = _map.call("_get_visible_map_cells")
-        var terrain_renderer: Object = _map.get("_terrain_renderer")
-        var detail_renderer: Object = _map.get("_world_detail_renderer")
+        var terrain_renderer: Object = _map.get("_hex_tileset_renderer")
+        var detail_renderer: Object = null
         var unique_samples := _count_sampled_colors(image)
         var terrain_instances := int(terrain_renderer.call("get_tile_instance_count")) if is_instance_valid(terrain_renderer) else 0
         var detail_instances := int(detail_renderer.call("get_detail_instance_count")) if is_instance_valid(detail_renderer) else 0

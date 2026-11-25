@@ -1,7 +1,21 @@
-Project Ember v0.17.1 — complete source project file manifest
+Project Ember v0.18.1 — source project manifest
 
-File count (excluding this manifest): 87
+Hex Terrain Bundle integration:
+  assets/hex_terrain/tileset_64.tres
+  assets/hex_terrain/LICENSE.txt
+  assets/hex_terrain/grassland_forest_64.webp
+  assets/hex_terrain/desert_badlands_64.webp
+  assets/hex_terrain/snow_tundra_64.webp
+  assets/hex_terrain/swamp_marsh_64.webp
+  assets/hex_terrain/water_coast_64.webp
+  assets/hex_terrain/mountains_hills_64.webp
 
+New integration code:
+  scripts/hex_terrain_tilemap_renderer.gd
+  tests/hex_tileset_renderer_smoke_test.gd
+  tests/hex_tileset_renderer_smoke_test.tscn
+
+Complete project file listing follows.
 .github/README_QA.md
 .github/workflows/ember-qa.yml
 .gitignore
@@ -10,6 +24,7 @@ ART_BIBLE.md
 BUILD_INFO.txt
 CHANGELOG.md
 DESIGN.md
+FILE_MANIFEST.txt
 HERO_PROGRESSION.md
 INSTALL_EMBER_QA_PIPELINE.sh
 PACKAGE_INFO.txt
@@ -18,6 +33,14 @@ TACTICAL_CONTROLS.md
 TASKS.md
 VERSION.txt
 VISUAL_OVERHAUL.md
+assets/hex_terrain/LICENSE.txt
+assets/hex_terrain/desert_badlands_64.webp
+assets/hex_terrain/grassland_forest_64.webp
+assets/hex_terrain/mountains_hills_64.webp
+assets/hex_terrain/snow_tundra_64.webp
+assets/hex_terrain/swamp_marsh_64.webp
+assets/hex_terrain/tileset_64.tres
+assets/hex_terrain/water_coast_64.webp
 assets/map/city_marker_atlas.png
 assets/map/city_marker_atlas.png.import
 assets/map/world_detail_atlas.png
@@ -42,6 +65,7 @@ scripts/confirm_dialog.gd
 scripts/game_settings.gd
 scripts/haptics.gd
 scripts/hex_map_batch_renderer.gd
+scripts/hex_terrain_tilemap_renderer.gd
 scripts/icon_button.gd
 scripts/kingdom_ai.gd
 scripts/perf_overlay.gd
@@ -65,7 +89,10 @@ tests/campaign_smoke_test.gd
 tests/combat_effects_smoke_test.gd
 tests/foundation_smoke_test.gd
 tests/hero_progression_smoke_test.gd
+tests/hex_tileset_renderer_smoke_test.gd
+tests/hex_tileset_renderer_smoke_test.tscn
 tests/map_batch_renderer_smoke_test.gd
+tests/map_batch_renderer_smoke_test.tscn
 tests/mobile_hud_layout_smoke_test.gd
 tests/new_campaign_confirm_smoke_test.gd
 tests/performance_report_smoke_test.gd
@@ -78,9 +105,12 @@ tests/visual_overhaul_smoke_test.gd
 tests/world_campaign_smoke_test.gd
 tests/world_detail_batch_smoke_test.gd
 tools/qa/README.md
+tools/qa/parse_all_scripts.gd
+tools/qa/parse_all_scripts.tscn
 tools/qa/run_smoke_tests.sh
 tools/qa/static_validate.py
 tools/qa/visual_capture.gd
+tools/qa/visual_capture.tscn
 ui/icons/cancel.svg
 ui/icons/cancel.svg.import
 ui/icons/confirm.svg

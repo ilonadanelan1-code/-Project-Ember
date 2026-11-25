@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://fbcgnsvzrtqk"
-path="res://.godot/imported/city_marker_atlas.png-b3a23cd62f7059dca7411362fb1e5c0c.ctex"
+uid="uid://fbcgnsv0rtqk"
+path="res://.godot/imported/city_marker_atlas.png-cea9714edd67bfa85e033062d6fca7d7.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/map/city_marker_atlas.png"
-dest_files=["res://.godot/imported/city_marker_atlas.png-b3a23cd62f7059dca7411362fb1e5c0c.ctex"]
+dest_files=["res://.godot/imported/city_marker_atlas.png-cea9714edd67bfa85e033062d6fca7d7.ctex"]
 
 [params]
 
