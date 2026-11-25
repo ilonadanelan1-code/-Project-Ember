@@ -64,7 +64,7 @@ static func _panel_style(background: Color, scale: float) -> StyleBoxFlat:
 	style.content_margin_right = _dp(10.0)
 	style.content_margin_bottom = _dp(8.0)
 	return style
-static func _button_style(background: Color, border: Color, scale: float, alpha: float = 1.0) -> StyleBoxFlat:
+static func _button_style(background: Color, border: Color, _scale: float, alpha: float = 1.0) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	var background_tint := background
 	background_tint.a = alpha
@@ -77,7 +77,7 @@ static func _button_style(background: Color, border: Color, scale: float, alpha:
 	style.content_margin_right = _dp(10.0)
 	style.content_margin_bottom = _dp(5.0)
 	return style
-static func _flat_style(background: Color, border: Color, scale: float) -> StyleBoxFlat:
+static func _flat_style(background: Color, border: Color, _scale: float) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = border
