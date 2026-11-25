@@ -52,6 +52,7 @@ func _run() -> void:
             _check(source.contains("ATLAS_CELL_SIZE") and source.contains("atlas_column = mod(variant, 5.0)"), "shader resolves five atlas columns")
             _check(source.contains("atlas_row = floor(variant / 5.0)") and source.contains("/ ATLAS_HEIGHT"), "shader resolves five atlas rows independently")
             _check(not source.contains("atlas_index = clamp(floor"), "renderer no longer chooses a separate painted stamp per hex")
+            _check(source.contains("uniform sampler2D surface_atlas") and source.contains("texture(surface_atlas,"), "shader samples the painted atlas through an explicit texture uniform")
             _check(source.contains("uniform sampler2D biome_mask"), "shader samples a world-wide biome mask for neighboring terrain")
             _check(source.contains("sample_surface_variant") and source.contains("neighbor_surface") and source.contains("second_neighbor_offset"), "shader blends different biome surfaces across shared edges")
             _check(source.contains("biome_blend_width"), "biome transitions use a controlled soft boundary")
