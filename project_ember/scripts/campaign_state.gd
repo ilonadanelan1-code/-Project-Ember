@@ -359,20 +359,61 @@ func _read_hero_record(value: Variant, fallback: Dictionary) -> Dictionary:
 	return result
 
 
+func _recover_hero_record(hero: Dictionary) -> void:
+	if hero.is_empty():
+		return
+	var max_health := get_hero_max_health(hero)
+	var current_health := clampf(float(hero.get("health", max_health)), 0.0, max_health)
+	if current_health <= 0.0:
+		hero["health"] = max_health * 0.35
+		hero["wounded_turns"] = 2
+	elif int(hero.get("wounded_turns", 0)) > 0:
+		hero["health"] = minf(max_health, current_health + max_health * 0.12)
+		hero["wounded_turns"] = maxi(0, int(hero.get("wounded_turns", 0)) - 1)
+	else:
+		hero["health"] = minf(max_health, current_health + max_health * 0.18)
+
+
+func _ensure_hero_ready_for_battle(hero: Dictionary) -> void:
+	if hero.is_empty():
+		return
+	var max_health := get_hero_max_health(hero)
+	var current_health := clampf(float(hero.get("health", max_health)), 0.0, max_health)
+	if current_health <= 0.0:
+		# A defeated ruler can remain in a legacy kingdom record at zero HP.
+		# Never spawn a visible, selectable but inert commander in a battle.
+		hero["health"] = max_health * 0.35
+		hero["wounded_turns"] = maxi(2, int(hero.get("wounded_turns", 0)))
+	else:
+		hero["health"] = current_health
+
+
 func _recover_campaign_heroes() -> void:
-	for hero in [player_hero, enemy_hero]:
-		if hero.is_empty():
-			continue
-		var max_health := get_hero_max_health(hero)
-		var current_health := clampf(float(hero.get("health", max_health)), 0.0, max_health)
-		if current_health <= 0.0:
-			hero["health"] = max_health * 0.35
-			hero["wounded_turns"] = 2
-		elif int(hero.get("wounded_turns", 0)) > 0:
-			hero["health"] = minf(max_health, current_health + max_health * 0.12)
-			hero["wounded_turns"] = maxi(0, int(hero.get("wounded_turns", 0)) - 1)
-		else:
-			hero["health"] = minf(max_health, current_health + max_health * 0.18)
+	_recover_hero_record(player_hero)
+	if kingdoms.is_empty():
+		_recover_hero_record(enemy_hero)
+		return
+
+	# Recover the actual hero records stored on every kingdom. Recovering only
+	# the convenience enemy_hero copy loses the update when _sync_primary_kingdom
+	# reloads the ruler from kingdoms on the same turn.
+	for index in range(kingdoms.size()):
+		var kingdom: Dictionary = kingdoms[index]
+		var fallback := _make_hero_record(
+			str(kingdom.get("ruler", "Воевода")),
+			"Правитель " + str(kingdom.get("name", "Королевства"))
+		)
+		var hero := _read_hero_record(kingdom.get("hero", fallback), fallback)
+		_recover_hero_record(hero)
+		kingdom["hero"] = hero.duplicate(true)
+		kingdoms[index] = kingdom
+
+	var primary: Dictionary = kingdoms[0]
+	var primary_fallback := _make_hero_record(
+		str(primary.get("ruler", "Воевода")),
+		"Правитель " + str(primary.get("name", "Королевства"))
+	)
+	enemy_hero = _read_hero_record(primary.get("hero", primary_fallback), primary_fallback)
 
 
 func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
@@ -409,6 +450,12 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 		"Правитель " + str(target_kingdom.get("name", "Королевства"))
 	)
 	enemy_hero = _read_hero_record(target_kingdom.get("hero", default_enemy_hero), default_enemy_hero)
+	_ensure_hero_ready_for_battle(player_hero)
+	_ensure_hero_ready_for_battle(enemy_hero)
+	# Persist this safety recovery so a damaged old save cannot respawn the same
+	# enemy commander at zero health on every subsequent battle.
+	target_kingdom["hero"] = enemy_hero.duplicate(true)
+	kingdoms[kingdom_id] = target_kingdom
 	battle_origin_cell = player_cell
 	battle_enemy_cell = enemy_cell
 	var battle_terrain_map: Dictionary = {}
