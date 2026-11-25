@@ -69,17 +69,13 @@ jobs:
           EOF
           echo "Imported project version: $VERSION"
 
-      - name: Create pull request with the imported project
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: automation/import-project-ember-v0.29.0
-          delete-branch: false
-          commit-message: "Import Project Ember v0.29.0 source archive"
-          title: "Import Project Ember v0.29.0 — Diplomacy Expansion"
-          body: |
-            This PR replaces the stale tracked Godot source tree with the contents of the v0.29.0 Diplomacy Expansion ZIP stored in the repository root.
-
-            The import is performed on a GitHub-hosted runner. The existing main branch remains unchanged until this PR is reviewed and merged.
-
-            Please inspect the diff and wait for the project validation workflow before merging.
+      - name: Publish imported project to a separate release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c release/v0.29.0-diplomacy-expansion
+          git add -A project_ember README.md
+          git commit -m "Import Project Ember v0.29.0 Diplomacy Expansion"
+          git push origin release/v0.29.0-diplomacy-expansion
