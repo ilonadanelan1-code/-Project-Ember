@@ -1,10 +1,10 @@
-Build: Project Ember v0.30.0 — Neutral Sites & Exploration Expansion
+Build: Project Ember v0.31.0 — AI Neutral Site Expeditions
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.29.0 — Diplomacy & AI Kingdoms
-Feature set: five neutral POI types with distinct one-time rewards; permanent abandoned-mine production; distant deterministic scouting event; existing factions, cities, armies, heroes, tactical combat and diplomacy retained.
-Neutral locations: max 72, deterministic by world seed, existing location IDs and cleared-state persistence retained.
+Base: v0.30.0 — Neutral Sites & Exploration Expansion
+Feature set: nine AI kingdoms can reserve, approach and contest neutral sites; deterministic strategic skirmishes preserve casualties and guardian health; captured sites grant rewards to the conquering realm; mine income is owner-specific; the strategic map identifies the capturing kingdom.
+Neutral locations: max 72, deterministic by world seed, existing location IDs and capture-state persistence retained.
 Economy: gold, food and stored production only; no new resource.
-Save schema: SAVE_VERSION 1; no new JSON fields introduced by this expansion.
+Save schema: SAVE_VERSION 1; new optional neutral-location ownership/capture fields and kingdom expedition target are normalized with legacy-safe defaults.
 Package type: Godot source project, not an APK.
-QA status: pending GitHub Godot 4.7.2 workflow after publication.
+QA status: the root GitHub Actions release workflow runs Godot 4.7.2 import, parser, smoke-test and visual-capture validation on release-branch pushes.

@@ -139,6 +139,8 @@ static func generate_locations(world_seed: int, generation_version: int) -> Arra
 			"guards": _make_guard_roster(guard_tier, type_id),
 			"guardian_health": 95.0 + float(guard_tier - 1) * 30.0,
 			"cleared": false,
+			"cleared_by": -2,
+			"cleared_turn": 0,
 			"reward": get_reward(type_id, guard_tier),
 		})
 	return result
@@ -162,6 +164,8 @@ static func normalize_locations(raw: Variant, world_seed: int, generation_versio
 		if saved_by_id.has(location_id):
 			var saved: Dictionary = saved_by_id[location_id]
 			location["cleared"] = bool(saved.get("cleared", false))
+			location["cleared_by"] = clampi(int(saved.get("cleared_by", -1 if bool(location["cleared"]) else -2)), -2, 8)
+			location["cleared_turn"] = clampi(int(saved.get("cleared_turn", 0)), 0, 100000000)
 			var saved_guards: Variant = saved.get("guards", location.get("guards", []))
 			location["guards"] = _normalize_guard_roster(saved_guards, int(location.get("guard_tier", 1)), str(location.get("type", "ancient_ruins")))
 			location["guardian_health"] = clampf(

@@ -2119,19 +2119,26 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		_refresh_ui()
 		return
 
-	var location_index := CampaignState.get_neutral_location_index_at(cell, false)
+	var location_index := CampaignState.get_neutral_location_index_at(cell, true)
 	if location_index >= 0:
 		var location: Dictionary = CampaignState.neutral_locations[location_index]
 		var location_id := str(location.get("id", ""))
 		var location_name := WorldLocationCatalogScript.get_display_name(str(location.get("type", "ancient_ruins")))
-		var distance := _hex_distance(CampaignState.player_cell, cell)
-		if distance <= 1:
-			if CampaignState.begin_location_battle(location_id):
-				get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
-				return
-			_message_text = "%s: охрана не может быть атакована сейчас." % location_name
+		if bool(location.get("cleared", false)):
+			var owner_id := int(location.get("cleared_by", -1))
+			if owner_id >= 0 and owner_id < CampaignState.kingdoms.size():
+				_message_text = "%s уже захвачено экспедицией королевства «%s»." % [location_name, str(CampaignState.kingdoms[owner_id].get("name", "Королевство"))]
+			else:
+				_message_text = "%s уже очищено твоей армией." % location_name
 		else:
-			_message_text = "%s: локация в %d гексах. Подойди ближе, чтобы атаковать охрану." % [location_name, distance]
+			var distance := _hex_distance(CampaignState.player_cell, cell)
+			if distance <= 1:
+				if CampaignState.begin_location_battle(location_id):
+					get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
+					return
+				_message_text = "%s: охрана не может быть атакована сейчас." % location_name
+			else:
+				_message_text = "%s: локация в %d гексах. Подойди ближе, чтобы атаковать охрану." % [location_name, distance]
 		_refresh_ui()
 		return
 

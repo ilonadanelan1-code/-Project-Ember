@@ -638,6 +638,8 @@ func complete_battle(
 				location["guardian_health"] = clampf(enemy_commander_health, 0.0, 210.0)
 			if victory:
 				location["cleared"] = true
+				location["cleared_by"] = -1
+				location["cleared_turn"] = turn_number
 				location["guards"] = []
 				location["guardian_health"] = 0.0
 				neutral_locations[location_index] = location
@@ -1250,7 +1252,8 @@ func advance_campaign_turn() -> void:
 		world_seed,
 		world_generation_version,
 		neutral_location_cells,
-		diplomacy_relations
+		diplomacy_relations,
+		neutral_locations
 	)
 	_apply_diplomacy_economy()
 	_sync_primary_kingdom()
@@ -1508,7 +1511,7 @@ func _apply_neutral_mine_income() -> void:
 	if cities.is_empty():
 		return
 	for location in neutral_locations:
-		if not bool(location.get("cleared", false)) or str(location.get("type", "")) != "abandoned_mine":
+		if not bool(location.get("cleared", false)) or int(location.get("cleared_by", -1)) != -1 or str(location.get("type", "")) != "abandoned_mine":
 			continue
 		var location_cell := WorldGeneratorScript.array_to_cell(location.get("cell", []))
 		var city_index := _find_nearest_player_city_index(location_cell)

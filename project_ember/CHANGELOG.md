@@ -1,3 +1,14 @@
+## v0.31.0 — AI Neutral Site Expeditions
+
+- Gives each living AI kingdom a peaceful-world objective: it can reserve a nearby neutral site and move its army toward it when no active war target takes priority.
+- Prevents living AI kingdoms from selecting the same reserved target; army size and estimated force strength gate expeditions against stronger guard tiers.
+- Resolves AI-vs-neutral encounters through a deterministic, bounded strategic skirmish using unit role damage, veterancy, current health and armor. Defeated guards and guardian health persist for a later expedition.
+- AI victories record the capturing kingdom and campaign turn, transfer the existing resource reward to the nearest AI city and apply location-specific effects to surviving troops.
+- Gives AI-owned abandoned mines +2 stored production per turn for the nearest city; player mine income is restricted to player-owned sites.
+- Shows the capturing kingdom when the player taps an explored, AI-cleared location.
+- Adds regression coverage for AI target assignment, movement, victory, reward payment and ownership normalization. `SAVE_VERSION` remains 1; legacy cleared sites default to player ownership.
+- Static project validation: 169/169 checks passed locally; Godot 4.7.2 import, parser, smoke tests and map captures run in GitHub Actions for the release branch.
+
 ## v0.30.0 — Neutral Sites & Exploration Expansion
 
 - Gives all five existing neutral location types a distinct post-victory effect while retaining their original resource rewards and stable location IDs.

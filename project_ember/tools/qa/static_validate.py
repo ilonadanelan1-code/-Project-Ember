@@ -309,7 +309,10 @@ check("get_event_by_id" in world_event_text and "normalize_event" in world_event
 check(all(token in campaign_state_text for token in ["neutral_locations", "pending_world_event", "world_events_resolved", "begin_location_battle", "_grant_neutral_location_reward", "guardian_health", "resolve_world_event", "city_population >= 20"]), "campaign state integrates persistent location battles, rewards, event effects and population-cap validation")
 check(all(token in campaign_state_text for token in ['"neutral_locations": neutral_locations', '"pending_world_event": pending_world_event', '"world_events_resolved": world_events_resolved', 'SAVE_VERSION := 1']), "world exploration data persists without changing save schema version")
 check(all(token in world_ai_text for token in ["neutral_location_cells", "_try_found_ai_city", "_move_army"]), "AI expansion and army movement avoid neutral location tiles")
-check(all(token in strategy_map_text for token in ["_draw_neutral_locations", "get_neutral_location_index_at", "begin_location_battle", "is_cell_explored"]), "strategic map draws explored locations and opens neutral battles on tap")
+check(all(token in world_ai_text for token in ["neutral_target_id", "_choose_neutral_expedition_target", "_resolve_ai_neutral_battle", "_grant_ai_location_reward", "_apply_ai_mine_income"]), "AI kingdoms reserve neutral-site expeditions, resolve strategic battles and collect persistent rewards")
+check(all(token in world_ai_text for token in ["_estimate_force_strength", "_estimate_location_strength", "_damage_weakest_unit", "neutral_locations: Array[Dictionary] = []"]), "AI neutral expeditions use bounded force estimates and deterministic damage resolution")
+check(all(token in world_location_text for token in ['"cleared_by"', '"cleared_turn"', 'saved.get("cleared_by"']), "neutral site ownership and capture turn persist with legacy-player defaults")
+check(all(token in strategy_map_text for token in ["_draw_neutral_locations", "get_neutral_location_index_at", "begin_location_battle", "is_cell_explored", "cleared_by", "уже захвачено"]), "strategic map identifies AI-captured sites and opens only uncleared neutral battles")
 check(all(token in strategy_map_text for token in ["_create_world_event_panel", "_refresh_world_event_panel", "_resolve_world_event_choice", "touch_target(52.0)"]), "mobile map includes two large event choice buttons")
 check((ROOT / "tests/world_location_smoke_test.gd").is_file(), "neutral location smoke test is included")
 check((ROOT / "tests/world_event_smoke_test.gd").is_file(), "campaign event smoke test is included")
@@ -320,6 +323,8 @@ check(all(token in campaign_state_text for token in ["_apply_neutral_location_sp
 location_test_text = (ROOT / "tests/world_location_smoke_test.gd").read_text(encoding="utf-8")
 event_test_text = (ROOT / "tests/world_event_smoke_test.gd").read_text(encoding="utf-8")
 check('not bool(location.get("cleared", false))' in campaign_state_text and 'state.get_neutral_location_by_id(target_id)' in location_test_text, "cleared neutral sites remain in map history under the victorious army")
+check(all(token in location_test_text for token in ["neutral_target_id", "peaceful AI assigns and moves", "AI expedition defeats neutral guards", "AI ownership and turn survive"]), "neutral-site smoke tests cover AI targeting, battle capture, rewards and saved ownership")
+check('location["cleared_by"] = -1' in campaign_state_text and 'int(location.get("cleared_by", -1)) != -1' in campaign_state_text, "player passive mine income is isolated from AI-owned mines")
 check('"keep_food"' in event_test_text and '"sell_goods"' in event_test_text, "abandoned wagon validates both food and gold reward branches")
 
 # Faction creation: people, culture, two traits, campaign start UI and AI kingdoms.

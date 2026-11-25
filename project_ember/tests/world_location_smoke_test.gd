@@ -3,6 +3,8 @@ extends SceneTree
 const CampaignStateScript = preload("res://scripts/campaign_state.gd")
 const WorldLocationScript = preload("res://scripts/world_location_catalog.gd")
 const WorldGeneratorScript = preload("res://scripts/world_generator.gd")
+const KingdomAIScript = preload("res://scripts/kingdom_ai.gd")
+const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
 
 var _failures: int = 0
 var _checks: int = 0
@@ -120,6 +122,10 @@ func _run() -> void:
 		var cleared := WorldLocationScript.normalize_locations([{"id": sample_id, "cleared": true, "guards": []}], seed_value, generation_version)
 		var cleared_sample := _find_location(cleared, sample_id)
 		_check(bool(cleared_sample.get("cleared", false)) and cleared_sample.get("guards", []).is_empty(), "cleared locations remain cleared after save normalization")
+		_check(int(cleared_sample.get("cleared_by", -2)) == -1, "legacy cleared sites are attributed to the player")
+		var ai_cleared := WorldLocationScript.normalize_locations([{"id": sample_id, "cleared": true, "cleared_by": 4, "cleared_turn": 19, "guards": []}], seed_value, generation_version)
+		var ai_cleared_sample := _find_location(ai_cleared, sample_id)
+		_check(int(ai_cleared_sample.get("cleared_by", -2)) == 4 and int(ai_cleared_sample.get("cleared_turn", 0)) == 19, "AI ownership and turn survive neutral location normalization")
 
 	var state: Variant = CampaignStateScript.new()
 	root.add_child(state)
@@ -210,20 +216,82 @@ func _run() -> void:
 	_check(state.player_units.size() == 24 and state.city_gold == full_army_gold_before + 25, "full mercenary camp falls back to a gold payment without exceeding army capacity")
 	state.player_units = saved_test_army
 
-	# A cleared mine adds two stored production without requiring a new resource or save field.
+	# A cleared mine pays its passive production only to the kingdom that owns it.
 	if not state.neutral_locations.is_empty():
 		var original_mine_record: Dictionary = state.neutral_locations[0].duplicate(true)
 		var mine_probe: Dictionary = original_mine_record.duplicate(true)
 		mine_probe["type"] = "abandoned_mine"
 		mine_probe["cleared"] = true
 		mine_probe["cell"] = WorldGeneratorScript.cell_to_array(state.player_cell + Vector2i(10, 0))
+		mine_probe["cleared_by"] = 0
 		state.neutral_locations[0] = mine_probe
 		state._save_active_city()
 		var mine_city_before: int = state.city_production_bank
 		state._apply_neutral_mine_income()
 		state._load_active_city()
-		_check(state.city_production_bank == mine_city_before + 2, "cleared abandoned mine adds two production to the nearest city")
+		_check(state.city_production_bank == mine_city_before, "AI-owned mine does not pay passive production to the player")
+		mine_probe["cleared_by"] = -1
+		state.neutral_locations[0] = mine_probe
+		state._apply_neutral_mine_income()
+		state._load_active_city()
+		_check(state.city_production_bank == mine_city_before + 2, "player-owned abandoned mine adds two production to the nearest city")
 		state.neutral_locations[0] = original_mine_record
+
+	# A peaceful AI kingdom can assign an expedition, travel to a neutral site and resolve it.
+	var initial_expedition_kingdoms := KingdomAIScript.create_initial_kingdoms(841207)
+	var expedition_kingdom: Dictionary = initial_expedition_kingdoms[0]
+	var expedition_kingdoms: Array[Dictionary] = [expedition_kingdom]
+	var expedition_army: Array[Dictionary] = []
+	for _unit_index in range(3):
+		expedition_army.append({"role": "melee", "health": 125.0, "experience": 0})
+	expedition_kingdom["army"] = expedition_army
+	expedition_kingdom["army_cell"] = [0, 0]
+	expedition_kingdom["next_move_turn"] = 1
+	expedition_kingdom["next_expansion_turn"] = 999
+	expedition_kingdoms[0] = expedition_kingdom
+	var expedition_locations: Array[Dictionary] = [{
+		"id": "ai_expedition_probe",
+		"type": "ancient_ruins",
+		"cell": [2, 0],
+		"guard_tier": 1,
+		"guards": [{"role": "melee", "health": 20.0, "experience": 0}],
+		"guardian_health": 5.0,
+		"cleared": false,
+		"cleared_by": -2,
+		"cleared_turn": 0,
+		"reward": {"gold": 30, "food": 5, "production": 3},
+	}]
+	var expedition_cells: Array[Vector2i] = [Vector2i(2, 0)]
+	var expedition_player_cities: Array[Vector2i] = []
+	var expedition_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	KingdomAIScript.process_turns(expedition_kingdoms, 1, Vector2i(50, 50), expedition_player_cities, 841207, generation_version, expedition_cells, expedition_relations, expedition_locations)
+	var travelling_kingdom: Dictionary = expedition_kingdoms[0]
+	var travelling_cell := WorldGeneratorScript.array_to_cell(travelling_kingdom.get("army_cell", []))
+	_check(str(travelling_kingdom.get("neutral_target_id", "")) == "ai_expedition_probe" and WorldGeneratorScript.hex_distance(travelling_cell, Vector2i(2, 0)) == 1, "peaceful AI assigns and moves an expedition toward a nearby neutral site")
+	var travelling_cities: Array = travelling_kingdom.get("cities", [])
+	var travelling_city: Dictionary = travelling_cities[0]
+	travelling_city["build_queue"] = [{"kind": "recruit", "id": "melee", "production_cost": 999999}]
+	travelling_cities[0] = travelling_city
+	travelling_kingdom["cities"] = travelling_cities
+	expedition_kingdoms[0] = travelling_kingdom
+	var expedition_gold_before: int = int(travelling_cities[0].get("gold", 0))
+	KingdomAIScript.process_turns(expedition_kingdoms, 3, Vector2i(50, 50), expedition_player_cities, 841207, generation_version, expedition_cells, expedition_relations, expedition_locations)
+	var captured_location: Dictionary = expedition_locations[0]
+	var expedition_result_kingdom: Dictionary = expedition_kingdoms[0]
+	_check(bool(captured_location.get("cleared", false)) and int(captured_location.get("cleared_by", -2)) == 0, "AI expedition defeats neutral guards and records the conquering kingdom")
+	_check(captured_location.get("guards", []).is_empty() and float(captured_location.get("guardian_health", 1.0)) == 0.0, "AI victory clears the persistent neutral guard roster and guardian")
+	var result_cities: Array = expedition_result_kingdom.get("cities", [])
+	_check(int(result_cities[0].get("gold", 0)) >= expedition_gold_before + 30, "AI expedition deposits the location reward into its nearest city")
+	_check(str(expedition_result_kingdom.get("neutral_target_id", "")) == "", "AI clears its target assignment after capturing a neutral site")
+	var ai_mine_probe: Array[Dictionary] = [{"type": "abandoned_mine", "cell": [2, 0], "cleared": true, "cleared_by": 1}]
+	var ai_city_production_before := int(result_cities[0].get("production_bank", 0))
+	KingdomAIScript._apply_ai_mine_income(expedition_result_kingdom, ai_mine_probe)
+	var non_owner_cities: Array = expedition_result_kingdom.get("cities", [])
+	_check(int(non_owner_cities[0].get("production_bank", 0)) == ai_city_production_before, "AI mines do not pay passive production to a different kingdom")
+	ai_mine_probe[0]["cleared_by"] = 0
+	KingdomAIScript._apply_ai_mine_income(expedition_result_kingdom, ai_mine_probe)
+	var owner_cities: Array = expedition_result_kingdom.get("cities", [])
+	_check(int(owner_cities[0].get("production_bank", 0)) == ai_city_production_before + 2, "AI-owned abandoned mine adds two production to its owner")
 
 	_check(state.neutral_locations.size() <= WorldLocationScript.MAX_LOCATIONS, "normalized campaign remains within the location cap")
 	if _failures == 0:

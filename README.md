@@ -1,12 +1,13 @@
 # Project Ember
 
-Godot 4 fantasy 4X strategy with real-time tactical combat. Current source release: **v0.29.0 — Diplomacy Expansion**.
+Godot 4 fantasy 4X strategy with real-time tactical combat. Current source release: **v0.31.0 — AI Neutral Site Expeditions**.
 
 - [Design source of truth](project_ember/DESIGN.md)
 - [Android import and play guide](project_ember/ANDROID_START.md)
 - [Tactical controls](project_ember/TACTICAL_CONTROLS.md)
 - [Hero progression and commander abilities](project_ember/HERO_PROGRESSION.md)
+- [World exploration and neutral-site rules](project_ember/WORLD_EXPLORATION.md)
 
-v0.7.0 adds persistent ruler progression, three skill branches, commander battlefield auras, an active Battle Cry ability, commander health persistence and enemy commander AI. Godot 4.3 CI validates project import, both scene startups, campaign and roster regression checks, hero progression, and packages the Godot source project.
+The current release adds AI expeditions, contested neutral sites and persistent strategic outcomes. Godot 4.7.2 CI validates project import, all GDScript sources, campaign smoke tests and strategic-map visual captures.
 
-The archive is a Godot source project, not an APK. Test the new commander controls and UI layout in Godot Android Editor before replacing the previous working ZIP.
+The archive is a Godot source project, not an APK. Test Android device performance separately in Godot Android Editor before replacing a previous working ZIP.

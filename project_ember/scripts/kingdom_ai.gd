@@ -7,6 +7,7 @@ const CityDevelopment = preload("res://scripts/city_development_catalog.gd")
 const WorldGenerator = preload("res://scripts/world_generator.gd")
 const FactionCatalog = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
+const WorldLocationCatalog = preload("res://scripts/world_location_catalog.gd")
 
 const KINGDOM_NAMES := [
 	"Королевство Алых Парусов",
@@ -90,6 +91,7 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 			"next_expansion_turn": 8 + (index % 4),
 			"target_kingdom_id": (index + 1) % World.KINGDOM_COUNT,
 			"military_doctrine": index % 4,
+			"neutral_target_id": "",
 		}
 		result.append(record)
 	return result
@@ -182,6 +184,7 @@ static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictiona
 	result["next_expansion_turn"] = clampi(int(raw.get("next_expansion_turn", result.get("next_expansion_turn", 8))), 1, 100000000)
 	result["target_kingdom_id"] = clampi(int(raw.get("target_kingdom_id", result.get("target_kingdom_id", (index + 1) % World.KINGDOM_COUNT))), 0, World.KINGDOM_COUNT - 1)
 	result["military_doctrine"] = clampi(int(raw.get("military_doctrine", index % 4)), 0, 3)
+	result["neutral_target_id"] = str(raw.get("neutral_target_id", result.get("neutral_target_id", "")))
 	return result
 
 
@@ -193,7 +196,8 @@ static func process_turns(
 		world_seed: int,
 		world_generation_version: int = World.WORLD_GENERATION_VERSION,
 		neutral_location_cells: Array[Vector2i] = [],
-		diplomacy_relations: Dictionary = {}
+		diplomacy_relations: Dictionary = {},
+		neutral_locations: Array[Dictionary] = []
 ) -> Array[String]:
 	var events: Array[String] = []
 	for index in range(kingdoms.size()):
@@ -203,6 +207,7 @@ static func process_turns(
 		var action_parts: Array[String] = []
 		var cities: Array = kingdom.get("cities", [])
 		var army: Array = kingdom.get("army", [])
+		_apply_ai_mine_income(kingdom, neutral_locations)
 		var faction_value: Variant = kingdom.get("faction", {})
 		var kingdom_faction: Dictionary = faction_value if faction_value is Dictionary else {}
 		for city_index in range(cities.size()):
@@ -303,7 +308,7 @@ static func process_turns(
 
 		var next_move := int(kingdom.get("next_move_turn", 2))
 		if turn_number >= next_move:
-			var movement := _move_army(kingdom, kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, diplomacy_relations)
+			var movement := _move_army(kingdom, kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, diplomacy_relations, neutral_locations, turn_number)
 			if not movement.is_empty():
 				action_parts.append(movement)
 			kingdom["next_move_turn"] = turn_number + 2 + (index % 3)
@@ -546,18 +551,22 @@ static func _move_army(
 		world_seed: int,
 		world_generation_version: int,
 		neutral_location_cells: Array[Vector2i] = [],
-		diplomacy_relations: Dictionary = {}
+		diplomacy_relations: Dictionary = {},
+		neutral_locations: Array[Dictionary] = [],
+		turn_number: int = 1
 ) -> String:
 	var army: Array = kingdom.get("army", [])
 	if army.is_empty():
 		return ""
 	var index := int(kingdom.get("id", 0))
+	var current := World.array_to_cell(kingdom.get("army_cell", []))
 	var target := Vector2i(9999, 9999)
 	var nearest_distance := 999999
+	var pursuing_neutral := false
 	var player_record := DiplomacyCatalog.get_record(diplomacy_relations, DiplomacyCatalog.PLAYER_ID, index)
 	if str(player_record.get("treaty", "peace")) == "war":
 		target = player_cell
-		nearest_distance = World.hex_distance(World.array_to_cell(kingdom.get("army_cell", [])), player_cell)
+		nearest_distance = World.hex_distance(current, player_cell)
 	else:
 		for other_id in range(kingdoms.size()):
 			if other_id == index or not bool(kingdoms[other_id].get("alive", true)):
@@ -566,13 +575,48 @@ static func _move_army(
 			if str(relation_record.get("treaty", "peace")) != "war":
 				continue
 			var other_army_cell := World.array_to_cell(kingdoms[other_id].get("army_cell", []))
-			var distance_to_enemy := World.hex_distance(World.array_to_cell(kingdom.get("army_cell", [])), other_army_cell)
+			var distance_to_enemy := World.hex_distance(current, other_army_cell)
 			if distance_to_enemy < nearest_distance:
 				nearest_distance = distance_to_enemy
 				target = other_army_cell
+
+	# During peace, AI kingdoms send limited expeditions to nearby neutral sites.
+	# War targets retain priority so exploration never overrides an active campaign.
 	if target == Vector2i(9999, 9999):
-		return ""
-	var current := World.array_to_cell(kingdom.get("army_cell", []))
+		var location_index := _choose_neutral_expedition_target(kingdom, kingdoms, current, neutral_locations)
+		if location_index < 0:
+			kingdom["neutral_target_id"] = ""
+			return ""
+		var location: Dictionary = neutral_locations[location_index]
+		var location_cell := World.array_to_cell(location.get("cell", []))
+		var location_distance := World.hex_distance(current, location_cell)
+		kingdom["neutral_target_id"] = str(location.get("id", ""))
+		pursuing_neutral = true
+		if location_distance <= 1:
+			var result := _resolve_ai_neutral_battle(army, location, turn_number)
+			army = result.get("army", [])
+			kingdom["army"] = army
+			location["guards"] = result.get("guards", [])
+			location["guardian_health"] = float(result.get("guardian_health", location.get("guardian_health", 0.0)))
+			if bool(result.get("victory", false)):
+				location["cleared"] = true
+				location["cleared_by"] = index
+				location["cleared_turn"] = turn_number
+				location["guards"] = []
+				location["guardian_health"] = 0.0
+				_grant_ai_location_reward(kingdom, location, army)
+				kingdom["last_action"] = "Экспедиция очистила %s" % WorldLocationCatalog.get_display_name(str(location.get("type", "ancient_ruins")))
+				kingdom["neutral_target_id"] = ""
+				neutral_locations[location_index] = location
+				return str(kingdom["last_action"])
+			kingdom["neutral_target_id"] = ""
+			neutral_locations[location_index] = location
+			return "экспедиция потерпела поражение у %s; охрана ослаблена" % WorldLocationCatalog.get_display_name(str(location.get("type", "ancient_ruins")))
+		target = location_cell
+		nearest_distance = location_distance
+	else:
+		kingdom["neutral_target_id"] = ""
+
 	if nearest_distance <= 1:
 		return ""
 	var best := current
@@ -592,8 +636,248 @@ static func _move_army(
 	if best == current:
 		return ""
 	kingdom["army_cell"] = World.cell_to_array(best)
+	if pursuing_neutral:
+		return "экспедиция движется к нейтральной точке"
 	return "армия выступила против противника по военному договору"
 
+
+static func _choose_neutral_expedition_target(
+		kingdom: Dictionary,
+		kingdoms: Array[Dictionary],
+		current: Vector2i,
+		neutral_locations: Array[Dictionary]
+) -> int:
+	if neutral_locations.is_empty():
+		return -1
+	var kingdom_id := int(kingdom.get("id", -1))
+	var army: Array = kingdom.get("army", [])
+	var reserved_ids: Dictionary = {}
+	for other in kingdoms:
+		var other_army_value: Variant = other.get("army", [])
+		if int(other.get("id", -1)) == kingdom_id or not bool(other.get("alive", true)):
+			continue
+		if not other_army_value is Array or other_army_value.is_empty():
+			continue
+		var reserved_id := str(other.get("neutral_target_id", ""))
+		if not reserved_id.is_empty():
+			reserved_ids[reserved_id] = true
+	var current_target_id := str(kingdom.get("neutral_target_id", ""))
+	var best_index := -1
+	var best_score := 999999
+	for location_index in range(neutral_locations.size()):
+		var location: Dictionary = neutral_locations[location_index]
+		if bool(location.get("cleared", false)):
+			continue
+		var location_id := str(location.get("id", ""))
+		if reserved_ids.has(location_id):
+			continue
+		var location_cell := World.array_to_cell(location.get("cell", []))
+		var distance := World.hex_distance(current, location_cell)
+		if distance < 1 or distance > 24:
+			continue
+		var guard_tier := clampi(int(location.get("guard_tier", 1)), 1, 3)
+		var required_units := 2 + guard_tier
+		if army.size() < required_units:
+			continue
+		var attack_strength := _estimate_force_strength(army)
+		var defense_strength := _estimate_location_strength(location)
+		if defense_strength > 0.0 and attack_strength < defense_strength * 0.72:
+			continue
+		var reward: Dictionary = location.get("reward", {})
+		var reward_value := int(reward.get("gold", 0)) + int(reward.get("production", 0)) * 2 + int(reward.get("food", 0))
+		var score := distance + guard_tier * 3 - mini(4, floori(float(reward_value) / 35.0))
+		if location_id == current_target_id:
+			score -= 5
+		if score < best_score:
+			best_score = score
+			best_index = location_index
+	return best_index
+
+
+static func _estimate_force_strength(units: Array) -> float:
+	var total := 0.0
+	for unit_value in units:
+		if not unit_value is Dictionary:
+			continue
+		var role_id := str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
+		var data := UnitCatalog.get_data(role_id)
+		var max_health := maxf(1.0, float(data.get("max_health", 125.0)))
+		var health_ratio := clampf(float(unit_value.get("health", max_health)) / max_health, 0.0, 1.0)
+		var experience := int(unit_value.get("experience", 0))
+		var veterancy: Dictionary = UnitCatalog.get_veterancy_data(experience)
+		total += (float(data.get("damage", 19.0)) * 1.35 + max_health * 0.055) * health_ratio * float(veterancy.get("damage_multiplier", 1.0))
+	return total
+
+
+static func _estimate_location_strength(location: Dictionary) -> float:
+	var guards_value: Variant = location.get("guards", [])
+	var guards: Array = guards_value if guards_value is Array else []
+	var total := _estimate_force_strength(guards)
+	var tier := clampi(int(location.get("guard_tier", 1)), 1, 3)
+	total += maxf(0.0, float(location.get("guardian_health", 95.0))) * 0.12 + float(16 + tier * 3)
+	return total
+
+
+static func _resolve_ai_neutral_battle(army_source: Array, location: Dictionary, turn_number: int) -> Dictionary:
+	var army: Array[Dictionary] = []
+	for unit in army_source:
+		if unit is Dictionary:
+			army.append(unit.duplicate(true))
+	var guards: Array[Dictionary] = []
+	var raw_guards: Variant = location.get("guards", [])
+	if raw_guards is Array:
+		for unit in raw_guards:
+			if unit is Dictionary:
+				guards.append(unit.duplicate(true))
+	var guardian_health := clampf(float(location.get("guardian_health", 95.0)), 0.0, 210.0)
+	var tier := clampi(int(location.get("guard_tier", 1)), 1, 3)
+	for round_index in range(24):
+		if army.is_empty() or (guards.is_empty() and guardian_health <= 0.0):
+			break
+		# The first strike alternates by turn to avoid giving every expedition
+		# an unconditional initiative advantage.
+		if posmod(round_index + turn_number, 2) == 0:
+			for unit in army:
+				if guards.is_empty() and guardian_health <= 0.0:
+					break
+				var damage := _get_strategic_unit_damage(unit)
+				if not guards.is_empty():
+					_damage_weakest_unit(guards, damage)
+				else:
+					guardian_health = maxf(0.0, guardian_health - damage)
+			_cleanup_dead_units(guards)
+			for unit in guards:
+				if army.is_empty():
+					break
+				_damage_weakest_unit(army, _get_strategic_unit_damage(unit))
+			_cleanup_dead_units(army)
+			if guardian_health > 0.0 and not army.is_empty():
+				_damage_weakest_unit(army, 17.0 + float(tier * 3))
+			_cleanup_dead_units(army)
+		else:
+			for unit in guards:
+				if army.is_empty():
+					break
+				_damage_weakest_unit(army, _get_strategic_unit_damage(unit))
+			_cleanup_dead_units(army)
+			if guardian_health > 0.0 and not army.is_empty():
+				_damage_weakest_unit(army, 17.0 + float(tier * 3))
+			_cleanup_dead_units(army)
+			for unit in army:
+				if guards.is_empty() and guardian_health <= 0.0:
+					break
+				var damage := _get_strategic_unit_damage(unit)
+				if not guards.is_empty():
+					_damage_weakest_unit(guards, damage)
+				else:
+					guardian_health = maxf(0.0, guardian_health - damage)
+			_cleanup_dead_units(guards)
+	var victory := not army.is_empty() and guards.is_empty() and guardian_health <= 0.0
+	return {
+		"army": army,
+		"guards": guards,
+		"guardian_health": guardian_health,
+		"victory": victory,
+	}
+
+
+static func _get_strategic_unit_damage(unit: Dictionary) -> float:
+	var role_id := str(unit.get("role", UnitCatalog.ROLE_MELEE))
+	var data := UnitCatalog.get_data(role_id)
+	var veterancy: Dictionary = UnitCatalog.get_veterancy_data(int(unit.get("experience", 0)))
+	return float(data.get("damage", 19.0)) * float(veterancy.get("damage_multiplier", 1.0))
+
+
+static func _damage_weakest_unit(units: Array[Dictionary], raw_damage: float) -> void:
+	if units.is_empty():
+		return
+	var target_index := 0
+	var lowest_ratio := 2.0
+	for unit_index in range(units.size()):
+		var unit: Dictionary = units[unit_index]
+		var max_health := maxf(1.0, UnitCatalog.get_max_health(str(unit.get("role", UnitCatalog.ROLE_MELEE))))
+		var ratio := float(unit.get("health", max_health)) / max_health
+		if ratio < lowest_ratio:
+			lowest_ratio = ratio
+			target_index = unit_index
+	var target: Dictionary = units[target_index]
+	var armor := float(UnitCatalog.get_data(str(target.get("role", UnitCatalog.ROLE_MELEE))).get("armor", 0.0))
+	target["health"] = maxf(0.0, float(target.get("health", 1.0)) - maxf(1.0, raw_damage - armor * 0.35))
+	if float(target["health"]) <= 0.0:
+		units.remove_at(target_index)
+	else:
+		units[target_index] = target
+
+
+static func _cleanup_dead_units(units: Array[Dictionary]) -> void:
+	for unit_index in range(units.size() - 1, -1, -1):
+		if float(units[unit_index].get("health", 0.0)) <= 0.0:
+			units.remove_at(unit_index)
+
+
+static func _grant_ai_location_reward(kingdom: Dictionary, location: Dictionary, army: Array) -> void:
+	var location_cell := World.array_to_cell(location.get("cell", []))
+	var cities: Array = kingdom.get("cities", [])
+	if cities.is_empty():
+		return
+	var best_city_index := 0
+	var best_distance := 999999
+	for city_index in range(cities.size()):
+		var city: Dictionary = cities[city_index]
+		var distance := World.hex_distance(location_cell, World.array_to_cell(city.get("cell", [])))
+		if distance < best_distance:
+			best_distance = distance
+			best_city_index = city_index
+	var best_city_record: Dictionary = cities[best_city_index]
+	var reward: Dictionary = location.get("reward", {})
+	best_city_record["gold"] = maxi(0, int(best_city_record.get("gold", 0))) + maxi(0, int(reward.get("gold", 0)))
+	best_city_record["food"] = maxi(0, int(best_city_record.get("food", 0))) + maxi(0, int(reward.get("food", 0)))
+	best_city_record["production_bank"] = maxi(0, int(best_city_record.get("production_bank", 0))) + maxi(0, int(reward.get("production", 0)))
+	cities[best_city_index] = best_city_record
+	kingdom["cities"] = cities
+	var type_id := str(location.get("type", ""))
+	if type_id == "monster_lair":
+		for unit in army:
+			unit["experience"] = clampi(int(unit.get("experience", 0)) + 12, 0, 999999)
+	elif type_id == "abandoned_mine":
+		pass # The mine's persistent +2 production is applied each AI turn.
+	elif type_id == "forgotten_shrine":
+		for unit in army:
+			unit["health"] = UnitCatalog.get_max_health(str(unit.get("role", UnitCatalog.ROLE_MELEE)))
+	elif type_id == "mercenary_camp":
+		if army.size() < 24:
+			army.append({"role": UnitCatalog.ROLE_MELEE, "health": UnitCatalog.get_max_health(UnitCatalog.ROLE_MELEE), "experience": 0})
+		else:
+			best_city_record["gold"] = int(best_city_record.get("gold", 0)) + 25
+			cities[best_city_index] = best_city_record
+		kingdom["army"] = army
+		kingdom["cities"] = cities
+
+
+static func _apply_ai_mine_income(kingdom: Dictionary, neutral_locations: Array[Dictionary]) -> void:
+	var kingdom_id := int(kingdom.get("id", -1))
+	var cities: Array = kingdom.get("cities", [])
+	if cities.is_empty():
+		return
+	var changed := false
+	for location in neutral_locations:
+		if not bool(location.get("cleared", false)) or int(location.get("cleared_by", -2)) != kingdom_id or str(location.get("type", "")) != "abandoned_mine":
+			continue
+		var location_cell := World.array_to_cell(location.get("cell", []))
+		var best_city_index := 0
+		var best_distance := 999999
+		for city_index in range(cities.size()):
+			var city: Dictionary = cities[city_index]
+			var distance := World.hex_distance(location_cell, World.array_to_cell(city.get("cell", [])))
+			if distance < best_distance:
+				best_distance = distance
+				best_city_index = city_index
+		var target_city: Dictionary = cities[best_city_index]
+		target_city["production_bank"] = maxi(0, int(target_city.get("production_bank", 0))) + 2
+		cities[best_city_index] = target_city
+		changed = true
+	if changed:
+		kingdom["cities"] = cities
 
 static func _cell_occupied(
 		cell: Vector2i,

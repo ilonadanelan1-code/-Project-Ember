@@ -1,25 +1,15 @@
-Project Ember v0.29.0 — Diplomacy & AI Kingdoms
-Godot 4.7.2 stable / GL Compatibility source project for Android landscape. This is not an APK. Based on v0.28.0.
+Project Ember v0.31.0 — AI Neutral Site Expeditions
+Godot 4.7.2 stable / GL Compatibility source project for Android landscape. This is not an APK.
 
 Feature summary:
-- Five deterministic AI personality IDs: aggressor, merchant, isolationist, honorable and expansionist.
-- A canonical relationship matrix for the player and all nine AI kingdoms: 45 pair records, relation range -100..+100.
-- Timed peace/trade/alliance/tribute/vassal treaties and unlimited war state.
-- Trade and alliance add 2 gold per turn to each living signatory; tribute and vassalage transfer up to 3 gold per turn without reducing the payer below zero.
-- Player proposals for trade, alliance, peace, tribute and vassalage; deterministic acceptance chance and incoming AI proposals.
-- War declarations, battle provocation, border tension, war exhaustion, AI-AI wars and peace after exhaustion.
-- AI armies select only realms with an active war treaty as strategic targets.
-- Mobile kingdom panel exposes relationship, personality, treaty, war cause and available actions.
-- No fourth resource or new kingdom/unit/building IDs are introduced.
+- All nine AI kingdoms can dispatch deterministic expeditions to nearby neutral sites when not pursuing an active war target.
+- A living AI kingdom reserves one target at a time; other living kingdoms avoid that reservation.
+- AI armies approach a location to an adjacent hex and resolve a bounded strategic battle using their current troop health, veterancy, role damage and armor.
+- Defeated guards and guardian health persist. AI victories record the conquering kingdom and capture turn, deposit the location reward into the nearest AI city and apply the site's troop or economic effect.
+- Abandoned-mine production is paid only to the owner of the mine. Player and AI mine income are separated.
+- The strategic map reports which AI kingdom cleared a site; cleared sites cannot be attacked again by the player.
+- War targets retain priority over neutral expeditions.
 
 Compatibility:
-- Optional `diplomacy_relations` and `pending_diplomacy_offers` root JSON fields are added.
-- SAVE_VERSION remains 1. Legacy saves receive a deterministic 45-pair relationship matrix and an empty pending-offer list.
-- Existing role, building, resource and kingdom IDs are unchanged.
-
-Validation:
-- Static QA: 162/162 checks passed.
-- `tests/diplomacy_smoke_test.gd` is included as source; it was not executed.
-- 31 GDScript smoke-test sources are included, not run.
-- Python validator syntax compilation passed.
-- Godot 4.7.2 parser/import, scene launch, save/load runtime and Android touch/GPU/FPS checks were not run because the engine executable is unavailable in the build environment.
+- SAVE_VERSION remains 1. Older cleared sites without an owner are treated as player-cleared; new ownership and target fields are optional and normalized.
+- No new resource, unit role, building ID, kingdom ID or location ID is introduced.
