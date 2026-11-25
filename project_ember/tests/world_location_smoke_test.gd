@@ -177,13 +177,21 @@ func _run() -> void:
 		_check(state.get_neutral_location_index_at(conflicting_cell) == -1, "legacy occupied hexes cannot overlap regenerated neutral locations")
 
 	# Each neutral site type has a distinct post-victory consequence.
+	state.explored_cells.clear()
+	state.visible_cells.clear()
 	state.player_cell = Vector2i(-2, 0)
 	state.refresh_fog_of_war()
-	var ruins_cell: Vector2i = state.player_cell + Vector2i(20, 0)
-	var revealed_ruin_edge: Vector2i = ruins_cell + Vector2i(5, 0)
-	_check(not state.is_cell_explored(revealed_ruin_edge), "ancient ruins test begins beyond known territory")
+	var ruins_cell: Vector2i = state.player_cell + Vector2i(1, 0)
 	state._apply_neutral_location_special_reward({"type": "ancient_ruins", "cell": WorldGeneratorScript.cell_to_array(ruins_cell)})
-	_check(state.is_cell_explored(revealed_ruin_edge), "ancient ruins reveal a five-hex area around their own location")
+	var ruins_remote_cells := 0
+	for q in range(-22, 23):
+		for r in range(-22, 23):
+			var sample: Vector2i = state.player_cell + Vector2i(q, r)
+			if WorldGeneratorScript.hex_distance(state.player_cell, sample) <= CampaignStateScript.ARMY_VISION_RADIUS:
+				continue
+			if WorldGeneratorScript.is_inside_world(sample) and state.is_cell_explored(sample):
+				ruins_remote_cells += 1
+	_check(ruins_remote_cells >= 15, "ancient ruins reveal a remote five-hex survey beyond normal army vision")
 	var unit_xp_before_special := int(state.player_units[0].get("experience", 0))
 	state._apply_neutral_location_special_reward({"type": "monster_lair", "cell": [0, 0]})
 	_check(int(state.player_units[0].get("experience", 0)) == unit_xp_before_special + 12, "monster lair victory grants extra experience to surviving troops")

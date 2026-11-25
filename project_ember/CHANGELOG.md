@@ -1,7 +1,7 @@
 ## v0.30.0 — Neutral Sites & Exploration Expansion
 
 - Gives all five existing neutral location types a distinct post-victory effect while retaining their original resource rewards and stable location IDs.
-- Ancient ruins reveal the surrounding five-hex area; monster lairs grant +12 XP to each surviving troop; shrines restore the ruler; mercenary camps recruit one swordsman when army capacity allows or grant 25 gold when full.
+- Ancient ruins reveal a remote five-hex survey centered twelve hexes from the ruin; monster lairs grant +12 XP to each surviving troop; shrines restore the ruler; mercenary camps recruit one swordsman when army capacity allows or grant 25 gold when full.
 - Cleared abandoned mines become persistent economic sites, granting +2 stored production per campaign turn to the nearest player city.
 - Changes the scout-report event to reveal a deterministic remote radius-four area centered twelve hexes from the army, beyond normal army vision.
 - Keeps neutral-site state in the existing location records and reuses the existing three resources; no save-schema version bump or new campaign resource is introduced.

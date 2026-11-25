@@ -580,8 +580,9 @@ func _apply_neutral_location_special_reward(location: Dictionary) -> String:
 	var location_cell := WorldGeneratorScript.array_to_cell(location.get("cell", []))
 	match type_id:
 		"ancient_ruins":
-			_reveal_fog_area(location_cell, 5)
-			return "Старые карты раскрыли окрестности руин."
+			var survey_origin := _find_scout_reveal_origin(location_cell, 12, 5)
+			_reveal_fog_area(survey_origin, 5)
+			return "Старые карты раскрыли удалённый участок мира."
 		"monster_lair":
 			for unit in player_units:
 				unit["experience"] = clampi(int(unit.get("experience", 0)) + 12, 0, 999999)
@@ -1556,7 +1557,7 @@ func resolve_world_event(choice_id: String) -> bool:
 	if reveal_radius > 0:
 		var reveal_origin := player_cell
 		if reveal_distance > 0:
-			reveal_origin = _find_scout_reveal_origin(reveal_distance, reveal_radius)
+			reveal_origin = _find_scout_reveal_origin(player_cell, reveal_distance, reveal_radius)
 		_reveal_fog_area(reveal_origin, reveal_radius)
 	last_world_event_text = str(choice.get("result", "Событие завершено."))
 	pending_world_event.clear()
@@ -1584,16 +1585,16 @@ func refresh_fog_of_war() -> void:
 		_reveal_fog_area(settler_cell, SETTLER_VISION_RADIUS)
 
 
-func _find_scout_reveal_origin(distance: int, radius: int) -> Vector2i:
+func _find_scout_reveal_origin(origin: Vector2i, distance: int, radius: int) -> Vector2i:
 	var directions := WorldGeneratorScript.neighbors()
 	if directions.is_empty():
-		return player_cell
+		return origin
 	var start_index := posmod(world_seed + turn_number, directions.size())
-	var best_cell := player_cell
+	var best_cell := origin
 	var best_unexplored_count := -1
 	for step in range(directions.size()):
 		var direction_index := posmod(start_index + step, directions.size())
-		var candidate := player_cell + directions[direction_index] * distance
+		var candidate := origin + directions[direction_index] * distance
 		if not WorldGeneratorScript.is_inside_world(candidate):
 			continue
 		var unexplored_count := 0
