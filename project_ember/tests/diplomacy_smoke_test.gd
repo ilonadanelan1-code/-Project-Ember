@@ -121,7 +121,7 @@ func _run() -> void:
 		"created_turn": stale_offer_state.turn_number,
 		"expires_turn": stale_offer_state.turn_number + 2,
 	})
-	var stale_response := stale_offer_state.respond_to_diplomacy_offer("stale:trade:1", true)
+	var stale_response: Dictionary = stale_offer_state.respond_to_diplomacy_offer("stale:trade:1", true)
 	_check(not bool(stale_response.get("ok", false)), "stale trade offers are rejected after diplomatic conditions change")
 	_check(stale_offer_state.pending_diplomacy_offers.is_empty(), "invalid pending offers are removed after failed acceptance")
 	stale_offer_state.free()
@@ -132,7 +132,7 @@ func _run() -> void:
 	state.faction_setup_pending = false
 	_check(state.diplomacy_relations.size() == 45, "new campaigns initialize all diplomacy relationships")
 	_check(state.get_diplomacy_action_preview(0, "declare_war").get("available", false), "player can declare war when no truce blocks it")
-	var declaration := state.perform_diplomacy_action("declare_war", 0)
+	var declaration: Dictionary = state.perform_diplomacy_action("declare_war", 0)
 	_check(bool(declaration.get("ok", false)), "player war declaration succeeds through campaign state")
 	_check(str(state.get_diplomacy_record(0).get("treaty", "")) == "war", "war declaration updates the persisted pair record")
 	_check(str(state.get_diplomacy_record(0).get("war_reason", "")) == "player_declaration", "war record stores the declared cause")
@@ -147,7 +147,7 @@ func _run() -> void:
 		"expires_turn": state.turn_number + 2,
 	}
 	state.pending_diplomacy_offers.append(offer)
-	var response := state.respond_to_diplomacy_offer("1:offer_trade:4", true)
+	var response: Dictionary = state.respond_to_diplomacy_offer("1:offer_trade:4", true)
 	_check(bool(response.get("ok", false)), "player can accept an AI trade offer")
 	_check(str(state.get_diplomacy_record(1).get("treaty", "")) == "trade", "accepted AI trade offer activates the trade treaty")
 	_check(state.pending_diplomacy_offers.is_empty(), "accepted offer is removed from the pending queue")
