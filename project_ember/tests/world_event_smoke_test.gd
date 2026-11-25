@@ -54,13 +54,13 @@ func _run() -> void:
 
 	state.pending_world_event = WorldEventScript.get_event_by_id("scout_report")
 	state.city_gold = 100
-	var explored_before_scouts := state.get_explored_cell_count()
+	var explored_before_scouts: int = state.get_explored_cell_count()
 	_check(not state.is_cell_explored(state.player_cell + Vector2i(12, 0)), "scout target area begins outside current exploration")
 	_check(state.resolve_world_event("hire_scouts"), "scout report choice resolves")
 	var newly_scouted_outer_cells := 0
 	for q in range(-18, 19):
 		for r in range(-18, 19):
-			var sample := state.player_cell + Vector2i(q, r)
+			var sample: Vector2i = state.player_cell + Vector2i(q, r)
 			if WorldGeneratorScript.hex_distance(state.player_cell, sample) <= CampaignStateScript.ARMY_VISION_RADIUS:
 				continue
 			if WorldGeneratorScript.is_inside_world(sample) and state.is_cell_explored(sample):

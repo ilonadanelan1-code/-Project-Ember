@@ -179,8 +179,8 @@ func _run() -> void:
 	# Each neutral site type has a distinct post-victory consequence.
 	state.player_cell = Vector2i(-2, 0)
 	state.refresh_fog_of_war()
-	var ruins_cell := state.player_cell + Vector2i(20, 0)
-	var revealed_ruin_edge := ruins_cell + Vector2i(5, 0)
+	var ruins_cell: Vector2i = state.player_cell + Vector2i(20, 0)
+	var revealed_ruin_edge: Vector2i = ruins_cell + Vector2i(5, 0)
 	_check(not state.is_cell_explored(revealed_ruin_edge), "ancient ruins test begins beyond known territory")
 	state._apply_neutral_location_special_reward({"type": "ancient_ruins", "cell": WorldGeneratorScript.cell_to_array(ruins_cell)})
 	_check(state.is_cell_explored(revealed_ruin_edge), "ancient ruins reveal a five-hex area around their own location")
@@ -192,12 +192,12 @@ func _run() -> void:
 	state._apply_neutral_location_special_reward({"type": "forgotten_shrine", "cell": [0, 0]})
 	_check(is_equal_approx(float(state.player_hero.get("health", 0.0)), state.get_hero_max_health(state.player_hero)) and int(state.player_hero.get("wounded_turns", 0)) == 0, "forgotten shrine restores and recovers the ruler")
 	var saved_test_army: Array[Dictionary] = state._copy_unit_records(state.player_units)
-	var army_size_before_mercenary := state.player_units.size()
+	var army_size_before_mercenary: int = state.player_units.size()
 	state._apply_neutral_location_special_reward({"type": "mercenary_camp", "cell": [0, 0]})
 	_check(state.player_units.size() == army_size_before_mercenary + 1, "mercenary camp recruits a swordsman while army capacity is available")
 	while state.player_units.size() < 24:
 		state.player_units.append({"role": "melee", "health": 100.0, "experience": 0})
-	var full_army_gold_before := state.city_gold
+	var full_army_gold_before: int = state.city_gold
 	state._apply_neutral_location_special_reward({"type": "mercenary_camp", "cell": [0, 0]})
 	_check(state.player_units.size() == 24 and state.city_gold == full_army_gold_before + 25, "full mercenary camp falls back to a gold payment without exceeding army capacity")
 	state.player_units = saved_test_army
@@ -211,7 +211,7 @@ func _run() -> void:
 		mine_probe["cell"] = WorldGeneratorScript.cell_to_array(state.player_cell + Vector2i(10, 0))
 		state.neutral_locations[0] = mine_probe
 		state._save_active_city()
-		var mine_city_before := state.city_production_bank
+		var mine_city_before: int = state.city_production_bank
 		state._apply_neutral_mine_income()
 		state._load_active_city()
 		_check(state.city_production_bank == mine_city_before + 2, "cleared abandoned mine adds two production to the nearest city")
