@@ -106,10 +106,18 @@ jobs:
             echo "Hero progression tests reported an unexpected error." >&2
             exit 1
           fi
-      - name: Upload ready-to-open Godot project
+      - name: Explain why source-only checkout cannot produce a playable archive
+        if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
+        run: |
+          echo "Playable pixel-art atlas is absent. Public source intentionally excludes licensed sprite binaries."
+          echo "No misleading low-poly fallback archive will be uploaded."
+          echo "Build the integrated game ZIP locally with project_ember/tools/assets/package_playable_release.sh."
+
+      - name: Upload playable pixel-art Godot project
+        if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.31.0
+          name: Project-Ember-v0.33.1
           path: |
             project_ember/**
             !project_ember/.godot/**
