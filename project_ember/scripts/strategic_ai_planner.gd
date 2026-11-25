@@ -64,7 +64,7 @@ static func evaluate_kingdom(
 	for unit_value in army:
 		if not unit_value is Dictionary:
 			continue
-		var role_id := str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
+		var role_id: String = str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
 		var unit_data := UnitCatalog.get_data(role_id)
 		upkeep += float(unit_data.get("upkeep", 0.8)) * FactionCatalog.get_upkeep_multiplier(role_id, faction)
 	var upkeep_due := ceili(upkeep)
