@@ -1,0 +1,36 @@
+PROJECT EMBER v0.21.1 — PIXEL TERRAIN TYPE FIX
+QA report
+Date: 2026-11-25
+Base package: v0.21.0 — Mythryl Pixel Terrain Battlefield
+Engine target: Godot 4.7.2 stable / GL Compatibility
+
+ISSUE REPORTED
+- Godot Android Editor reported a type mismatch at the two Sprite3D texture-filter assignments in scripts/battlefield_visuals.gd (lines 467 and 514 in v0.21.0).
+- Sprite3D.texture_filter expects BaseMaterial3D.TextureFilter; v0.21.0 assigned CanvasItem.TEXTURE_FILTER_NEAREST.
+
+FIX APPLIED
+- Both billboard terrain sprite assignments now use BaseMaterial3D.TEXTURE_FILTER_NEAREST.
+- Added smoke-test assertions that generated SpriteBase3D props use the nearest-neighbour BaseMaterial3D filter enum.
+- Added static validation to require exactly two correct Sprite3D filter assignments.
+- No terrain artwork or gameplay code was otherwise modified.
+
+PRESERVATION
+- Cavalry and infantry art atlases and manifests remain unchanged.
+- Combat scripts, stats, animations, AI, orders, projectiles, unit collision, strategic map, campaign and saves remain unchanged.
+- Battlefield dimensions, ground collision body, and visual-only props remain unchanged.
+
+STATIC QA
+- Static validation: 49/49 passed; full results are in STATIC_VALIDATION.txt.
+- All literal resource paths are checked by the validator.
+- Final ZIP CRC integrity test: passed after packaging.
+- The package includes a regression assertion for the corrected SpriteBase3D texture-filter enum.
+
+NOT CLAIMED
+- Godot 4.7.2 import/parser and runtime smoke tests were not run in this container because the engine executable was unavailable.
+- Android device import and visual/performance validation still require a launch on the user's phone.
+
+INSTALL
+1. Extract this v0.21.1 ZIP into a new folder.
+2. Keep v0.20.0 and v0.21.0 as backups.
+3. Open project.godot in Godot 4.7.2 Android Editor and let import finish.
+4. Check that the battlefield scene opens without the two texture-filter type errors.

@@ -1,0 +1,24 @@
+Project Ember v0.27.2 — QA Report
+Date: 2026-11-25
+Base: v0.27.1 — Campaign Loading Hotfix
+
+HOTFIX
+- Added explicit types for province queue cell value, normalized cell array and `valid_province` boolean.
+- Renamed `_make_city_record()` parameter `name` to `city_display_name` to avoid the built-in `Node.name` property.
+- Renamed shadowing `city_cell` locals in `get_world_owner_at()` to `player_city_hex` and `kingdom_city_hex`.
+- Replaced two duplicate integer-division hex-distance expressions with the existing typed `WorldGeneratorScript.hex_distance()` helper.
+- Preserved game rules, JSON save fields, role/building/resource IDs and save schema version 1.
+
+STATIC VALIDATION
+- Result: 117/117 checks passed.
+- Regression guards cover explicit province queue typing, non-shadowing city record parameter, unique city-cell local names and use of the typed hex-distance helper.
+- All v0.27.1 project/resource checks remain passing.
+
+PYTHON TOOL VALIDATION
+- `python3 tools/qa/static_validate.py .`: passed (117/117).
+- `python3 -m py_compile tools/qa/static_validate.py`: passed.
+
+GODOT / DEVICE VALIDATION
+- Godot 4.7.2 executable is unavailable in this build environment.
+- Godot parser/import, runtime smoke tests and Android validation remain pending.
+- This package is a Godot source project, not an APK.

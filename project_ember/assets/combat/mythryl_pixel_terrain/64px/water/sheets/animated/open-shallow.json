@@ -1,0 +1,40 @@
+{
+  "image": "open-shallow.png",
+  "width": 768,
+  "height": 128,
+  "cellWidth": 768,
+  "cellHeight": 32,
+  "columns": 1,
+  "rows": 4,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "shallow_1",
+      "x": 0,
+      "y": 0,
+      "w": 768,
+      "h": 32
+    },
+    {
+      "name": "shallow_2",
+      "x": 0,
+      "y": 32,
+      "w": 768,
+      "h": 32
+    },
+    {
+      "name": "shallow_3",
+      "x": 0,
+      "y": 64,
+      "w": 768,
+      "h": 32
+    },
+    {
+      "name": "shallow_4",
+      "x": 0,
+      "y": 96,
+      "w": 768,
+      "h": 32
+    }
+  ]
+}

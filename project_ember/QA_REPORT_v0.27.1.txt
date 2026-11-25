@@ -1,0 +1,23 @@
+Project Ember v0.27.1 — QA Report
+Date: 2026-11-25
+Base: v0.27.0 — World Exploration & Neutral Sites
+
+HOTFIX
+- Resolved the reported GDScript parse error: duplicate declaration of `loaded_buildings` inside `CampaignState.load_campaign()`.
+- The additional-city record now uses `city_buildings_data`; legacy capital loading continues to use `loaded_buildings`.
+- No campaign data shape or gameplay logic changed.
+- Save schema remains version 1.
+
+STATIC VALIDATION
+- Result: 113/113 checks passed.
+- Includes an explicit regression guard requiring exactly one `loaded_buildings` declaration in `load_campaign()` and the unique `city_buildings_data` local for additional cities.
+- All previous v0.27.0 static project/resource validation checks remain passing.
+
+PYTHON TOOL VALIDATION
+- `python3 tools/qa/static_validate.py .`: passed (113/113).
+- `python3 -m py_compile tools/qa/static_validate.py`: passed.
+
+GODOT / DEVICE VALIDATION
+- Godot 4.7.2 executable is unavailable in this build environment.
+- The Godot GDScript parser/import and Android runtime still need to be run in Godot 4.7.2 on the target device/editor.
+- This package is a Godot source project, not an APK.

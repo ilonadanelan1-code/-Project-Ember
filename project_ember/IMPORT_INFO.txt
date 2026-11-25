@@ -1,0 +1,4 @@
+Imported from Project-Ember-v0.29.0-Diplomacy-Expansion.zip
+Detected project version: v0.29.0
+Source branch: main
+Import is automated by GitHub Actions. Review CI results before merging.

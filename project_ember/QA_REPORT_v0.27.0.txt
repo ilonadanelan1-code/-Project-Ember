@@ -1,0 +1,24 @@
+Project Ember v0.27.0 — QA Report
+Date: 2026-11-25
+
+STATIC VALIDATION
+- Result: 112/112 checks passed.
+- Includes resource references, version metadata, existing tactical combat, army progression and city economy checks, neutral location catalog, event catalog, campaign integration, AI POI avoidance, map rendering, event controls and targeted regressions for cleared-site map history and both abandoned-wagon reward branches.
+
+PYTHON TOOL VALIDATION
+- `python3 -m py_compile tools/qa/static_validate.py`: passed.
+- The project-context GDScript parser script is present but cannot be run without Godot.
+
+SMOKE-TEST SOURCES
+- 29 `*_smoke_test.gd` files are included.
+- `world_location_smoke_test.gd` and `world_event_smoke_test.gd` include the new H coverage.
+- GDScript smoke tests were not executed in this environment.
+
+RUNTIME / DEVICE
+- Godot 4.7.2 executable is unavailable in the build environment.
+- Godot editor import, scene startup, GDScript parser/runtime, Android touch layout, GPU/FPS and physical-device validation remain pending.
+- This package is a Godot source project, not an APK.
+
+SAVE COMPATIBILITY
+- SAVE_VERSION remains 1.
+- New fields use deterministic or empty defaults for old saves.

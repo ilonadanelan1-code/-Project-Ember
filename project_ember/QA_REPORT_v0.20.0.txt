@@ -1,0 +1,41 @@
+PROJECT EMBER — QA REPORT
+Build: v0.20.0 — Pixel Cavalry & 2.5D Battlefield
+Engine target: Godot 4.7.2-stable / GL Compatibility
+Platform target: Android
+
+IMPLEMENTED
+- Replaced the procedural cavalry visual with mounted pixel-art sprites for both teams.
+- Cavalry animations: idle (11 frames), gallop/run (8 frames), rearing attack (12 frames), jump/charge (16 frames).
+- Verified source riding-sheet grid at 80x64 and normalized all runtime frames to 88x82 with a stable bottom anchor.
+- Added six 128x128 pixel-filtered ground textures and nearest-neighbor rendering.
+- Added pixel-style trees, rocks, bushes, camp details, walls, raised isometric blocks, ramps and a ruined tower across four battle biomes.
+- Preserved the original battlefield plane collider, combat collision capsules, team orders, AI, attack parameters, projectile logic, strategic map, world generation and save schema.
+- Decorative props are visual-only and do not create additional movement-blocking colliders.
+
+AUTOMATED STATIC QA
+- Static validation: 42/42 checks passed.
+- Both cavalry atlases: 1408x328, with verified 88x82 normalized cells.
+- Cavalry frame counts recorded and checked: idle 11, run 8, attack 12, charge 16 for both factions.
+- Pixel ground textures: 6 files, each 128x128.
+- All literal res:// references resolve in the scanned source/resource files.
+- 21 smoke-test scripts are present, including expanded cavalry and battlefield visual checks.
+
+NOT EXECUTED IN THIS CONTAINER
+- Godot 4.7.2 project parser and runtime smoke tests were not executed because a Godot binary is not installed in this build environment.
+- No in-engine screenshot or Android GPU/FPS validation was performed. The preview PNG is an asset board, not a screenshot from the running game.
+- The 2.5D battlefield is currently a textured flat movement plane dressed with billboard props, ramps and isometric block sprites. It is not yet a fully height-mapped/pathfinding 3D tile battlefield.
+
+ASSET / LICENSE NOTES
+- The Tactics Terrain Kit license and attribution information are included under assets/combat/pixel_battlefield/.
+- The user-supplied Full_Pack.zip archive contained no README or license file. Mounted horse art is retained in this private working package; verify the original creator's terms before public redistribution or commercial release.
+- The converted terrain art is downsampled and palette-reduced from the HD Tactics Terrain Kit source, not native hand-authored pixel art.
+
+TEST INSTRUCTIONS
+1. Extract this ZIP into a new directory; do not overwrite the v0.19.3 stable backup.
+2. Open project.godot in Godot 4.7.2 Android Editor and allow assets to import.
+3. Start a battle and check both cavalry factions: idle, running, normal attack and charge.
+4. Check all four biomes and inspect texture sharpness at close and far zoom.
+5. Check movement around trees, ramps, raised blocks and wall sprites; decorative props should not block units.
+6. Send a short recording or screenshots if any horse frames appear clipped, shifted, too large, or out of alignment.
+
+This report distinguishes static package checks from runtime/device verification. Passing static checks does not certify that the Android build is visually correct or performant on-device.

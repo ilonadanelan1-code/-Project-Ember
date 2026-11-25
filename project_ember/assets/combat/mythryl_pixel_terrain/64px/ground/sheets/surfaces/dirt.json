@@ -1,0 +1,40 @@
+{
+  "image": "dirt.png",
+  "width": 256,
+  "height": 32,
+  "cellWidth": 64,
+  "cellHeight": 32,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "dirt_1",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "dirt_2",
+      "x": 64,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "dirt_3",
+      "x": 128,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    },
+    {
+      "name": "dirt_4",
+      "x": 192,
+      "y": 0,
+      "w": 64,
+      "h": 32
+    }
+  ]
+}

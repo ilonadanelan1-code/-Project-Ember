@@ -1,0 +1,19 @@
+{
+  "image": "crags-grass_full.png",
+  "width": 64,
+  "height": 72,
+  "cellWidth": 64,
+  "cellHeight": 72,
+  "columns": 1,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "crags-grass_full_1",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 72
+    }
+  ]
+}

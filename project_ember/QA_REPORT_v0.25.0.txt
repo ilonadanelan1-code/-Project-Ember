@@ -1,0 +1,25 @@
+PROJECT EMBER v0.25.0 — QA REPORT
+Date: 2026-11-25
+Base: v0.24.1 Tactical Combat Expansion
+
+STATIC VALIDATION
+- Result: 78/78 passed.
+- Checked resource references, asset manifests/checksums, stable role IDs, army capacity, save schema, veterancy thresholds, capped XP formula, upgrade catalog coverage, combat stat application, save/load persistence fields, AI normalization, city UI integration and smoke-test presence.
+- Python syntax validation: `python3 -m py_compile tools/qa/static_validate.py` passed.
+
+NEW AUTOMATED TEST SOURCE
+- tests/unit_progression_smoke_test.gd
+- Covers veterancy thresholds, battle XP formulas/cap, legacy defaults, unlock buildings, purchase prices, two-rank cap, save/load persistence, AI XP normalization and stat modifiers.
+- Existing QA runner discovers `*_smoke_test.gd` automatically.
+
+NOT EXECUTED
+- Godot 4.7.2 import and GDScript parser.
+- Runtime smoke tests.
+- Android Editor import, tactical battle, mobile UI layout and physical save migration.
+- GPU/FPS and thermal checks.
+
+REASON
+No Godot executable is available in the build container. Static validation must not be interpreted as runtime certification.
+
+RECOMMENDATION
+Run `tools/qa/run_smoke_tests.sh` in Godot 4.7.2, then test the project on the target Android device before merging this package into the primary project folder.

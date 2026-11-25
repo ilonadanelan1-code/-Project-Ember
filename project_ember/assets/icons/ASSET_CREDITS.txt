@@ -1,0 +1,9 @@
+Project Ember icon assets
+
+- Pixel Fantasy Map Icons by reodesuxz. Original licence: assets/icons/pixel_fantasy/LICENSE.txt
+- Gridwright Strategy UI by Gridwright. Original licence: assets/icons/gridwright/LICENSE.txt
+
+Both packs are included as game-project assets, not as a standalone asset pack.
+
+- Pixel UI Fantasy Free by heyheythere - https://heyheythere.itch.io/pixel-ui-fantasy-free - CC BY 4.0
+  (panel/button frames, recoloured to dark bronze; see assets/ui/pixel_ui_fantasy/README.txt)

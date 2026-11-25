@@ -1,6 +1,6 @@
 # Project Ember
 
-Godot 4 fantasy 4X strategy with real-time tactical combat. Current source release: **v0.7.0 — Hero Commanders**.
+Godot 4 fantasy 4X strategy with real-time tactical combat. Current source release: **v0.29.0 — Diplomacy Expansion**.
 
 - [Design source of truth](project_ember/DESIGN.md)
 - [Android import and play guide](project_ember/ANDROID_START.md)

@@ -1,0 +1,129 @@
+{
+ "cell": {
+  "width": 64,
+  "height": 32
+ },
+ "step": {
+  "col": {
+   "x": 32,
+   "y": 16
+  },
+  "row": {
+   "x": -32,
+   "y": 16
+  }
+ },
+ "ground": {
+  "surfaces": [
+   "grass",
+   "dirt"
+  ],
+  "snowy": [],
+  "variants": 4,
+  "note": "Every surface tile joins every other of the same surface, in any order.",
+  "corners": {
+   "north": 1,
+   "east": 2,
+   "south": 4,
+   "west": 8
+  },
+  "edges": [
+   {
+    "name": "grass-dirt",
+    "base": "grass",
+    "over": "dirt"
+   }
+  ],
+  "edgesNote": "Each corner set has 16 tiles, numbered by the corners covered by the second surface, added up (north 1, east 2, south 4, west 8). Tile 0 is all the first surface, tile 15 all the second."
+ },
+ "cliffs": {
+  "styles": [
+   "crags"
+  ],
+  "tops": [
+   "grass"
+  ],
+  "heights": [
+   {
+    "name": "full",
+    "tiles": 1,
+    "rise": 39,
+    "height": 71
+   }
+  ],
+  "variants": 1,
+  "note": "A block fills its cell from the ground up: draw it with its bottom at the cell's bottom, like any tile, and stack blocks for taller cliffs (each one rise higher). Sides are blocks without a top: lay any ground tile on them, one rise up. Draw cells back to front."
+ },
+ "water": {
+  "kinds": [
+   "shallow"
+  ],
+  "variants": 4,
+  "frames": 12,
+  "fps": 8,
+  "neighbours": [
+   {
+    "name": "N",
+    "bit": 0,
+    "value": 1,
+    "col": 0,
+    "row": -1
+   },
+   {
+    "name": "NE",
+    "bit": 1,
+    "value": 2,
+    "col": 1,
+    "row": -1
+   },
+   {
+    "name": "E",
+    "bit": 2,
+    "value": 4,
+    "col": 1,
+    "row": 0
+   },
+   {
+    "name": "SE",
+    "bit": 3,
+    "value": 8,
+    "col": 1,
+    "row": 1
+   },
+   {
+    "name": "S",
+    "bit": 4,
+    "value": 16,
+    "col": 0,
+    "row": 1
+   },
+   {
+    "name": "SW",
+    "bit": 5,
+    "value": 32,
+    "col": -1,
+    "row": 1
+   },
+   {
+    "name": "W",
+    "bit": 6,
+    "value": 64,
+    "col": -1,
+    "row": 0
+   },
+   {
+    "name": "NW",
+    "bit": 7,
+    "value": 128,
+    "col": -1,
+    "row": -1
+   }
+  ],
+  "coasts": "Coast tiles are named by the neighbours that are water, added up. A corner only counts when both sides next to it are land, so there are 46 shapes.",
+  "coastLands": [
+   "grass"
+  ],
+  "ice": false
+ },
+ "tile": 64
+}

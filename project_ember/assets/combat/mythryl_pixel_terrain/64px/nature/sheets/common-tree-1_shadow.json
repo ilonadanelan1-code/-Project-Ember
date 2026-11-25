@@ -1,0 +1,40 @@
+{
+  "image": "common-tree-1_shadow.png",
+  "width": 616,
+  "height": 247,
+  "cellWidth": 154,
+  "cellHeight": 247,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "common-tree-1_0_shadow",
+      "x": 0,
+      "y": 0,
+      "w": 154,
+      "h": 247
+    },
+    {
+      "name": "common-tree-1_90_shadow",
+      "x": 154,
+      "y": 0,
+      "w": 154,
+      "h": 247
+    },
+    {
+      "name": "common-tree-1_180_shadow",
+      "x": 308,
+      "y": 0,
+      "w": 154,
+      "h": 247
+    },
+    {
+      "name": "common-tree-1_270_shadow",
+      "x": 462,
+      "y": 0,
+      "w": 154,
+      "h": 247
+    }
+  ]
+}

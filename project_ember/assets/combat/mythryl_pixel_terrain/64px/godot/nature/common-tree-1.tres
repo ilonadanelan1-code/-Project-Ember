@@ -1,0 +1,39 @@
+[gd_resource type="SpriteFrames" load_steps=6 format=3]
+
+[ext_resource type="Texture2D" path="../../nature/sheets/common-tree-1.png" id="t0"]
+
+[sub_resource type="AtlasTexture" id="f0_0"]
+atlas = ExtResource("t0")
+region = Rect2(0, 0, 154, 247)
+
+[sub_resource type="AtlasTexture" id="f0_1"]
+atlas = ExtResource("t0")
+region = Rect2(154, 0, 154, 247)
+
+[sub_resource type="AtlasTexture" id="f0_2"]
+atlas = ExtResource("t0")
+region = Rect2(308, 0, 154, 247)
+
+[sub_resource type="AtlasTexture" id="f0_3"]
+atlas = ExtResource("t0")
+region = Rect2(462, 0, 154, 247)
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("f0_0")
+}, {
+"duration": 1.0,
+"texture": SubResource("f0_1")
+}, {
+"duration": 1.0,
+"texture": SubResource("f0_2")
+}, {
+"duration": 1.0,
+"texture": SubResource("f0_3")
+}],
+"loop": false,
+"name": &"summer",
+"speed": 0.0
+}]

@@ -1,71 +1,145 @@
-# Changelog — Project Ember
+## v0.29.0 — Diplomacy & AI Kingdoms
+- Adds five deterministic diplomatic personalities for the nine existing AI kingdoms.
+- Adds a 45-pair player/AI relationship matrix with canonical keys and bounded relationship values.
+- Adds peace, war, trade, alliance, tribute and vassal treaties with defined durations, income and capped gold transfers.
+- Adds explainable deterministic acceptance weights, incoming proposals, stale-offer validation and negotiation cooldowns.
+- Adds player/AI declarations of war, border tension, war causes, war exhaustion, AI-AI conflict resolution and four-turn truces.
+- AI armies select only realms with an active war treaty as strategic targets.
+- Adds the mobile diplomacy panel and relationship/treaty/war information.
+- Adds optional `diplomacy_relations` and `pending_diplomacy_offers` save fields; `SAVE_VERSION` remains 1 and legacy saves receive defaults.
+- Adds `DIPLOMACY.md`, `diplomacy_smoke_test.gd` and static QA guards.
+- Static validation: 162/162. Godot parser/import, runtime smoke tests and Android validation remain pending because the Godot executable is unavailable in the build environment.
 
-## v0.7.0 — Hero Commanders and Progression
+## v0.28.0 — Faction Founding & Kingdom Identity
+- Adds a new-campaign founding panel with four peoples, four cultures, exactly two different traits and an editable kingdom name.
+- Adds data-driven faction bonuses to the existing three-resource economy, recruitment costs, army upkeep, scouting radius and province capacity; no new resources or role IDs are introduced.
+- Adds one-time starting resource/experience bonuses for the player and all nine AI kingdoms.
+- AI kingdoms receive deterministic faction identities and use matching income, recruitment and upkeep modifiers.
+- Adds a scrollable faction setup surface with a fixed 56 dp confirmation button and blocks map commands until founding is confirmed.
+- Adds optional `player_faction` and `kingdoms[].faction` save fields; `SAVE_VERSION` remains 1 and legacy saves receive neutral/stable faction identities without retroactive starting bonuses.
+- Adds `faction_setup_smoke_test.gd` and static QA guards for faction choices, modifiers, AI starting bonuses, save fallback and mobile setup behavior.
+- Static validation: 140/140. Godot parser/import, runtime smoke tests and Android validation remain pending because the Godot executable is unavailable in the build environment.
 
-- Added a persistent ruler hero and enemy commander to every campaign.
-- Added commander combat units with their own health, level-scaled health/damage/armor, distinct 3D crown and armor visuals, and independent persistence outside the 24-troop recruitment cap.
-- Added a passive commander aura that improves nearby allied damage and movement.
-- Added the active **Battle Cry** ability: nearby allies receive healing and a temporary combat buff. It has a tactics-scaled cooldown and a touch-screen button plus the Q keyboard shortcut.
-- Added enemy commander AI that uses Battle Cry when its nearby force is wounded.
-- Added post-battle hero experience from kills, damage and victory; each level grants one skill point.
-- Added Leadership, Tactics and Might skill branches, with five ranks each.
-- Added commander health persistence, defeated-hero wounds and recovery over campaign turns.
-- Added hero profile and skill-upgrade UI to the city panel, plus commander level and ability status in the tactical interface.
-- Kept older saves compatible by supplying default hero records when hero data is absent.
-- Added automated hero progression, ability, aura, wound recovery and save/load smoke tests.
+## v0.27.2 — GDScript Typing & Warning Hotfix
+- Fixes the `valid_province` type-inference error by explicitly typing the source cell value, validated array and boolean result.
+- Renames `_make_city_record()`'s `name` parameter to `city_display_name`, avoiding `Node.name` shadowing.
+- Renames `get_world_owner_at()` city-cell locals to `player_city_hex` and `kingdom_city_hex`.
+- Replaces two city-distance integer-division expressions with the existing typed `WorldGeneratorScript.hex_distance()` helper.
+- Adds regression checks for each reported error/warning.
+- No gameplay values, persistent JSON fields, unit/building/resource IDs or save schema changed; save schema remains version 1.
+- Static validation: 117/117. Godot parser/import and Android runtime checks remain pending.
 
-## v0.6.0 — Expanded roster and battlefield command update
+## v0.27.1 — Campaign Loading Hotfix
+- Fixes the GDScript parse error in `CampaignState.load_campaign()`: the per-city buildings array is now named `city_buildings_data`, avoiding a second declaration of `loaded_buildings` in the same function scope.
+- No gameplay values, save fields, city data, building IDs, resource IDs or serialization behavior are changed.
+- Adds a static QA regression guard for the exact duplicate-local declaration.
+- Keeps campaign save schema version 1.
+- Static validation: 113/113. Godot parser/import and Android runtime checks remain pending.
 
-- Added a centralized unit catalog so economy, recruitment, campaign saves and tactical combat share one source of truth for unit data.
-- Added spearmen with extra armor, longer melee reach and a damage bonus against cavalry.
-- Added cavalry with higher health and movement speed plus a reusable charge strike after a fast approach.
-- Added an archery range and stable as city buildings; both require completed barracks.
-- Expanded army capacity from 16 to 24 units.
-- Added persistent recruitment and save validation for all four unit roles while keeping old melee/ranged saves compatible.
-- Updated city recruitment UI to show all roles and their specific building unlocks.
-- Added cavalry wing placement and spear / sword / archer rank behavior to line, column and wedge movement orders.
-- Added drag-box selection, additive selection support, four touch-screen and keyboard control groups, battlefield panning and gesture zoom.
-- Added selected-army composition readout and surviving-unit composition to battle results.
-- Added automated roster, unlock, recruitment, stat and save-normalization smoke tests.
-- Android device testing is still required for touch gestures, UI fit and in-game balance.
+## v0.27.0 — World Exploration & Neutral Sites
+- Adds up to 72 deterministic neutral points of interest with five terrain-compatible types and minimum five-hex spacing.
+- Ensures at least four opening exploration targets in the start ring through a deterministic fallback candidate pool.
+- Adds three guard tiers (3/5/8 troops), veteran experience, separate guardian commanders and persistent retreat damage.
+- Victory clears a site and transfers its existing-resource reward to the nearest player city; cleared map history persists under the player's army marker.
+- Adds six deterministic campaign events every five turns, each with two choices and cost/population validation.
+- Reuses only gold, food, stored production, population, fog-of-war reveal and existing troop experience; no fourth resource is added.
+- AI city founding and next-step army movement avoid neutral site hexes; AI neutral battles remain deferred.
+- Keeps save schema version 1 with deterministic defaults for legacy saves.
+- Static validation: 112/112. Godot parser/import and Android runtime checks remain pending.
 
-## v0.5.3 — Audit fixes and strict validation
+## v0.25.0 — Army Veterancy & Upgrades
+- Gives each surviving non-commander troop individual battle XP using `clamp(6 + kills × 8 + floor(damage / 30), 6, 30)`.
+- Adds Recruit, Trained, Veteran and Elite ranks at 0/40/100/180 cumulative XP.
+- Adds modest veteran bonuses to attack damage and armour without increasing max HP or healing.
+- Adds two city-purchased upgrade ranks for all four stable unit role IDs, gated by existing buildings.
+- Adds survivor XP and promotions to the tactical battle report.
+- Preserves enemy survivors' veterancy through AI kingdom normalization.
+- Keeps save schema version 1; old unit records default to 0 XP and missing army upgrade data defaults to rank 0.
+- Static validation: 78/78. Godot runtime/parser and Android tests remain pending.
 
-- Repaired the city production-queue summary parser error.
-- Fixed the undefined recruitment label in `queue_recruit()`.
-- Added explicit types where Godot 4.3 could not infer values from the campaign autoload.
-- Changed the tactical scene root to Node3D to match its 3D script.
-- Preserved unreadable campaign saves before starting a replacement campaign; disables automatic overwriting if preservation fails.
-- Ensured newly produced settlers spawn on an in-bounds, unoccupied map hex.
-- Made CI fail when Godot logs script, parse or engine errors, even if the process exits with code zero.
-- Added campaign smoke tests for queueing, recruitment, army capacity, multiple-city income and save/load.
-- Physical Android import, touch input and device runtime validation remain pending.
+# Changelog
 
-## v0.5.2 — Reliability and UI audit
+## v0.24.1 — Tactical Combat Expansion
+- Completes the planned tactical-combat batch: terrain gameplay, flanking/status effects, role-aware target selection and battle-result statistics.
+- Adds four symmetric seed-derived gameplay zones for woodland, highlands and marsh battles; grassland remains neutral.
+- Adds forest cover (−10% movement, −18% incoming ranged damage), high ground (archer +10% ranged damage, −8% incoming ranged damage, −5% movement), and marsh (infantry −18% speed, cavalry −35% speed and no charge).
+- Adds side/rear melee damage bonuses (+10%/+20%), a 1.8-second exposed status (+10% incoming damage), and +1 frontal armour under HOLD.
+- Adds a light temporary status marker, role-aware target scoring and flank-hit statistics.
+- Preserves the flat collider, current unit IDs, unit base catalog values, army cap, commander data and save-schema version.
+- Adds terrain, flanking/status and AI target scoring smoke-test sources.
+- Static validation: 70/70. Godot runtime/parser and Android tests remain pending.
 
-- Replaced unbounded city production `while` loop with a bounded queue pass (maximum 32 orders per city turn).
-- Added a defensive army-size check when completing recruitment orders.
-- Repaired mojibake in campaign messages and queue labels.
-- Explicitly set button focus and mouse-filter behavior in both strategic and tactical interfaces.
-- Added Godot 4.3 headless import and startup checks to the packaging workflow.
-- Android touch/runtime behavior still requires validation on a physical device.
+## v0.24.0 — Tactical Flanking & Status (merged into v0.24.1 package)
+- Adds the flank arc classification, side/rear modifiers, exposed status and HOLD frontal armour bonus.
 
-## v0.5.1 — Tactical timer fix
+## v0.23.0 — Tactical Terrain Zones (merged into v0.24.1 package)
+- Adds deterministic non-colliding forest, high-ground and marsh zones to existing battle biomes.
 
-- Fixed battle timer minute calculation to avoid integer-division warnings in GDScript.
-- Explicitly typed elapsed seconds, minutes and remaining seconds; clamped negative elapsed time to zero.
-- Runtime test on Godot Android Editor is still pending.
+## v0.21.1 — Pixel Terrain Type Fix
+- Fixes the Sprite3D pixel-filter assignments to use `BaseMaterial3D.TEXTURE_FILTER_NEAREST`, matching the property enum expected by Godot 4.7.2.
+- Adds a battlefield smoke-test assertion for nearest-neighbour filtering on billboard terrain props.
+- Adds a static QA guard against reintroducing the CanvasItem/BaseMaterial3D enum mismatch.
+- No changes to terrain art, units, cavalry, combat, AI, input, collision or save data.
+- Static validation and ZIP integrity are re-run for this hotfix. Godot runtime and Android testing remain separate checks.
 
-## v0.5.0 — Settlements and expansion
 
-- Expanded the strategic map to 91 hexes and adjusted hex size for mobile viewport.
-- Added up to five cities, each with independent population, food, gold, production, buildings and production queue.
-- Added settler production (45 gold, 10 production, one population), movement and city founding at least three hexes from existing cities.
-- Added city selection and claimed territory highlighting.
-- Preserved legacy single-city save data when loading older campaigns.
-- Restored tactical combat scripts and scenes in the extracted source tree.
-- Runtime test on Godot Android Editor is still pending.
+## v0.21.0 — Mythryl Pixel Terrain Battlefield
+- Replaces the previous tactical ground texture and Tactics Terrain dressing with the user-supplied Mythryl Studio 2D Pixel Terrain 64px Free Edition.
+- Builds the battle surface from true isometric 64x32 diamond tiles: varied grass, dirt roads, grass/dirt corner blends, shallow water and shoreline transitions.
+- Batches the complete ground surface into one mesh and one atlas material to avoid a draw call per tile.
+- Adds pack-native trees, pines, bushes, rocks, flowers and grass-cliff sprites across the four tactical biomes.
+- Keeps props visual-only; no terrain collision, height rules or pathfinding changes are introduced.
+- Preserves the original battlefield dimensions, movement plane, ground collider, camera, all unit sprites/animations (including cavalry), combat logic, AI, orders, projectiles, strategic map, campaign and save schema.
+- Static validation: 48/48. Godot runtime and physical Android validation remain pending.
 
-## v0.4.0 — First city and economy loop
+## v0.20.0 — Pixel Cavalry & 2.5D Battlefield
+- Replaces the procedural low-poly cavalry with mounted pixel-art sheets for both factions.
+- Adds mounted idle, gallop/run, rearing attack and jump/charge animations.
+- Adds a nearest-filtered pixel-style ground surface and biome-aware battlefield dressing.
+- Preserves the original movement plane, ground collider and combat simulation.
 
-- Added city resources, population, buildings, construction queue, recruitment and campaign saving.
+## v0.19.3 — Attack Command Reliability
+- Makes a direct attack order clear stale cooldowns and immediately activate the unit.
+- Prevents ally-separation steering from pushing units away from an ordered enemy.
+- Directly ordered archers fire inside attack range instead of retreating due to preferred spacing.
+- Adds regression coverage for attack orders, pursuit, stale cooldown and close-range ranged fire.
+- Preserves gameplay stats, damage, AI and saves.
+
+## v0.19.2 — Melee Contact Hotfix
+- Restores the original melee reach when starting an attack.
+- Commits a melee strike through its visible contact frame rather than rechecking a smaller radius after the wind-up.
+- Prevents small target movement from cancelling a valid hit.
+- Adds a regression test for a moving target.
+- Preserves combat stats, AI, ranged timing, animations and save data.
+
+## v0.19.1 — Combat Readability Pass
+- Applies melee damage at the weapon-contact frame rather than at swing start.
+- Delays arrow creation until the bow release frame.
+- Turns sprites toward active targets during movement and combat.
+- Ignores dead/corpse targets and cancels unfinished hits/projectiles when new orders arrive.
+- Adds guard and lancer defence recovery poses, with more proportional lancer scaling.
+- Adds smoke tests for hit timing, arrow release, corpses and order cancellation.
+- Preserves unit stats, damage, cooldowns, AI and save data.
+
+## v0.22.0 — Strategy & UI Icon Integration
+- Integrates both supplied icon sets while retaining their source licences and original variants in the project.
+- Gives strategic capitals and towns distinct player/AI pixel-art settlement markers; uses crossed swords for armies and a worker sprite for settlers.
+- Adds compact gold, food and stored-production indicators to the mobile HUD and city panel.
+- Adds contextual icons to city buildings, troop recruitment, attack, army and city actions.
+- Keeps only implemented resources visible; wood and stone are not added to campaign economy or saves.
+- Does not change campaign balance, combat, AI, tactical battlefield, controls or save format.
+- Static validation and archive integrity are checked; Godot runtime and Android checks remain pending.
+
+## UI skin
+- Panels, buttons and focus frame now use 9-slice textures from Pixel UI Fantasy Free (CC BY 4.0), recoloured to the game palette. Flat styles remain as fallback. Not runtime-tested; open in Godot to import the PNGs.
+
+## v0.26.0 — City Development & Economy
+- Adds three population-based city levels (Settlement 1–7, City 8–13, Metropolis 14–20) and province capacities of 1/3/5.
+- Adds four one-time specializations: +20% food, +20% gold, +20% production, or −10% gold recruitment cost.
+- Adds four terrain-bound adjacent province improvements, each producing +2 of one existing resource per turn.
+- Adds level-two and level-three upgrades for all six existing building IDs.
+- Adds per-troop gold upkeep: melee 0.8, ranged 0.8, spear 0.9, cavalry 1.4; total is rounded up and paid from city treasuries after income.
+- Adds a mobile city panel section for specialization, province improvements, building upgrades and army upkeep.
+- Extends the AI economy with specializations, province projects, building upgrades and upkeep; capital AI prioritizes a market before repeated recruitment.
+- Preserves the three-resource economy, stable resource/building/unit IDs, 24-troop cap and save schema version 1.
+- Static validation: 93/93. Godot parser/import/runtime and Android tests remain pending.

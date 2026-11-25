@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="SpriteFrames" path="common-tree-1.tres" id="body"]
+[ext_resource type="SpriteFrames" path="common-tree-1_shadow.tres" id="shadow"]
+
+[node name="Common Tree 1" type="Node2D"]
+
+[node name="Shadow" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+sprite_frames = ExtResource("shadow")
+animation = &"summer"
+centered = false
+offset = Vector2(-77, -207)
+
+[node name="Body" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+sprite_frames = ExtResource("body")
+animation = &"summer"
+centered = false
+offset = Vector2(-77, -207)

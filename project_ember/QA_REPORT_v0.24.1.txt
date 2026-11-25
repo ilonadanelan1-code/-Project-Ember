@@ -1,0 +1,38 @@
+PROJECT EMBER v0.24.1 — TACTICAL COMBAT EXPANSION
+QA report date: 2026-11-25
+Engine target: Godot 4.7.2-stable / GL Compatibility
+Base archive: Project-Ember-v0.22.1-UI-Skin.zip (internal project metadata: v0.22.0)
+
+RESULTS
+- Static validation: 70/70 passed.
+- Local res:// resource-path scan: 127 source/resource files scanned, no missing required paths.
+- Smoke-test sources included: 25.
+- New smoke tests: battlefield_rules_smoke_test.gd, battle_flanking_smoke_test.gd, battle_ai_tactics_smoke_test.gd.
+- Existing biome visual smoke test expanded to verify the expected terrain-zone count and preserve the flat collision body/node budget.
+- Campaign compatibility guards: role IDs melee/ranged/spear/cavalry unchanged; army capacity remains 24; SAVE_VERSION remains 1.
+- Project resource/editor cache (.godot) is not included in source package.
+
+RUNTIME LIMITATION
+Godot 4.7.2 executable is not installed in the build environment. Direct network download was unavailable, so the following checks could not be run here:
+- Godot editor import and GDScript project-context parser.
+- The 25 runtime smoke tests.
+- Rendering, battle simulation, Android touch UX, GPU load and FPS on the target phone.
+
+The existing tools/qa/run_smoke_tests.sh runner and tools/qa/parse_all_scripts.tscn parser scene are included. Run the QA pipeline in a Godot 4.7.2 environment before treating this package as runtime-certified.
+
+IMPLEMENTATION SUMMARY
+- Deterministic gameplay zones for woodland, highlands and marsh; grassland remains neutral.
+- Forest cover: movement x0.90, incoming ranged damage x0.82.
+- High ground: movement x0.95, archer ranged damage x1.10, incoming ranged damage x0.92.
+- Marsh: infantry/commander movement x0.82, cavalry x0.65, cavalry charge disabled inside marked zones.
+- Melee flank damage: side x1.10, rear x1.20.
+- Exposed status: 1.8 seconds, incoming damage x1.10; temporary marker appears only while active.
+- HOLD: +1 effective armour against frontal attacks.
+- Role-aware target preferences for existing unit roles.
+- Flank attack totals added to the result panel and existing last_battle_result dictionary.
+
+SAVE AND ID COMPATIBILITY
+- No save-schema version bump.
+- No changes to campaign unit role IDs, resource IDs, building IDs, army capacity or base unit catalog stats.
+- Terrain zones, facing, exposed timers and per-unit flank counters are transient battle state.
+- New flank counters are additive result dictionary values; old saves keep their existing defaults.

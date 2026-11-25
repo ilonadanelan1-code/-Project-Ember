@@ -1,0 +1,40 @@
+{
+  "image": "rock-medium-1.png",
+  "width": 328,
+  "height": 79,
+  "cellWidth": 82,
+  "cellHeight": 79,
+  "columns": 4,
+  "rows": 1,
+  "spacing": 0,
+  "frames": [
+    {
+      "name": "rock-medium-1_0",
+      "x": 0,
+      "y": 0,
+      "w": 82,
+      "h": 79
+    },
+    {
+      "name": "rock-medium-1_90",
+      "x": 82,
+      "y": 0,
+      "w": 82,
+      "h": 79
+    },
+    {
+      "name": "rock-medium-1_180",
+      "x": 164,
+      "y": 0,
+      "w": 82,
+      "h": 79
+    },
+    {
+      "name": "rock-medium-1_270",
+      "x": 246,
+      "y": 0,
+      "w": 82,
+      "h": 79
+    }
+  ]
+}
