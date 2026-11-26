@@ -448,6 +448,38 @@ check(all(token in battle_unit_text for token in ["territory_armor_bonus", "armo
 check(territory_test_path.is_file() and all(token in territory_test_text for token in ["OWNER_DISPUTED", "watchtower", "field army", "SAVE_VERSION"]), "territory smoke tests cover ownership, disputed land, armies, forts and save compatibility")
 check("const SAVE_VERSION := 1" in campaign_state_text, "territorial control keeps legacy campaign saves at version one")
 
+
+# Stage V: stable player armies, per-army commanders and legacy compatibility.
+player_army_test_path = ROOT / "tests/player_army_smoke_test.gd"
+player_army_test_text = player_army_test_path.read_text(encoding="utf-8") if player_army_test_path.is_file() else ""
+check(all(token in campaign_state_text for token in [
+    "var player_armies: Array[Dictionary] = []",
+    "var selected_player_army_id: String",
+    "func create_player_army(",
+    "func select_player_army(",
+    "func move_selected_player_army(",
+    "func assign_hero_to_army(",
+    "func get_player_army_total_power(",
+    '"player_armies": player_armies',
+    '"selected_player_army_id": selected_player_army_id',
+]), "campaign state persists independent player armies and commander assignments")
+check(all(token in strategy_map_text for token in [
+    "РАЗДЕЛИТЬ АРМИЮ",
+    "get_player_army_at(cell)",
+    "move_selected_player_army(cell)",
+    "CampaignState.player_armies",
+]), "strategic map displays, selects and moves independent player armies")
+check("player_armies: Array[Dictionary] = []" in territory_text and "_append_army_source(sources, army_cell, units, OWNER_PLAYER)" in territory_text, "all player armies contribute to territorial influence")
+check(player_army_test_path.is_file(), "player army smoke test is included in automatic QA discovery")
+check(all(token in player_army_test_text for token in [
+    "splitting preserves the total number of troops",
+    "one hero cannot command two armies",
+    "recruit completion adds the unit to its originally assigned army",
+    "battle handoff uses the selected army's assigned hero",
+    "legacy single-army saves migrate to one army record",
+    "save/load restores the independent army roster",
+]), "player army smoke tests cover splitting, assignments, recruitment, battle handoff and save migration")
+
 print(f"\nStatic QA: {checks - len(failures)}/{checks} checks passed")
 if failures:
     print("Failures:")
