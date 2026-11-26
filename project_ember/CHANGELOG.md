@@ -1,3 +1,14 @@
+## v0.39 — Visual Integration: medieval atlas, monster factions and heraldry
+
+- Integrates five owner-supplied licensed packs into one 1024×960 lossless WebP runtime atlas. The atlas is decoded once by Godot and individual sprite regions are cached for mobile use.
+- Replaces the generic map city button with the Pixel Castle castle sprite, uses castle and cottage sprites for capitals/towns, and displays faction-coloured heraldic standards on player and AI settlements.
+- Replaces neutral-site glyphs with medieval location icons and connects the city building/recruitment buttons to the supplied medieval visual set.
+- Adds all 30 indexed Pixel Fantasy monster appearances with idle/attack SpriteFrames, plus the Medieval RTS red knight's idle, run and attack animations.
+- Neutral sites now select themed guard and guardian appearances based on encounter type. Combat rules, unit roles, economy and campaign state remain unchanged.
+- Adds asset-catalog smoke tests and a standalone QA validator for atlas integrity, frame metadata, references and licence notes.
+- Campaign save schema remains SAVE_VERSION = 1. The original archives are not redistributed as standalone packs; the two heraldry archives without a usage licence are excluded pending permission.
+- Android device inspection and final visual-scale tuning remain pending.
+
 ## v0.39 — Block 9: diplomatic border threat assessment
 
 - Adds deterministic peace-time threat scoring for nearby rival kingdoms using diplomatic hostility, active incoming casus belli, distance to the realm's settlements and relative army strength.
