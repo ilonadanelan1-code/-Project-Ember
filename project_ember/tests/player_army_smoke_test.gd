@@ -45,6 +45,7 @@ func _run() -> void:
 	var second_hero_id := str(second_army.get("hero_id", ""))
 	_check(not second_hero_id.is_empty() and second_hero_id != "hero_ruler", "new army receives a distinct available hero")
 	_check(not state.assign_hero_to_army(primary_id, second_hero_id), "one hero cannot command two armies")
+	var second_id: String = state.selected_player_army_id
 	var barracks_state: bool = state.city_has_building("barracks")
 	state.city_buildings.append("barracks")
 	state.city_gold = 1000
@@ -55,7 +56,6 @@ func _run() -> void:
 	if not barracks_state:
 		state.city_buildings.erase("barracks")
 
-	var second_id: String = state.selected_player_army_id
 	var second_cell: Vector2i = state.player_cell
 	_check(state.select_player_army(primary_id), "primary army can be selected independently")
 	_check(state.player_cell == original_cell, "selecting the primary army restores its own map position")
