@@ -813,7 +813,9 @@ static func _maybe_create_player_war_call(
 		return {}
 	var claim_record := get_record(relations, caller_id, enemy_id)
 	var active_claims := get_active_casus_belli(claim_record, turn_number, caller_id)
-	var cause := str(active_claims[0].get("cause", "ally_attacked")) if not active_claims.is_empty() else "ally_attacked"
+	var cause := str(active_claims[0].get("cause", claim_record.get("war_reason", "ally_attacked"))) if not active_claims.is_empty() else str(claim_record.get("war_reason", "ally_attacked"))
+	if not CASUS_BELLI_CAUSES.has(cause):
+		cause = "ally_attacked"
 	var offer := {
 		"offer_id": "%d:call_to_war:%d:%d" % [caller_id, enemy_id, turn_number],
 		"kingdom_id": caller_id,
