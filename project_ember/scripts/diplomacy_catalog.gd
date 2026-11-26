@@ -17,7 +17,12 @@ const TRIBUTE_DURATION := 5
 const VASSAL_DURATION := 10
 const TRUCE_DURATION := 4
 const OFFER_LIFETIME := 3
+const WAR_CALL_RESPONSE_TURNS := 3
+const WAR_CALL_COOLDOWN := 6
+const WAR_CALL_REFUSAL_PENALTY := 12
 const MAX_PENDING_OFFERS := 4
+const CASUS_BELLI_LIFETIME := 8
+const CASUS_BELLI_CAUSES := ["border_encroachment", "outpost_encroachment", "ally_attacked", "treaty_breach", "victory_race"]
 const BORDER_TENSION_DISTANCE := 4
 const BORDER_TENSION_INTERVAL := 5
 const TREATIES := ["peace", "war", "trade", "alliance", "tribute", "vassal"]
@@ -487,6 +492,10 @@ static func _make_record(initial_relation: int = 0) -> Dictionary:
 		"war_exhaustion": 0,
 		"overlord_id": -99,
 		"war_reason": "none",
+		"war_initiator_id": -99,
+		"war_target_id": -99,
+		"casus_belli": [],
+		"last_war_call_turn": 0,
 		"truce_until": 0,
 		"last_offer_turn": 0,
 		"last_change_turn": 1,
@@ -633,6 +642,198 @@ static func get_record(relations: Dictionary, first_id: int, second_id: int) -> 
 
 static func set_record(relations: Dictionary, first_id: int, second_id: int, record: Dictionary) -> void:
 	relations[pair_key(first_id, second_id)] = record.duplicate(true)
+
+
+
+static func create_casus_belli(
+		relations: Dictionary,
+		claimant_id: int,
+		target_id: int,
+		cause: String,
+		turn_number: int,
+		severity: int = 1,
+		source_cell: Array = []
+) -> Dictionary:
+	if claimant_id == target_id or not CASUS_BELLI_CAUSES.has(cause):
+		return {}
+	var record := get_record(relations, claimant_id, target_id)
+	var claims_value: Variant = record.get("casus_belli", [])
+	var claims: Array = claims_value if claims_value is Array else []
+	for existing_value in claims:
+		if not existing_value is Dictionary:
+			continue
+		var existing: Dictionary = existing_value
+		if int(existing.get("claimant_id", -99)) == claimant_id and str(existing.get("cause", "")) == cause and int(existing.get("expires_turn", 0)) >= turn_number:
+			return existing.duplicate(true)
+	if claims.size() >= 6:
+		claims.pop_front()
+	var normalized_cell: Array = []
+	if source_cell.size() >= 2:
+		normalized_cell = [int(source_cell[0]), int(source_cell[1])]
+	var claim := {
+		"id": "%d:%d:%s:%d" % [claimant_id, target_id, cause, turn_number],
+		"claimant_id": claimant_id,
+		"target_id": target_id,
+		"cause": cause,
+		"created_turn": maxi(1, turn_number),
+		"expires_turn": turn_number + CASUS_BELLI_LIFETIME,
+		"severity": clampi(severity, 1, 3),
+		"source_cell": normalized_cell,
+	}
+	claims.append(claim)
+	record["casus_belli"] = claims
+	set_record(relations, claimant_id, target_id, record)
+	return claim.duplicate(true)
+
+
+static func get_active_casus_belli(
+		record: Dictionary,
+		turn_number: int,
+		claimant_id: int = -99
+) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var claims_value: Variant = record.get("casus_belli", [])
+	if not claims_value is Array:
+		return result
+	for value in claims_value:
+		if not value is Dictionary:
+			continue
+		var claim: Dictionary = value
+		if int(claim.get("expires_turn", 0)) < turn_number:
+			continue
+		if claimant_id != -99 and int(claim.get("claimant_id", -99)) != claimant_id:
+			continue
+		result.append(claim.duplicate(true))
+	return result
+
+
+static func has_active_casus_belli(record: Dictionary, turn_number: int, claimant_id: int = -99) -> bool:
+	return not get_active_casus_belli(record, turn_number, claimant_id).is_empty()
+
+
+static func consume_casus_belli(
+		relations: Dictionary,
+		claimant_id: int,
+		target_id: int,
+		turn_number: int
+) -> Dictionary:
+	var record := get_record(relations, claimant_id, target_id)
+	var claims: Array = []
+	var consumed: Dictionary = {}
+	var claims_value: Variant = record.get("casus_belli", [])
+	if claims_value is Array:
+		for value in claims_value:
+			if not value is Dictionary:
+				continue
+			var claim: Dictionary = value
+			if consumed.is_empty() and int(claim.get("claimant_id", -99)) == claimant_id and int(claim.get("expires_turn", 0)) >= turn_number:
+				consumed = claim.duplicate(true)
+				continue
+			if int(claim.get("expires_turn", 0)) >= turn_number:
+				claims.append(claim.duplicate(true))
+	record["casus_belli"] = claims
+	set_record(relations, claimant_id, target_id, record)
+	return consumed
+
+
+static func _normalize_casus_belli(raw_value: Variant, first_id: int, second_id: int, kingdom_count: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not raw_value is Array:
+		return result
+	for value in raw_value:
+		if not value is Dictionary or result.size() >= 6:
+			continue
+		var raw_claim: Dictionary = value
+		var claimant_id := int(raw_claim.get("claimant_id", -99))
+		var target_id := int(raw_claim.get("target_id", -99))
+		if claimant_id not in [first_id, second_id] or target_id not in [first_id, second_id] or claimant_id == target_id:
+			continue
+		if claimant_id < PLAYER_ID or claimant_id >= kingdom_count or target_id < PLAYER_ID or target_id >= kingdom_count:
+			continue
+		var cause := str(raw_claim.get("cause", ""))
+		if not CASUS_BELLI_CAUSES.has(cause):
+			continue
+		var cell_value: Variant = raw_claim.get("source_cell", [])
+		var cell: Array = []
+		if cell_value is Array and cell_value.size() >= 2:
+			cell = [clampi(int(cell_value[0]), -999, 999), clampi(int(cell_value[1]), -999, 999)]
+		result.append({
+			"id": str(raw_claim.get("id", "%d:%d:%s:%d" % [claimant_id, target_id, cause, int(raw_claim.get("created_turn", 1))])),
+			"claimant_id": claimant_id,
+			"target_id": target_id,
+			"cause": cause,
+			"created_turn": clampi(int(raw_claim.get("created_turn", 1)), 1, 100000000),
+			"expires_turn": clampi(int(raw_claim.get("expires_turn", 1)), 1, 100000000),
+			"severity": clampi(int(raw_claim.get("severity", 1)), 1, 3),
+			"source_cell": cell,
+		})
+	return result
+
+
+static func _maybe_create_player_war_call(
+		pending_offers: Array[Dictionary],
+		relations: Dictionary,
+		kingdoms: Array[Dictionary],
+		first_id: int,
+		second_id: int,
+		turn_number: int
+) -> Dictionary:
+	var first_record := get_record(relations, PLAYER_ID, first_id)
+	var second_record := get_record(relations, PLAYER_ID, second_id)
+	var first_allied := str(first_record.get("treaty", "peace")) == "alliance" and treaty_is_active(first_record, turn_number)
+	var second_allied := str(second_record.get("treaty", "peace")) == "alliance" and treaty_is_active(second_record, turn_number)
+	if first_allied == second_allied:
+		return {}
+	var caller_id := first_id if first_allied else second_id
+	var enemy_id := second_id if first_allied else first_id
+	if caller_id < 0 or caller_id >= kingdoms.size() or enemy_id < 0 or enemy_id >= kingdoms.size():
+		return {}
+	if not bool(kingdoms[caller_id].get("alive", true)) or not bool(kingdoms[enemy_id].get("alive", true)):
+		return {}
+	var player_enemy_record := get_record(relations, PLAYER_ID, enemy_id)
+	if str(player_enemy_record.get("treaty", "peace")) == "war":
+		return {}
+	for offer in pending_offers:
+		if int(offer.get("kingdom_id", -99)) == caller_id and int(offer.get("enemy_kingdom_id", -99)) == enemy_id and str(offer.get("action", "")) == "call_to_war":
+			return {}
+	if pending_offers.size() >= MAX_PENDING_OFFERS:
+		return {}
+	var caller_record := get_record(relations, PLAYER_ID, caller_id)
+	if turn_number - int(caller_record.get("last_war_call_turn", 0)) < WAR_CALL_COOLDOWN:
+		return {}
+	var claim_record := get_record(relations, caller_id, enemy_id)
+	var active_claims := get_active_casus_belli(claim_record, turn_number, caller_id)
+	var cause := str(active_claims[0].get("cause", "ally_attacked")) if not active_claims.is_empty() else "ally_attacked"
+	var offer := {
+		"offer_id": "%d:call_to_war:%d:%d" % [caller_id, enemy_id, turn_number],
+		"kingdom_id": caller_id,
+		"enemy_kingdom_id": enemy_id,
+		"action": "call_to_war",
+		"war_cause": cause,
+		"created_turn": turn_number,
+		"expires_turn": turn_number + WAR_CALL_RESPONSE_TURNS,
+	}
+	pending_offers.append(offer)
+	caller_record["last_war_call_turn"] = turn_number
+	set_record(relations, PLAYER_ID, caller_id, caller_record)
+	return offer.duplicate(true)
+
+
+static func _apply_war_call_refusal(
+		relations: Dictionary,
+		caller_id: int,
+		turn_number: int
+) -> int:
+	if caller_id < 0:
+		return 0
+	var next_relation := change_relation(relations, PLAYER_ID, caller_id, -WAR_CALL_REFUSAL_PENALTY, turn_number)
+	var record := get_record(relations, PLAYER_ID, caller_id)
+	if str(record.get("treaty", "peace")) == "alliance" and next_relation <= -45:
+		set_treaty(relations, PLAYER_ID, caller_id, "peace", turn_number)
+		var broken_record := get_record(relations, PLAYER_ID, caller_id)
+		broken_record["truce_until"] = turn_number + TRUCE_DURATION
+		set_record(relations, PLAYER_ID, caller_id, broken_record)
+	return next_relation
 
 
 static func set_treaty(
