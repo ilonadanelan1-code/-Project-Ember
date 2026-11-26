@@ -625,8 +625,10 @@ static func normalize_relations(
 			var war_reason := str(raw_record.get("war_reason", "none"))
 			var allowed_war_reasons := ["none", "player_declaration", "battle_provocation", "border_tension", "resolved"] + CASUS_BELLI_CAUSES + ["ally_call", "unjustified_declaration"]
 			record["war_reason"] = war_reason if allowed_war_reasons.has(war_reason) else "none"
-			record["war_initiator_id"] = clampi(int(raw_record.get("war_initiator_id", -99)), PLAYER_ID, kingdom_count - 1)
-			record["war_target_id"] = clampi(int(raw_record.get("war_target_id", -99)), PLAYER_ID, kingdom_count - 1)
+			var raw_initiator_id := int(raw_record.get("war_initiator_id", -99))
+			var raw_target_id := int(raw_record.get("war_target_id", -99))
+			record["war_initiator_id"] = -99 if raw_initiator_id == -99 else clampi(raw_initiator_id, PLAYER_ID, kingdom_count - 1)
+			record["war_target_id"] = -99 if raw_target_id == -99 else clampi(raw_target_id, PLAYER_ID, kingdom_count - 1)
 			var pair_parts := key.split(":")
 			if pair_parts.size() == 2:
 				record["casus_belli"] = _normalize_casus_belli(raw_record.get("casus_belli", []), int(pair_parts[0]), int(pair_parts[1]), kingdom_count)
