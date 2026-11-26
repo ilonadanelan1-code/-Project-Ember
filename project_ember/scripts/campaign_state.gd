@@ -1087,6 +1087,8 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 		DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "war", turn_number)
 		var provoked_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 		provoked_record["war_reason"] = "battle_provocation"
+		provoked_record["war_initiator_id"] = DiplomacyCatalogScript.PLAYER_ID
+		provoked_record["war_target_id"] = kingdom_id
 		DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, provoked_record)
 		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -35, turn_number)
 		_record_diplomacy_event("Ты нарушил мир и начал войну с державой «%s»." % str(target_kingdom.get("name", "Королевство")))
@@ -2697,6 +2699,8 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			var call_is_valid := enemy_id >= 0 and enemy_id < kingdoms.size() and enemy_id != kingdom_id
 			call_is_valid = call_is_valid and str(caller_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(caller_record, turn_number)
 			call_is_valid = call_is_valid and str(enemy_record.get("treaty", "peace")) == "war"
+			call_is_valid = call_is_valid and bool(kingdoms[enemy_id].get("alive", true))
+			call_is_valid = call_is_valid and str(DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id).get("treaty", "peace")) != "war"
 			var expired_call := turn_number > int(offer.get("expires_turn", 0))
 			if expired_call:
 				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
