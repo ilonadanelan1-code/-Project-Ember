@@ -1,6 +1,8 @@
 extends RefCounted
 class_name GameIconCatalog
 
+const VisualAssetCatalogScript = preload("res://scripts/visual_asset_catalog.gd")
+
 ## One place for all supplied strategy-game icon packs.
 ## UI uses the Gridwright 2x set; map settlements use the high-resolution
 ## Pixel Fantasy set while compact button icons use its 32x32 sprites.
@@ -44,6 +46,17 @@ static func command_icon(icon_id: String) -> Texture2D:
 
 
 static func unit_icon(role_id: String) -> Texture2D:
+	var medieval_icon_id := ""
+	match role_id:
+		"melee": medieval_icon_id = "knight"
+		"ranged": medieval_icon_id = "archer"
+		"spear": medieval_icon_id = "guard"
+		"cavalry": medieval_icon_id = "horse"
+		"worker", "settler": medieval_icon_id = "peasant"
+	if not medieval_icon_id.is_empty():
+		var medieval_icon := VisualAssetCatalogScript.get_frame("castle", medieval_icon_id)
+		if is_instance_valid(medieval_icon):
+			return medieval_icon
 	match role_id:
 		"melee":
 			return _UNIT_INFANTRY
@@ -74,6 +87,14 @@ static func settlement_icon(settlement_id: String, high_resolution: bool = false
 		if ResourceLoader.exists(path):
 			return load(path) as Texture2D
 	return null
+
+
+static func medieval_prop_icon(prop_id: String) -> Texture2D:
+	return VisualAssetCatalogScript.get_frame("castle", prop_id)
+
+
+static func faction_banner_icon(faction_index: int) -> Texture2D:
+	return VisualAssetCatalogScript.get_faction_banner(faction_index)
 
 
 static func map_marker_icon(marker_id: String) -> Texture2D:
