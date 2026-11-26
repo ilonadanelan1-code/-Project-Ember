@@ -154,7 +154,7 @@ jobs:
         shell: bash
         env:
           GODOT_BIN: godot
-          EMBER_QA_ARTIFACTS: $RUNNER_TEMP/ember-smoke
+          EMBER_QA_ARTIFACTS: ${{ runner.temp }}/ember-smoke
         run: |
           set -euo pipefail
           log_file="$(mktemp)"
