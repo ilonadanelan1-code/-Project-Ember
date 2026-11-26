@@ -395,6 +395,10 @@ func get_player_army_spawn_cell(origin: Vector2i) -> Vector2i:
 			if army_cell == candidate and army_id != selected_player_army_id:
 				occupied_by_player_army = true
 				break
+		if WorldLocationCatalogScript.has_location_at(neutral_locations, candidate):
+			continue
+		if settler_active and settler_cell == candidate:
+			continue
 		if not occupied_by_player_army:
 			return candidate
 	return Vector2i(9999, 9999)
@@ -1589,7 +1593,8 @@ func can_queue_recruit(role_name: String) -> bool:
 	var unlock_building := str(data.get("unlock_building", "barracks"))
 	if not city_has_building(unlock_building):
 		return false
-	if _count_queued_recruits() + player_units.size() >= ARMY_CAPACITY:
+	_sync_selected_player_army_from_legacy()
+	if _count_queued_recruits(selected_player_army_id) + player_units.size() >= ARMY_CAPACITY:
 		return false
 	return city_gold >= int(data.get("gold_cost", 0))
 
@@ -1605,8 +1610,9 @@ func queue_recruit(role_name: String) -> bool:
 		"id": role_name,
 		"name": recruit_name,
 		"production_cost": int(data.get("production_cost", 1)),
+		"army_id": selected_player_army_id,
 	})
-	city_last_event = "%s добавлен в очередь найма." % recruit_name
+	city_last_event = "%s добавлен в очередь найма выбранной армии." % recruit_name
 	save_campaign()
 	return true
 
@@ -1723,7 +1729,7 @@ func advance_campaign_turn() -> void:
 		kingdoms,
 		turn_number,
 		world_seed,
-		_get_army_power(player_units),
+		get_player_army_total_power(),
 		pending_diplomacy_offers,
 		_get_player_diplomacy_sources()
 	)
@@ -2177,6 +2183,15 @@ func get_kingdom_index_at_army(cell: Vector2i) -> int:
 	return -1
 
 
+
+
+func get_player_army_total_power() -> float:
+	_sync_selected_player_army_from_legacy()
+	var total_power := 0.0
+	for army_record in player_armies:
+		total_power += _get_army_power(army_record.get("units", []))
+	return total_power
+
 func get_total_enemy_units() -> int:
 	var total := 0
 	for kingdom in kingdoms:
@@ -2185,7 +2200,8 @@ func get_total_enemy_units() -> int:
 
 
 func get_world_owner_at(cell: Vector2i) -> int:
-	return TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms)
+	_sync_selected_player_army_from_legacy()
+	return TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms, player_armies)
 
 
 func _sync_primary_kingdom() -> void:
@@ -2217,7 +2233,7 @@ func _find_settler_spawn_cell(origin: Vector2i) -> Vector2i:
 			continue
 		if WorldLocationCatalogScript.has_location_at(neutral_locations, candidate):
 			continue
-		if candidate == player_cell or candidate == enemy_cell:
+		if candidate == player_cell or candidate == enemy_cell or not get_player_army_at(candidate).is_empty():
 			continue
 		var occupied_by_kingdom := false
 		for kingdom in kingdoms:
@@ -2266,10 +2282,19 @@ func _process_city_queue() -> void:
 					city_province_improvements.append({"id": order_id, "cell": [cell.x, cell.y]})
 					city_last_event += "%s завершено. " % order_name
 		elif order_kind == "recruit":
-			if UNIT_CATALOG_SCRIPT.is_valid_role(order_id) and player_units.size() < ARMY_CAPACITY:
-				var max_health: float = UNIT_CATALOG_SCRIPT.get_max_health(order_id)
-				player_units.append({"role": order_id, "health": max_health, "experience": 0})
-				city_last_event += "%s прибыл в армию. " % order_name
+			var target_army_id := str(order.get("army_id", PRIMARY_PLAYER_ARMY_ID))
+			var target_army_index := _get_player_army_index(target_army_id)
+			if target_army_index >= 0 and UNIT_CATALOG_SCRIPT.is_valid_role(order_id):
+				var target_army: Dictionary = player_armies[target_army_index]
+				var target_units := _read_unit_records(target_army.get("units", []))
+				if target_units.size() < ARMY_CAPACITY:
+					var max_health: float = UNIT_CATALOG_SCRIPT.get_max_health(order_id)
+					target_units.append({"role": order_id, "health": max_health, "experience": 0})
+					target_army["units"] = target_units
+					player_armies[target_army_index] = target_army
+					if target_army_id == selected_player_army_id:
+						_load_selected_player_army_to_legacy()
+					city_last_event += "%s прибыл в армию «%s». " % [order_name, str(target_army.get("name", "Армия"))]
 		elif order_kind == "settler" and not settler_active:
 			settler_active = true
 			settler_cell = _find_settler_spawn_cell(city_cell)
@@ -2278,19 +2303,29 @@ func _process_city_queue() -> void:
 	if city_last_event.is_empty():
 		city_last_event = "Город получил ресурсы за ход."
 
-func _count_queued_recruits() -> int:
+func _count_queued_recruits(army_id: String = "") -> int:
+	var target_army_id := army_id if not army_id.is_empty() else selected_player_army_id
 	var count := 0
 	for i in range(cities.size()):
 		var orders: Array = city_build_queue if i == active_city_id else cities[i].get("build_queue", [])
-		for order in orders:
-			if str(order.get("kind", "")) == "recruit":
+		for order_value in orders:
+			if not order_value is Dictionary:
+				continue
+			var order: Dictionary = order_value
+			if str(order.get("kind", "")) != "recruit":
+				continue
+			var queued_army_id := str(order.get("army_id", PRIMARY_PLAYER_ARMY_ID))
+			if queued_army_id == target_army_id:
 				count += 1
 	return count
 
 
 func _remove_conflicting_neutral_locations() -> void:
 	var occupied: Dictionary = {}
-	occupied["%d:%d" % [player_cell.x, player_cell.y]] = true
+	_sync_selected_player_army_from_legacy()
+	for army_record in player_armies:
+		var player_army_cell := WorldGeneratorScript.array_to_cell(army_record.get("cell", []))
+		occupied["%d:%d" % [player_army_cell.x, player_army_cell.y]] = true
 	for city in cities:
 		var city_cell_value := WorldGeneratorScript.array_to_cell(city.get("cell", []))
 		occupied["%d:%d" % [city_cell_value.x, city_cell_value.y]] = true
