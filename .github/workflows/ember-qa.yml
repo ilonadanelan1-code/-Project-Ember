@@ -62,7 +62,9 @@ jobs:
           grep -q '^4\.7\.2' "$RUNNER_TEMP/godot/version.txt"
 
       - name: Validate project files and atlas checksums
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p "$EMBER_QA_ARTIFACTS"
           python3 project_ember/tools/qa/static_validate.py project_ember | tee "$EMBER_QA_ARTIFACTS/static-validation.txt"
 
