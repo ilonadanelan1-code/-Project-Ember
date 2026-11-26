@@ -45,6 +45,15 @@ func _run() -> void:
 	var second_hero_id := str(second_army.get("hero_id", ""))
 	_check(not second_hero_id.is_empty() and second_hero_id != "hero_ruler", "new army receives a distinct available hero")
 	_check(not state.assign_hero_to_army(primary_id, second_hero_id), "one hero cannot command two armies")
+	var barracks_state: bool = state.city_has_building("barracks")
+	state.city_buildings.append("barracks")
+	state.city_gold = 1000
+	_check(state.queue_recruit(state.ROLE_MELEE), "recruitment order targets the currently selected army")
+	var recruit_queue: Dictionary = state.city_build_queue.back()
+	_check(str(recruit_queue.get("army_id", "")) == second_id if state.city_build_queue.size() > 0 else false, "recruitment order stores the selected army ID")
+	state.city_build_queue.clear()
+	if not barracks_state:
+		state.city_buildings.erase("barracks")
 
 	var second_id: String = state.selected_player_army_id
 	var second_cell: Vector2i = state.player_cell
