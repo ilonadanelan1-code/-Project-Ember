@@ -10,13 +10,14 @@
 
 ## v0.35.0 — Stage V: Multiple Armies & Hero Assignments
 
-- [ ] Introduce stable player army records with independent unit rosters and strategic map positions.
-- [ ] Allow creation, selection, movement and battle entry for more than one player army.
-- [ ] Assign one available hero to each army and prevent assigning the same hero twice.
-- [ ] Migrate the legacy player_units and player_cell fields into the original primary army.
-- [ ] Preserve current troop IDs, role IDs, upgrades, movement rules and campaign save compatibility.
-- [ ] Add multi-army movement, combat, recruitment, recovery and save/load smoke coverage.
-- [ ] Validate map readability, touch selection and performance on Android.
+- [x] Introduce stable player army records with independent unit rosters and strategic map positions.
+- [x] Allow creation by splitting the selected army, map selection and independent movement for multiple player armies.
+- [x] Assign one available hero to each army and prevent assigning the same hero twice.
+- [x] Migrate legacy player_units and player_cell into the original primary army while retaining legacy save fields.
+- [x] Preserve existing unit records, role IDs, per-army upgrades, movement allowance and campaign save version.
+- [x] Add initial army creation, assignment, movement, legacy migration and save/load smoke coverage.
+- [ ] Complete multi-army combat handoff, city recruitment, hero recovery and battle result coverage.
+- [ ] Validate map readability, touch selection and performance on the target Android device.
 
 ## v0.36.0 — Stage VI: Hero Equipment & Loot
 
