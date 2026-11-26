@@ -2621,7 +2621,7 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 		return {"ok": false, "message": str(preview.get("reason", "Действие недоступно."))}
 	var kingdom_name := str(kingdoms[kingdom_id].get("name", "Королевство"))
 	if action_id == "declare_war":
-		var player_claims := DiplomacyCatalogScript.get_active_casus_belli(preview, turn_number, DiplomacyCatalogScript.PLAYER_ID)
+		var player_claims := DiplomacyCatalogScript.get_active_casus_belli(get_diplomacy_record(kingdom_id), turn_number, DiplomacyCatalogScript.PLAYER_ID)
 		DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "war", turn_number)
 		var declared_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 		var war_reason := str(player_claims[0].get("cause", "border_encroachment")) if not player_claims.is_empty() else "player_declaration"
