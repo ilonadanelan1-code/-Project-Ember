@@ -5,13 +5,16 @@ Last audited working build: **v0.38.2 — Godot Audit Hotfix** (2026-11-26).
 ## Repository
 - Repository: https://github.com/ilonadanelan1-code/-Project-Ember
 - Default branch: `main`
-- Existing upstream game branch: `release/v0.36.1`
-- Upstream commit used as lineage by the uploaded build: `5ddd271c3ccda799e9db681680f59bd8bdb9e2da`
+- Upstream baseline: `release/v0.36.1`, commit `5ddd271c3ccda799e9db681680f59bd8bdb9e2da`
+- **Current imported source branch:** `release/v0.38.2-godot-audited`
+- **Current source commit:** `23c0d5c4580b4d5058579e8a0fb71e090ee2032a`
+- Import metadata follow-up commit: `803f0dd58083df95e5ea6c421bb062f13394ec84`
+- Latest CI workflow-only commits after import are recorded in the source branch history.
 
 ## Important publishing status
-The full playable v0.38.2 ZIP was audited and built in the ChatGPT session, but **the complete v0.38.2 source snapshot has not yet been imported to this repository**. This handoff file is a context marker, not a replacement for the game source. Do not claim that the current playable archive has been pushed until a release/source branch containing the files is verified.
+The full playable v0.38.2 ZIP is published as GitHub Release asset [`Project-Ember-v0.38.2-Godot-Audited.zip`](https://github.com/ilonadanelan1-code/-Project-Ember/releases/download/v0.38.2/Project-Ember-v0.38.2-Godot-Audited.zip). The source-only project snapshot has been imported to [`release/v0.38.2-godot-audited`](https://github.com/ilonadanelan1-code/-Project-Ember/tree/release/v0.38.2-godot-audited). The importer workflow completed successfully, including archive verification, source extraction and static validation.
 
-A one-time importer is now committed at [`.github/workflows/import-v0382-release.yml`](.github/workflows/import-v0382-release.yml). To finish the import, publish a GitHub Release tagged `v0.38.2` with the exact asset `Project-Ember-v0.38.2-Godot-Audited.zip`, then run **Actions → Import audited Project Ember v0.38.2 archive → Run workflow**. It will import the source-only tree to `release/v0.38.2-godot-audited`, omit the licensed atlas and manifest from public source, and run static source validation. The existing Godot 4.7.2 QA workflow should then validate the new branch.
+The first post-import Godot QA run exposed a CI script permission issue, and the old package workflow assumed the licensed atlas existed in source. Both workflow defects were corrected in the release branch: smoke tests are called via bash, packaging now uses Godot 4.7.2, and the atlas/manifest are restored from the release ZIP in the temporary CI workspace only (not committed to the public source). The updated package workflow completed successfully and uploaded complete playable artifacts. The latest dedicated Godot 4.7.2 QA run is **currently in progress**: https://github.com/ilonadanelan1-code/-Project-Ember/actions/runs/45845170388. Recheck this run before starting new work.
 
 The user-provided playable ZIP contains the Tiny Swords combat atlas and animation manifest. The project policy excludes those licensed binaries from the public source repository; they remain in the playable ZIP.
 
