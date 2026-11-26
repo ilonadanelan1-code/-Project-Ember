@@ -47,15 +47,21 @@ func _run() -> void:
 	_check(not state.assign_hero_to_army(primary_id, second_hero_id), "one hero cannot command two armies")
 	var second_id: String = state.selected_player_army_id
 	var barracks_state: bool = state.city_has_building("barracks")
-	state.city_buildings.append("barracks")
+	if not barracks_state:
+		state.city_buildings.append("barracks")
 	state.city_gold = 1000
-	_check(state.queue_recruit(state.ROLE_MELEE), "recruitment order targets the currently selected army")
+	var second_units_before_recruit: int = state.player_units.size()
+	_check(state.queue_recruit(state.ROLE_MELEE), "recruitment order can be issued for the selected army")
 	var recruit_queue: Dictionary = state.city_build_queue.back()
-	_check(str(recruit_queue.get("army_id", "")) == second_id if state.city_build_queue.size() > 0 else false, "recruitment order stores the selected army ID")
-	state.city_build_queue.clear()
+	_check(str(recruit_queue.get("army_id", "")) == second_id, "recruitment order stores the selected army ID")
+	state.city_production_bank = 100
+	_check(state.select_player_army(primary_id), "primary army can be selected while another army has a recruit order")
+	state._process_city_queue()
+	_check(state.player_units.size() == original_units - (original_units / 2), "recruit completion does not add troops to the wrong selected army")
+	_check(state.select_player_army(second_id), "army with pending recruitment can be selected again")
+	_check(state.player_units.size() == second_units_before_recruit + 1, "recruit completion adds the unit to its originally assigned army")
 	if not barracks_state:
 		state.city_buildings.erase("barracks")
-
 	var second_cell: Vector2i = state.player_cell
 	_check(state.select_player_army(primary_id), "primary army can be selected independently")
 	_check(state.player_cell == original_cell, "selecting the primary army restores its own map position")
