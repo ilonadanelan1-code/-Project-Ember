@@ -61,6 +61,43 @@ jobs:
           "$GODOT_BIN" --version | tee "$RUNNER_TEMP/godot/version.txt"
           grep -q '^4\.7\.2' "$RUNNER_TEMP/godot/version.txt"
 
+      - name: Restore licensed Tiny Swords atlas from the audited release (CI workspace only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ember-release"
+          gh release download v0.38.2 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "Project-Ember-v0.38.2-Godot-Audited.zip" \
+            --dir "$RUNNER_TEMP/ember-release"
+          python3 - "$RUNNER_TEMP/ember-release/Project-Ember-v0.38.2-Godot-Audited.zip" <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib
+          import sys
+
+          archive_path = Path(sys.argv[1])
+          expected = {
+              "combat_units_atlas.png": "ee07ed04f8856859af89590f3412b5865959d9ac19bd2f669268778eed45cf00",
+              "atlas_manifest.json": "ff3b8b74ccf36c4c1cbc3d800acae42a9bbf047c774689fbec39073e81e95c2b",
+          }
+          target = Path("project_ember/assets/combat/tiny_swords")
+          target.mkdir(parents=True, exist_ok=True)
+          with ZipFile(archive_path) as zf:
+              for name, digest in expected.items():
+                  matches = [item for item in zf.namelist() if item.endswith(f"assets/combat/tiny_swords/{name}")]
+                  if len(matches) != 1:
+                      raise SystemExit(f"Expected one {name} in playable release; found {len(matches)}")
+                  data = zf.read(matches[0])
+                  actual = hashlib.sha256(data).hexdigest()
+                  if actual != digest:
+                      raise SystemExit(f"SHA-256 mismatch for {name}: {actual}")
+                  (target / name).write_bytes(data)
+                  print(f"Restored {name} in QA workspace only; sha256={actual}")
+          PY
+
       - name: Validate project files and atlas checksums
         shell: bash
         run: |
