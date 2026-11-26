@@ -198,9 +198,9 @@ func _run() -> void:
 	_check(str(border_claims[0].get("cause", "")) == "border_encroachment", "border claim records its concrete reason")
 	var outpost_claim_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
 	var outpost_claim_kingdoms: Array[Dictionary] = [
-		{"id": 0, "alive": true, "name": "Пограничная держава", "cities": [{"cell": [6, 0]}], "outposts": [], "army": []},
+		{"id": 0, "alive": true, "name": "Пограничная держава", "cities": [{"cell": [3, 0]}], "outposts": [], "army": []},
 	]
-	var player_outpost_sources: Array[Vector2i] = [Vector2i(5, 0)]
+	var player_outpost_sources: Array[Vector2i] = [Vector2i(2, 0)]
 	DiplomacyCatalogScript.process_turn(
 		outpost_claim_relations,
 		outpost_claim_kingdoms,
