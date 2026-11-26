@@ -61,6 +61,7 @@ var _diplomacy_selected_kingdom_id: int = -1
 var _selected_kingdom_id: int = -1
 var _army_selected: bool = false
 var _status_label: Label
+var _arcane_status_label: Label
 var _message_label: Label
 var _hud_resource_labels: Dictionary = {}
 var _city_resource_labels: Dictionary = {}
@@ -584,6 +585,7 @@ func _draw_province_improvements() -> void:
 				"woodland_camp": marker_color = Color("#79a879")
 				"stone_quarry": marker_color = Color("#a6aab0")
 				"watchtower": marker_color = Color("#e5a14a")
+			"arcane_conduit": marker_color = Color("#82d7e8")
 			draw_circle(screen_point, maxf(2.2, 3.0 * _map_zoom), marker_color)
 			draw_arc(screen_point, maxf(3.0, 4.0 * _map_zoom), 0.0, TAU, 12, Color(0.08, 0.07, 0.05, 0.9), 1.0)
 			if improvement_id == "watchtower":
@@ -846,7 +848,7 @@ func _create_ui() -> void:
 	top_panel.offset_left = UiMetrics.dp(10.0)
 	top_panel.offset_top = UiMetrics.dp(8.0)
 	top_panel.offset_right = -UiMetrics.dp(10.0)
-	top_panel.offset_bottom = UiMetrics.dp(78.0)
+	top_panel.offset_bottom = UiMetrics.dp(94.0)
 	root.add_child(top_panel)
 
 	var top_box := VBoxContainer.new()
@@ -859,6 +861,12 @@ func _create_ui() -> void:
 	_status_label.clip_text = true
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	top_box.add_child(_status_label)
+	_arcane_status_label = Label.new()
+	_arcane_status_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(10))
+	_arcane_status_label.add_theme_color_override("font_color", Color("#91d9e8"))
+	_arcane_status_label.clip_text = true
+	_arcane_status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	top_box.add_child(_arcane_status_label)
 
 	var hud_resources := HBoxContainer.new()
 	hud_resources.add_theme_constant_override("separation", int(UiMetrics.dp(10.0)))
@@ -3102,8 +3110,13 @@ func _refresh_ui() -> void:
 		var selected_kingdom_valid := _selected_kingdom_id >= 0 and _selected_kingdom_id < CampaignState.kingdoms.size()
 		var selected_army_cell := WorldGeneratorScript.array_to_cell(CampaignState.kingdoms[_selected_kingdom_id].get("army_cell", [])) if selected_kingdom_valid else CampaignState.enemy_cell
 		_attack_button.disabled = not selected_kingdom_valid or _hex_distance(CampaignState.player_cell, selected_army_cell) > 1 or CampaignState.player_units.is_empty()
+	if is_instance_valid(_arcane_status_label):
+		_arcane_status_label.text = CampaignState.get_arcane_victory_summary()
+		if CampaignState.campaign_winner_id != -2:
+			_arcane_status_label.text = "МАГИЧЕСКАЯ ПОБЕДА: " + CampaignState.get_campaign_winner_name()
+			_arcane_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
 	if is_instance_valid(_turn_button):
-		_turn_button.disabled = CampaignState.campaign_lost
+		_turn_button.disabled = CampaignState.campaign_lost or CampaignState.campaign_winner_id != -2
 	if is_instance_valid(_selection_button):
 		_selection_button.disabled = CampaignState.campaign_lost or CampaignState.player_armies.is_empty()
 	if is_instance_valid(_split_army_button):
