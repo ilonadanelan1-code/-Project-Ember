@@ -1038,7 +1038,7 @@ static func process_turn(
 				var first_is_aggressive := first_personality_id in ["aggressor", "expansionist"]
 				var second_is_aggressive := second_personality_id in ["aggressor", "expansionist"]
 				var rivalry := first_is_aggressive or second_is_aggressive
-				if rivalry and rival_border_distance <= BORDER_TENSION_DISTANCE and ai_relation <= -50:
+				if rivalry and rival_border_distance <= BORDER_TENSION_DISTANCE and int(record.get("relation", 0)) <= -50:
 					var claimant_id := first_id if first_is_aggressive else second_id
 					var disputed_id := second_id if claimant_id == first_id else first_id
 					create_casus_belli(relations, claimant_id, disputed_id, "border_encroachment", turn_number, 2 if rival_border_distance <= 2 else 1)
