@@ -106,6 +106,32 @@ jobs:
             echo "Hero progression tests reported an unexpected error." >&2
             exit 1
           fi
+      - name: Assemble source ZIP when licensed combat atlas is absent
+        if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cat > dist/BUILD-LIMITATIONS.txt <<'EOF'
+          Project Ember v0.36.1 — source-only archive
+          This package contains the Godot project code and tracked assets from GitHub.
+          It is not a complete playable release: the licensed Tiny Swords runtime atlas
+          and atlas_manifest.json are excluded from the public source repository.
+          Restore the owner-provided Tiny Swords (Free Pack) ZIP and run:
+          bash project_ember/tools/assets/package_playable_release.sh
+          EOF
+          zip -qr dist/Project-Ember-v0.36.1-source.zip project_ember README.md RELEASE_v0.36.1.md dist/BUILD-LIMITATIONS.txt
+          unzip -tq dist/Project-Ember-v0.36.1-source.zip
+
+      - name: Upload source-only archive
+        if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-Ember-v0.36.1-source
+          path: dist/Project-Ember-v0.36.1-source.zip
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Explain why source-only checkout cannot produce a playable archive
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
         run: |
