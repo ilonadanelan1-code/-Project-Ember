@@ -18,6 +18,7 @@ const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
 const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
 const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
 const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
+const ArcaneVictoryCatalogScript = preload("res://scripts/arcane_victory_catalog.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -95,6 +96,9 @@ var world_generation_version: int = WorldGeneratorScript.WORLD_GENERATION_VERSIO
 var kingdoms: Array[Dictionary] = []
 var diplomacy_relations: Dictionary = {}
 var player_diplomacy_profile: Dictionary = {}
+var arcane_victory_progress: int = 0
+var last_arcane_power_gain: int = 0
+var campaign_winner_id: int = -2
 var pending_diplomacy_offers: Array[Dictionary] = []
 var last_diplomacy_events: Array[String] = []
 var last_kingdom_events: Array[String] = []
@@ -232,6 +236,9 @@ func new_campaign(persist: bool = true) -> void:
 	player_faction = FactionCatalogScript.get_legacy_selection()
 	campaign_started = true
 	campaign_lost = false
+	arcane_victory_progress = 0
+	last_arcane_power_gain = 0
+	campaign_winner_id = -2
 	turn_number = 1
 	battle_reward_counter = 0
 	player_moves_left = 1
@@ -2468,6 +2475,8 @@ func get_city_queue_summary() -> String:
 
 
 func advance_campaign_turn() -> void:
+	if campaign_winner_id != -2:
+		return
 	_sync_selected_player_army_from_legacy()
 	turn_number += 1
 	_recover_campaign_heroes()
@@ -2526,10 +2535,131 @@ func advance_campaign_turn() -> void:
 		neutral_locations,
 		player_outpost_cells
 	)
+	_advance_arcane_victory_race()
 	_apply_diplomacy_economy()
 	_sync_primary_kingdom()
 	refresh_fog_of_war()
 	_queue_world_event_if_due()
+
+
+
+func get_arcane_victory_summary() -> String:
+	var leader_id := DiplomacyCatalogScript.PLAYER_ID
+	var leader_progress := arcane_victory_progress
+	var leader_name := "Твоя держава"
+	for kingdom_id in range(kingdoms.size()):
+		var progress := int(kingdoms[kingdom_id].get("arcane_victory_progress", 0))
+		if progress > leader_progress:
+			leader_progress = progress
+			leader_id = kingdom_id
+			leader_name = str(kingdoms[kingdom_id].get("name", "Держава"))
+	var player_label := ArcaneVictoryCatalogScript.get_progress_label(arcane_victory_progress)
+	var leader_label := ArcaneVictoryCatalogScript.get_progress_label(leader_progress)
+	return "МАГИЯ %s · ЛИДЕР: %s %s" % [player_label, leader_name, leader_label]
+
+
+func get_campaign_winner_name() -> String:
+	if campaign_winner_id == DiplomacyCatalogScript.PLAYER_ID:
+		return str(player_faction.get("kingdom_name", "Твоя держава"))
+	if campaign_winner_id >= 0 and campaign_winner_id < kingdoms.size():
+		return str(kingdoms[campaign_winner_id].get("name", "Держава"))
+	return ""
+
+
+func _advance_arcane_victory_race() -> void:
+	if campaign_winner_id != -2:
+		return
+	last_arcane_power_gain = ArcaneVictoryCatalogScript.calculate_turn_power(
+		neutral_locations,
+		cities,
+		player_diplomacy_profile,
+		DiplomacyCatalogScript.PLAYER_ID
+	)
+	arcane_victory_progress = ArcaneVictoryCatalogScript.advance_progress(
+		arcane_victory_progress,
+		last_arcane_power_gain
+	)
+	for kingdom_id in range(kingdoms.size()):
+		var kingdom: Dictionary = kingdoms[kingdom_id]
+		if not bool(kingdom.get("alive", true)):
+			continue
+		var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+		var profile: Dictionary = profile_value if profile_value is Dictionary else {}
+		var power_gain := ArcaneVictoryCatalogScript.calculate_turn_power(
+			neutral_locations,
+			kingdom.get("cities", []),
+			profile,
+			kingdom_id
+		)
+		kingdom["arcane_victory_progress"] = ArcaneVictoryCatalogScript.advance_progress(
+			int(kingdom.get("arcane_victory_progress", 0)),
+			power_gain
+		)
+		kingdoms[kingdom_id] = kingdom
+	_apply_arcane_containment_pressure()
+
+	var winner_progress := -1
+	var winner_id := -2
+	if arcane_victory_progress >= ArcaneVictoryCatalogScript.VICTORY_THRESHOLD:
+		winner_progress = arcane_victory_progress
+		winner_id = DiplomacyCatalogScript.PLAYER_ID
+	for kingdom_id in range(kingdoms.size()):
+		var progress := int(kingdoms[kingdom_id].get("arcane_victory_progress", 0))
+		if progress < ArcaneVictoryCatalogScript.VICTORY_THRESHOLD:
+			continue
+		if progress > winner_progress:
+			winner_progress = progress
+			winner_id = kingdom_id
+	if winner_id != -2:
+		campaign_winner_id = winner_id
+		var winner_name := get_campaign_winner_name()
+		if winner_id == DiplomacyCatalogScript.PLAYER_ID:
+			last_world_event_text = "Магическое восхождение завершено. Твоя держава объединила силу узлов лей-линий и одержала победу."
+		else:
+			last_world_event_text = "Держава «%s» завершила магическое восхождение и победила в гонке за мировое господство." % winner_name
+		last_diplomacy_events.append(last_world_event_text)
+		save_campaign()
+
+
+func _apply_arcane_containment_pressure() -> void:
+	var leader_id := -2
+	var leader_progress := -1
+	for kingdom_id in range(kingdoms.size()):
+		if not bool(kingdoms[kingdom_id].get("alive", true)):
+			continue
+		var progress := int(kingdoms[kingdom_id].get("arcane_victory_progress", 0))
+		if progress > leader_progress:
+			leader_progress = progress
+			leader_id = kingdom_id
+	if arcane_victory_progress > leader_progress:
+		leader_progress = arcane_victory_progress
+		leader_id = DiplomacyCatalogScript.PLAYER_ID
+	if leader_id == -2 or not ArcaneVictoryCatalogScript.needs_containment(leader_progress):
+		return
+	for claimant_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+		if claimant_id == leader_id:
+			continue
+		if claimant_id >= 0 and not bool(kingdoms[claimant_id].get("alive", true)):
+			continue
+		var claimant_progress := arcane_victory_progress if claimant_id == DiplomacyCatalogScript.PLAYER_ID else int(kingdoms[claimant_id].get("arcane_victory_progress", 0))
+		if leader_progress - claimant_progress < ArcaneVictoryCatalogScript.CONTAINMENT_LEAD_MARGIN:
+			continue
+		var created_claim := DiplomacyCatalogScript.create_casus_belli(
+			diplomacy_relations,
+			claimant_id,
+			leader_id,
+			"victory_race",
+			turn_number,
+			3
+		)
+		if not created_claim.is_empty() and int(created_claim.get("created_turn", -1)) == turn_number:
+			var target_name := "Твоя держава" if leader_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[leader_id].get("name", "Держава"))
+			var claimant_name := "Ты" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[claimant_id].get("name", "Соперник"))
+			last_diplomacy_events.append("%s выдвигает претензию на сдерживание магического лидера «%s»." % [claimant_name, target_name])
+		if turn_number % 3 == posmod(absi(claimant_id) + absi(leader_id), 3):
+			var relation := DiplomacyCatalogScript.get_record(diplomacy_relations, claimant_id, leader_id)
+			if str(relation.get("treaty", "peace")) != "war":
+				DiplomacyCatalogScript.change_relation(diplomacy_relations, claimant_id, leader_id, -3, turn_number)
 
 
 func _get_player_diplomacy_sources() -> Array[Vector2i]:
@@ -3250,6 +3380,9 @@ func save_campaign() -> bool:
 		"world_events_resolved": world_events_resolved,
 		"kingdoms": kingdoms,
 		"player_diplomacy_profile": player_diplomacy_profile,
+		"arcane_victory_progress": arcane_victory_progress,
+		"last_arcane_power_gain": last_arcane_power_gain,
+		"campaign_winner_id": campaign_winner_id,
 		"diplomacy_relations": diplomacy_relations,
 		"pending_diplomacy_offers": pending_diplomacy_offers,
 		"campaign_lost": campaign_lost,
@@ -3402,6 +3535,9 @@ func load_campaign() -> bool:
 
 	campaign_started = true
 	campaign_lost = lost
+	arcane_victory_progress = clampi(int(data.get("arcane_victory_progress", 0)), 0, ArcaneVictoryCatalogScript.VICTORY_THRESHOLD)
+	last_arcane_power_gain = clampi(int(data.get("last_arcane_power_gain", 0)), 0, ArcaneVictoryCatalogScript.MAX_TURN_POWER)
+	campaign_winner_id = clampi(int(data.get("campaign_winner_id", -2)), -2, KINGDOM_COUNT - 1)
 	turn_number = maxi(1, int(data.get("turn_number", 1)))
 	player_moves_left = clampi(int(data.get("player_moves_left", 1)), 0, 1)
 	player_cell = Vector2i(int(player_cell_data[0]), int(player_cell_data[1]))
