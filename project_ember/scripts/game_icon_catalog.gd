@@ -104,6 +104,23 @@ static func map_marker_icon(marker_id: String) -> Texture2D:
 
 
 static func building_icon(building_id: String) -> Texture2D:
+	var medieval_icon_id := ""
+	match building_id:
+		"farm":
+			medieval_icon_id = "cottage"
+		"market":
+			medieval_icon_id = "market_stall"
+		"workshop":
+			medieval_icon_id = "windmill"
+		"barracks":
+			medieval_icon_id = "castle_tower"
+		"archery_range":
+			medieval_icon_id = "archer"
+		"stable":
+			medieval_icon_id = "horse"
+	var medieval_icon := VisualAssetCatalogScript.get_frame("castle", medieval_icon_id) if not medieval_icon_id.is_empty() else null
+	if is_instance_valid(medieval_icon):
+		return medieval_icon
 	var icon_id := ""
 	match building_id:
 		"farm":
