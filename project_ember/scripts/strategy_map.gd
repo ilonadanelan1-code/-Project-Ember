@@ -1584,6 +1584,8 @@ func _refresh_diplomacy_panel() -> void:
 			"treaty_breach": war_reason_text = "\nПовод: нарушение договора."
 			"victory_race": war_reason_text = "\nПовод: борьба с лидером магической гонки."
 			"ally_call": war_reason_text = "\nПовод: выполнение союзного призыва."
+	if str(record.get("war_join_reason", "none")) == "ally_call":
+		war_reason_text += "\nТы вступил в конфликт по призыву союзника."
 	var claims_text := _format_casus_belli_claims(record.get("casus_belli", []), CampaignState.turn_number)
 	var overlord_text := ""
 	if treaty_value == "tribute" or treaty_value == "vassal":
