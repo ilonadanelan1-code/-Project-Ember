@@ -201,6 +201,7 @@ func _spawn_commander(team: int, hero_record: Dictionary, spawn_position: Vector
 	unit.commander_leadership = clampi(int(skills.get("leadership", 0)), 0, 5)
 	unit.commander_tactics = clampi(int(skills.get("tactics", 0)), 0, 5)
 	unit.commander_might = clampi(int(skills.get("might", 0)), 0, 5)
+	unit.commander_equipment_modifiers = CampaignState.get_hero_equipment_modifiers(hero_record)
 	var saved_health := float(hero_record.get("health", -1.0))
 	if saved_health < 0.0:
 		unit.starting_health = -1.0
