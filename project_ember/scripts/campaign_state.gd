@@ -2545,6 +2545,7 @@ func advance_campaign_turn() -> void:
 		neutral_locations,
 		player_outpost_cells
 	)
+	_apply_affinity_improvement_claims()
 	_advance_arcane_victory_race()
 	_apply_diplomacy_economy()
 	_sync_primary_kingdom()
@@ -2583,7 +2584,8 @@ func _advance_arcane_victory_race() -> void:
 		neutral_locations,
 		cities,
 		player_diplomacy_profile,
-		DiplomacyCatalogScript.PLAYER_ID
+		DiplomacyCatalogScript.PLAYER_ID,
+		outposts
 	)
 	arcane_victory_progress = ArcaneVictoryCatalogScript.advance_progress(
 		arcane_victory_progress,
@@ -2599,8 +2601,9 @@ func _advance_arcane_victory_race() -> void:
 			neutral_locations,
 			kingdom.get("cities", []),
 			profile,
-			kingdom_id
-		)
+			kingdom_id,
+			kingdom.get("outposts", [])
+	)
 		kingdom["arcane_victory_progress"] = ArcaneVictoryCatalogScript.advance_progress(
 			int(kingdom.get("arcane_victory_progress", 0)),
 			power_gain
@@ -2644,15 +2647,23 @@ func _apply_arcane_containment_pressure() -> void:
 	if arcane_victory_progress > leader_progress:
 		leader_progress = arcane_victory_progress
 		leader_id = DiplomacyCatalogScript.PLAYER_ID
-	if leader_id == -2 or not ArcaneVictoryCatalogScript.needs_containment(leader_progress):
+	var containment_active := leader_id != -2 and ArcaneVictoryCatalogScript.needs_containment(leader_progress)
+	if not containment_active:
+		_clear_all_containment_coalitions()
 		return
+	_clear_stale_containment_coalitions(leader_id)
+	var target_profile := player_diplomacy_profile if leader_id == DiplomacyCatalogScript.PLAYER_ID else _get_kingdom_diplomacy_profile(leader_id)
+	var target_affinity := ArcaneVictoryCatalogScript.get_dominant_affinity(target_profile)
+	var target_power := get_player_army_total_power() if leader_id == DiplomacyCatalogScript.PLAYER_ID else _get_army_power(kingdoms[leader_id].get("army", []))
+	var eligible_members: Array[int] = []
 	for claimant_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
 		if claimant_id == leader_id:
 			continue
 		if claimant_id >= 0 and not bool(kingdoms[claimant_id].get("alive", true)):
 			continue
 		var claimant_progress := arcane_victory_progress if claimant_id == DiplomacyCatalogScript.PLAYER_ID else int(kingdoms[claimant_id].get("arcane_victory_progress", 0))
-		if leader_progress - claimant_progress < ArcaneVictoryCatalogScript.CONTAINMENT_LEAD_MARGIN:
+		var progress_lead := leader_progress - claimant_progress
+		if progress_lead < ArcaneVictoryCatalogScript.CONTAINMENT_LEAD_MARGIN:
 			continue
 		var created_claim := DiplomacyCatalogScript.create_casus_belli(
 			diplomacy_relations,
@@ -2666,10 +2677,250 @@ func _apply_arcane_containment_pressure() -> void:
 			var target_name := "Твоя держава" if leader_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[leader_id].get("name", "Держава"))
 			var claimant_name := "Ты" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[claimant_id].get("name", "Соперник"))
 			last_diplomacy_events.append("%s выдвигает претензию на сдерживание магического лидера «%s»." % [claimant_name, target_name])
+		if claimant_id >= 0:
+			eligible_members.append(claimant_id)
 		if turn_number % 3 == posmod(absi(claimant_id) + absi(leader_id), 3):
-			var relation := DiplomacyCatalogScript.get_record(diplomacy_relations, claimant_id, leader_id)
-			if str(relation.get("treaty", "peace")) != "war":
+			var relation_record := DiplomacyCatalogScript.get_record(diplomacy_relations, claimant_id, leader_id)
+			if str(relation_record.get("treaty", "peace")) != "war":
 				DiplomacyCatalogScript.change_relation(diplomacy_relations, claimant_id, leader_id, -3, turn_number)
+
+	var joined_ids: Array[int] = []
+	var scores: Dictionary = {}
+	for member_id in eligible_members:
+		var member_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		var treaty := str(member_record.get("treaty", "peace"))
+		if treaty == "alliance" and DiplomacyCatalogScript.treaty_is_active(member_record, turn_number):
+			continue
+		var already_at_war := treaty == "war"
+		var candidate_profile := _get_kingdom_diplomacy_profile(member_id)
+		var candidate_power := _get_army_power(kingdoms[member_id].get("army", []))
+		var common_ally_ids := _get_containment_common_allies(member_id, leader_id, joined_ids)
+		var score := DiplomacyCatalogScript.calculate_containment_join_score(
+			candidate_profile,
+			target_profile,
+			int(member_record.get("relation", 0)),
+			candidate_power,
+			target_power,
+			common_ally_ids.size(),
+			already_at_war,
+			leader_progress - int(kingdoms[member_id].get("arcane_victory_progress", 0)),
+			target_affinity
+		)
+		scores[member_id] = score
+		if already_at_war or score >= 54:
+			joined_ids.append(member_id)
+			DiplomacyCatalogScript.set_containment_coalition(
+				diplomacy_relations,
+				member_id,
+				leader_id,
+				turn_number,
+				score,
+				common_ally_ids
+			)
+
+	# A second pass lets a ruler join after one of its formal allies has committed.
+	for member_id in eligible_members:
+		if joined_ids.has(member_id):
+			continue
+		var member_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		if str(member_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(member_record, turn_number):
+			continue
+		var common_ally_ids := _get_containment_common_allies(member_id, leader_id, joined_ids)
+		if common_ally_ids.is_empty():
+			continue
+		var candidate_profile := _get_kingdom_diplomacy_profile(member_id)
+		var candidate_power := _get_army_power(kingdoms[member_id].get("army", []))
+		var score := DiplomacyCatalogScript.calculate_containment_join_score(
+			candidate_profile,
+			target_profile,
+			int(member_record.get("relation", 0)),
+			candidate_power,
+			target_power,
+			common_ally_ids.size(),
+			str(member_record.get("treaty", "peace")) == "war",
+			leader_progress - int(kingdoms[member_id].get("arcane_victory_progress", 0)),
+			target_affinity
+		)
+		scores[member_id] = score
+		if score >= 54:
+			joined_ids.append(member_id)
+			DiplomacyCatalogScript.set_containment_coalition(diplomacy_relations, member_id, leader_id, turn_number, score, common_ally_ids)
+
+	var combined_power := 0.0
+	for member_id in joined_ids:
+		combined_power += _get_army_power(kingdoms[member_id].get("army", []))
+	var required_power := maxf(45.0, target_power * 1.15)
+	if joined_ids.size() < 2 or combined_power < required_power:
+		return
+	for member_id in joined_ids:
+		var member_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		if str(member_record.get("treaty", "peace")) == "war":
+			continue
+		var member_power := _get_army_power(kingdoms[member_id].get("army", []))
+		if member_power < maxf(1.0, target_power * 0.15) or int(scores.get(member_id, 0)) < 54:
+			continue
+		DiplomacyCatalogScript.set_treaty(diplomacy_relations, member_id, leader_id, "war", turn_number)
+		var war_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		war_record["war_reason"] = "victory_race"
+		war_record["war_initiator_id"] = member_id
+		war_record["war_target_id"] = leader_id
+		war_record["war_join_reason"] = "containment_coalition"
+		DiplomacyCatalogScript.set_record(diplomacy_relations, member_id, leader_id, war_record)
+		DiplomacyCatalogScript.consume_casus_belli(diplomacy_relations, member_id, leader_id, turn_number, "victory_race")
+		var member_name := str(kingdoms[member_id].get("name", "Держава"))
+		var target_name := "твою державу" if leader_id == DiplomacyCatalogScript.PLAYER_ID else "державу «%s»" % str(kingdoms[leader_id].get("name", "соперник"))
+		last_diplomacy_events.append("%s вступает в коалиционную войну против %s, чтобы сдержать магическое восхождение." % [member_name, target_name])
+
+
+func _get_kingdom_diplomacy_profile(kingdom_id: int) -> Dictionary:
+	if kingdom_id < 0 or kingdom_id >= kingdoms.size():
+		return {}
+	var profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+	return profile_value.duplicate(true) if profile_value is Dictionary else {}
+
+
+func _get_containment_common_allies(member_id: int, target_id: int, joined_ids: Array[int]) -> Array[int]:
+	var result: Array[int] = []
+	for ally_id in joined_ids:
+		if ally_id == member_id or ally_id == target_id:
+			continue
+		var relation_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, ally_id)
+		if str(relation_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(relation_record, turn_number):
+			result.append(ally_id)
+	return result
+
+
+func _clear_all_containment_coalitions() -> void:
+	for member_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+		for target_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+			if member_id == target_id:
+				continue
+			DiplomacyCatalogScript.clear_containment_coalition(diplomacy_relations, member_id, target_id)
+
+
+func _clear_stale_containment_coalitions(active_target_id: int) -> void:
+	for member_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+		for target_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+			if member_id == target_id or target_id == active_target_id:
+				continue
+			DiplomacyCatalogScript.clear_containment_coalition(diplomacy_relations, member_id, target_id)
+
+
+func _get_faction_settlement_cells(faction_id: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var settlement_records: Array = []
+	if faction_id == DiplomacyCatalogScript.PLAYER_ID:
+		settlement_records.append_array(cities)
+		settlement_records.append_array(outposts)
+	elif faction_id >= 0 and faction_id < kingdoms.size():
+		settlement_records.append_array(kingdoms[faction_id].get("cities", []))
+		settlement_records.append_array(kingdoms[faction_id].get("outposts", []))
+	for settlement_value in settlement_records:
+		if not settlement_value is Dictionary:
+			continue
+		var cell := WorldGeneratorScript.array_to_cell(settlement_value.get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.is_inside_world(cell) and not result.has(cell):
+			result.append(cell)
+	return result
+
+
+func _append_affinity_improvement_sources(result: Array[Dictionary], owner_id: int, settlement_records: Array) -> void:
+	for settlement_value in settlement_records:
+		if not settlement_value is Dictionary:
+			continue
+		var improvements_value: Variant = settlement_value.get("province_improvements", [])
+		if not improvements_value is Array:
+			continue
+		for improvement_value in improvements_value:
+			if not improvement_value is Dictionary:
+				continue
+			var improvement_id := str(improvement_value.get("id", ""))
+			if improvement_id != ArcaneVictoryCatalogScript.CONDUIT_IMPROVEMENT_ID:
+				continue
+			var cell_value: Variant = improvement_value.get("cell", [])
+			if not cell_value is Array or cell_value.size() < 2:
+				continue
+			result.append({
+				"owner_id": owner_id,
+				"improvement_id": improvement_id,
+				"cell": [int(cell_value[0]), int(cell_value[1])],
+			})
+
+
+func _apply_affinity_improvement_claims() -> void:
+	var sources: Array[Dictionary] = []
+	var player_settlements: Array = []
+	player_settlements.append_array(cities)
+	player_settlements.append_array(outposts)
+	_append_affinity_improvement_sources(sources, DiplomacyCatalogScript.PLAYER_ID, player_settlements)
+	for owner_id in range(kingdoms.size()):
+		if not bool(kingdoms[owner_id].get("alive", true)):
+			continue
+		var owner_settlements: Array = []
+		owner_settlements.append_array(kingdoms[owner_id].get("cities", []))
+		owner_settlements.append_array(kingdoms[owner_id].get("outposts", []))
+		_append_affinity_improvement_sources(sources, owner_id, owner_settlements)
+	for source in sources:
+		var owner_id := int(source.get("owner_id", -99))
+		var source_cell_value: Variant = source.get("cell", [])
+		if not source_cell_value is Array or source_cell_value.size() < 2:
+			continue
+		var source_cell := Vector2i(int(source_cell_value[0]), int(source_cell_value[1]))
+		var owner_profile := player_diplomacy_profile if owner_id == DiplomacyCatalogScript.PLAYER_ID else _get_kingdom_diplomacy_profile(owner_id)
+		var affinity_id := ArcaneVictoryCatalogScript.get_dominant_affinity(owner_profile)
+		var owner_name := "Твоя держава" if owner_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[owner_id].get("name", "Держава"))
+		for claimant_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+			if claimant_id == owner_id:
+				continue
+			if claimant_id >= 0 and not bool(kingdoms[claimant_id].get("alive", true)):
+				continue
+			var nearest_distance := 999999
+			for settlement_cell in _get_faction_settlement_cells(claimant_id):
+				nearest_distance = mini(nearest_distance, WorldGeneratorScript.hex_distance(settlement_cell, source_cell))
+			if nearest_distance > 8:
+				continue
+			var relation_record := DiplomacyCatalogScript.get_record(diplomacy_relations, claimant_id, owner_id)
+			var treaty := str(relation_record.get("treaty", "peace"))
+			if treaty in ["alliance", "vassal"] and DiplomacyCatalogScript.treaty_is_active(relation_record, turn_number):
+				continue
+			var claimant_profile := player_diplomacy_profile if claimant_id == DiplomacyCatalogScript.PLAYER_ID else _get_kingdom_diplomacy_profile(claimant_id)
+			var reaction := DiplomacyCatalogScript.calculate_action_reaction(
+				claimant_profile,
+				["affinity_improvement", affinity_id],
+				owner_profile
+			)
+			var claimant_affinities_value: Variant = claimant_profile.get("affinities", {})
+			var claimant_affinities: Dictionary = claimant_affinities_value if claimant_affinities_value is Dictionary else {}
+			var affinity_score := int(claimant_affinities.get(affinity_id, 0))
+			if treaty != "war" and int(relation_record.get("relation", 0)) > 25 and reaction > -2 and affinity_score < 5:
+				continue
+			var created_claim := DiplomacyCatalogScript.create_casus_belli(
+				diplomacy_relations,
+				claimant_id,
+				owner_id,
+				"affinity_improvement",
+				turn_number,
+				3 if nearest_distance <= 3 else 2 if nearest_distance <= 5 else 1,
+				[int(source_cell.x), int(source_cell.y)],
+				true,
+				str(source.get("improvement_id", ArcaneVictoryCatalogScript.CONDUIT_IMPROVEMENT_ID)),
+				affinity_id
+			)
+			if not created_claim.is_empty() and int(created_claim.get("created_turn", -1)) == turn_number:
+				var claimant_name := "Ты" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[claimant_id].get("name", "Соперник"))
+				last_diplomacy_events.append("%s выдвигает постоянную претензию к %s из-за арканного обелиска с аффинностью «%s»." % [claimant_name, owner_name, affinity_id])
+
+
+func get_containment_coalition_member_names(target_id: int) -> Array[String]:
+	var result: Array[String] = []
+	for member_id in range(kingdoms.size()):
+		if member_id == target_id or not bool(kingdoms[member_id].get("alive", true)):
+			continue
+		var record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, target_id)
+		var coalition := DiplomacyCatalogScript.get_containment_coalition(record, target_id)
+		if not coalition.is_empty():
+			result.append(str(kingdoms[member_id].get("name", "Держава")))
+	return result
 
 
 func _get_player_diplomacy_sources() -> Array[Vector2i]:

@@ -52,6 +52,13 @@ func _run() -> void:
 	}
 	_check(ArcaneVictoryScript.count_controlled_nexuses(owned_sites, -1) == 2, "only cleared nexus sites owned by the faction count")
 	_check(ArcaneVictoryScript.count_arcane_conduits(city_records) == 1, "only completed arcane conduits contribute power")
+	var duplicate_conduit_records: Array = [
+		{"province_improvements": [{"id": "arcane_conduit", "cell": [-2, 1]}]},
+		{"province_improvements": [{"id": "arcane_conduit", "cell": [-2, 1]}, {"id": "arcane_conduit", "cell": [1, -2]}]},
+	]
+	_check(ArcaneVictoryScript.count_arcane_conduits(duplicate_conduit_records) == 2, "duplicate conduit entries on the same cell do not stack arcane power")
+	_check(ArcaneVictoryScript.get_dominant_affinity(profile) == "astral", "dominant affinity is selected deterministically from the saved ruler profile")
+	_check(ArcaneVictoryScript.get_dominant_affinity({}) == "order", "legacy or empty affinity profiles receive a stable fallback affinity")
 	_check(ArcaneVictoryScript.get_affinity_power(profile) == 3, "astral and materium affinities increase arcane output")
 	_check(ArcaneVictoryScript.calculate_turn_power([], [], profile, -1) == 0, "affinities alone cannot generate magical power without a controlled nexus or conduit")
 	_check(
@@ -89,6 +96,33 @@ func _run() -> void:
 	)
 	var containment_claims := DiplomacyCatalogScript.get_active_casus_belli(containment_record, state.turn_number, DiplomacyCatalogScript.PLAYER_ID)
 	_check(not containment_claims.is_empty() and str(containment_claims[0].get("cause", "")) == "victory_race", "containment claim records the dedicated victory-race cause")
+
+	var coalition_state: Variant = CampaignStateScript.new()
+	root.add_child(coalition_state)
+	coalition_state.new_campaign(false)
+	coalition_state._prevent_save_overwrite = true
+	coalition_state.turn_number = 20
+	var coalition_leader: Dictionary = coalition_state.kingdoms[2]
+	coalition_leader["arcane_victory_progress"] = 100
+	coalition_leader["army"] = []
+	coalition_state.kingdoms[2] = coalition_leader
+	for member_id in [0, 1]:
+		var member: Dictionary = coalition_state.kingdoms[member_id]
+		member["arcane_victory_progress"] = 0
+		var member_profile: Dictionary = member.get("diplomacy_profile", {})
+		member_profile["personality_id"] = "aggressor" if member_id == 0 else "expansionist"
+		member["diplomacy_profile"] = member_profile
+		coalition_state.kingdoms[member_id] = member
+		var member_relation := DiplomacyCatalogScript.get_record(coalition_state.diplomacy_relations, member_id, 2)
+		member_relation["relation"] = -60
+		DiplomacyCatalogScript.set_record(coalition_state.diplomacy_relations, member_id, 2, member_relation)
+	coalition_state._apply_arcane_containment_pressure()
+	var first_member_record: Dictionary = DiplomacyCatalogScript.get_record(coalition_state.diplomacy_relations, 0, 2)
+	var second_member_record: Dictionary = DiplomacyCatalogScript.get_record(coalition_state.diplomacy_relations, 1, 2)
+	_check(not DiplomacyCatalogScript.get_containment_coalition(first_member_record, 2).is_empty(), "a motivated AI ruler joins the saved containment coalition")
+	_check(str(first_member_record.get("treaty", "peace")) == "war" and str(second_member_record.get("treaty", "peace")) == "war", "two AI coalition members declare coordinated real wars when their combined armies can contain the leader")
+	_check(str(first_member_record.get("war_join_reason", "")) == "containment_coalition", "coalition war records the distinct containment-joining reason")
+	coalition_state.free()
 
 	var player_winner: Variant = CampaignStateScript.new()
 	root.add_child(player_winner)

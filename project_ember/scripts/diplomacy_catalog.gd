@@ -22,7 +22,7 @@ const WAR_CALL_COOLDOWN := 6
 const WAR_CALL_REFUSAL_PENALTY := 12
 const MAX_PENDING_OFFERS := 4
 const CASUS_BELLI_LIFETIME := 8
-const CASUS_BELLI_CAUSES := ["border_encroachment", "outpost_encroachment", "ally_attacked", "treaty_breach", "victory_race"]
+const CASUS_BELLI_CAUSES := ["border_encroachment", "outpost_encroachment", "ally_attacked", "treaty_breach", "victory_race", "affinity_improvement"]
 const BORDER_TENSION_DISTANCE := 4
 const BORDER_TENSION_INTERVAL := 5
 const TREATIES := ["peace", "war", "trade", "alliance", "tribute", "vassal"]
@@ -508,6 +508,7 @@ static func _make_record(initial_relation: int = 0) -> Dictionary:
 		"war_target_id": -99,
 		"war_join_reason": "none",
 		"casus_belli": [],
+		"containment_coalition": {},
 		"last_war_call_turn": 0,
 		"truce_until": 0,
 		"last_offer_turn": 0,
@@ -650,10 +651,31 @@ static func normalize_relations(
 			record["war_initiator_id"] = -99 if raw_initiator_id == -99 else clampi(raw_initiator_id, PLAYER_ID, kingdom_count - 1)
 			record["war_target_id"] = -99 if raw_target_id == -99 else clampi(raw_target_id, PLAYER_ID, kingdom_count - 1)
 			var war_join_reason := str(raw_record.get("war_join_reason", "none"))
-			record["war_join_reason"] = war_join_reason if war_join_reason in ["none", "ally_call"] else "none"
+			record["war_join_reason"] = war_join_reason if war_join_reason in ["none", "ally_call", "containment_coalition"] else "none"
 			var pair_parts := key.split(":")
 			if pair_parts.size() == 2:
 				record["casus_belli"] = _normalize_casus_belli(raw_record.get("casus_belli", []), int(pair_parts[0]), int(pair_parts[1]), kingdom_count)
+			var raw_coalition_value: Variant = raw_record.get("containment_coalition", {})
+			var coalition: Dictionary = {}
+			if raw_coalition_value is Dictionary and pair_parts.size() == 2:
+				var raw_coalition: Dictionary = raw_coalition_value
+				var coalition_target := int(raw_coalition.get("target_id", -99))
+				var coalition_member := int(pair_parts[0]) if coalition_target == int(pair_parts[1]) else int(pair_parts[1]) if coalition_target == int(pair_parts[0]) else -99
+				if coalition_member >= PLAYER_ID and coalition_member < kingdom_count and coalition_target >= PLAYER_ID and coalition_target < kingdom_count and coalition_member != coalition_target:
+					var raw_ally_ids: Variant = raw_coalition.get("ally_ids", [])
+					var ally_ids: Array[int] = []
+					if raw_ally_ids is Array:
+						for ally_value in raw_ally_ids:
+							var ally_id := int(ally_value)
+							if ally_id >= 0 and ally_id < kingdom_count and ally_id not in [coalition_member, coalition_target] and not ally_ids.has(ally_id):
+								ally_ids.append(ally_id)
+					coalition = {
+						"target_id": coalition_target,
+						"joined_turn": clampi(int(raw_coalition.get("joined_turn", 1)), 1, 100000000),
+						"score": clampi(int(raw_coalition.get("score", 0)), 0, 100),
+						"ally_ids": ally_ids,
+					}
+			record["containment_coalition"] = coalition
 			record["last_war_call_turn"] = clampi(int(raw_record.get("last_war_call_turn", 0)), 0, 100000000)
 			record["truce_until"] = clampi(int(raw_record.get("truce_until", 0)), 0, 100000000)
 			record["last_offer_turn"] = clampi(int(raw_record.get("last_offer_turn", 0)), 0, 100000000)
@@ -860,10 +882,17 @@ static func create_casus_belli(
 		cause: String,
 		turn_number: int,
 		severity: int = 1,
-		source_cell: Array = []
+		source_cell: Array = [],
+		permanent: bool = false,
+		source_improvement_id: String = "",
+		source_affinity_id: String = ""
 ) -> Dictionary:
 	if claimant_id == target_id or not CASUS_BELLI_CAUSES.has(cause):
 		return {}
+	var is_permanent := permanent or cause == "affinity_improvement"
+	var normalized_cell: Array = []
+	if source_cell.size() >= 2:
+		normalized_cell = [int(source_cell[0]), int(source_cell[1])]
 	var record := get_record(relations, claimant_id, target_id)
 	var claims_value: Variant = record.get("casus_belli", [])
 	var claims: Array = claims_value if claims_value is Array else []
@@ -871,22 +900,35 @@ static func create_casus_belli(
 		if not existing_value is Dictionary:
 			continue
 		var existing: Dictionary = existing_value
-		if int(existing.get("claimant_id", -99)) == claimant_id and str(existing.get("cause", "")) == cause and int(existing.get("expires_turn", 0)) >= turn_number:
+		if int(existing.get("claimant_id", -99)) != claimant_id or str(existing.get("cause", "")) != cause:
+			continue
+		if cause == "affinity_improvement":
+			if existing.get("source_cell", []) == normalized_cell and str(existing.get("source_improvement_id", "")) == source_improvement_id:
+				return existing.duplicate(true)
+		elif bool(existing.get("permanent", false)) or int(existing.get("expires_turn", 0)) >= turn_number:
 			return existing.duplicate(true)
-	if claims.size() >= 6:
-		claims.pop_front()
-	var normalized_cell: Array = []
-	if source_cell.size() >= 2:
-		normalized_cell = [int(source_cell[0]), int(source_cell[1])]
+	if claims.size() >= 24:
+		var removable_index := -1
+		for claim_index in range(claims.size()):
+			if claims[claim_index] is Dictionary and not bool(claims[claim_index].get("permanent", false)):
+				removable_index = claim_index
+				break
+		if removable_index >= 0:
+			claims.remove_at(removable_index)
+		else:
+			return {}
 	var claim := {
-		"id": "%d:%d:%s:%d" % [claimant_id, target_id, cause, turn_number],
+		"id": "%d:%d:%s:%d:%d:%d" % [claimant_id, target_id, cause, turn_number, int(normalized_cell[0]) if normalized_cell.size() >= 2 else 0, int(normalized_cell[1]) if normalized_cell.size() >= 2 else 0],
 		"claimant_id": claimant_id,
 		"target_id": target_id,
 		"cause": cause,
 		"created_turn": maxi(1, turn_number),
-		"expires_turn": turn_number + CASUS_BELLI_LIFETIME,
+		"expires_turn": 0 if is_permanent else turn_number + CASUS_BELLI_LIFETIME,
+		"permanent": is_permanent,
 		"severity": clampi(severity, 1, 3),
 		"source_cell": normalized_cell,
+		"source_improvement_id": source_improvement_id.left(48),
+		"source_affinity_id": source_affinity_id if AFFINITY_IDS.has(source_affinity_id) else "",
 	}
 	claims.append(claim)
 	record["casus_belli"] = claims
@@ -923,7 +965,8 @@ static func consume_casus_belli(
 		relations: Dictionary,
 		claimant_id: int,
 		target_id: int,
-		turn_number: int
+		turn_number: int,
+		cause_filter: String = ""
 ) -> Dictionary:
 	var record := get_record(relations, claimant_id, target_id)
 	var claims: Array = []
@@ -934,10 +977,15 @@ static func consume_casus_belli(
 			if not value is Dictionary:
 				continue
 			var claim: Dictionary = value
-			if consumed.is_empty() and int(claim.get("claimant_id", -99)) == claimant_id and int(claim.get("expires_turn", 0)) >= turn_number:
+			var permanent_claim := bool(claim.get("permanent", false))
+			var claim_is_active := permanent_claim or int(claim.get("expires_turn", 0)) >= turn_number
+			var cause_matches := cause_filter.is_empty() or str(claim.get("cause", "")) == cause_filter
+			var eligible_to_consume := not cause_filter.is_empty() or not permanent_claim
+			if consumed.is_empty() and claim_is_active and cause_matches and eligible_to_consume and int(claim.get("claimant_id", -99)) == claimant_id:
 				consumed = claim.duplicate(true)
-				continue
-			if int(claim.get("expires_turn", 0)) >= turn_number:
+				if not permanent_claim:
+					continue
+			if claim_is_active:
 				claims.append(claim.duplicate(true))
 	record["casus_belli"] = claims
 	set_record(relations, claimant_id, target_id, record)
@@ -949,7 +997,7 @@ static func _normalize_casus_belli(raw_value: Variant, first_id: int, second_id:
 	if not raw_value is Array:
 		return result
 	for value in raw_value:
-		if not value is Dictionary or result.size() >= 6:
+		if not value is Dictionary or result.size() >= 24:
 			continue
 		var raw_claim: Dictionary = value
 		var claimant_id := int(raw_claim.get("claimant_id", -99))
@@ -965,17 +1013,107 @@ static func _normalize_casus_belli(raw_value: Variant, first_id: int, second_id:
 		var cell: Array = []
 		if cell_value is Array and cell_value.size() >= 2:
 			cell = [clampi(int(cell_value[0]), -999, 999), clampi(int(cell_value[1]), -999, 999)]
+		var is_permanent := bool(raw_claim.get("permanent", false)) or cause == "affinity_improvement"
+		var affinity_id := str(raw_claim.get("source_affinity_id", ""))
+		if not AFFINITY_IDS.has(affinity_id):
+			affinity_id = ""
 		result.append({
 			"id": str(raw_claim.get("id", "%d:%d:%s:%d" % [claimant_id, target_id, cause, int(raw_claim.get("created_turn", 1))])),
 			"claimant_id": claimant_id,
 			"target_id": target_id,
 			"cause": cause,
 			"created_turn": clampi(int(raw_claim.get("created_turn", 1)), 1, 100000000),
-			"expires_turn": clampi(int(raw_claim.get("expires_turn", 1)), 1, 100000000),
+			"expires_turn": 0 if is_permanent else clampi(int(raw_claim.get("expires_turn", 1)), 1, 100000000),
+			"permanent": is_permanent,
 			"severity": clampi(int(raw_claim.get("severity", 1)), 1, 3),
 			"source_cell": cell,
+			"source_improvement_id": str(raw_claim.get("source_improvement_id", "")).left(48),
+			"source_affinity_id": affinity_id,
 		})
 	return result
+
+
+static func set_containment_coalition(
+		relations: Dictionary,
+		member_id: int,
+		target_id: int,
+		turn_number: int,
+		score: int,
+		ally_ids: Array = []
+) -> void:
+	if member_id == target_id:
+		return
+	var record := get_record(relations, member_id, target_id)
+	var normalized_allies: Array[int] = []
+	for ally_value in ally_ids:
+		var ally_id := int(ally_value)
+		if ally_id >= 0 and ally_id not in [member_id, target_id] and not normalized_allies.has(ally_id):
+			normalized_allies.append(ally_id)
+	record["containment_coalition"] = {
+		"target_id": target_id,
+		"joined_turn": maxi(1, turn_number),
+		"score": clampi(score, 0, 100),
+		"ally_ids": normalized_allies,
+	}
+	set_record(relations, member_id, target_id, record)
+
+
+static func get_containment_coalition(record: Dictionary, target_id: int) -> Dictionary:
+	var value: Variant = record.get("containment_coalition", {})
+	if not value is Dictionary or int(value.get("target_id", -99)) != target_id:
+		return {}
+	return value.duplicate(true)
+
+
+static func clear_containment_coalition(relations: Dictionary, member_id: int, target_id: int) -> void:
+	var record := get_record(relations, member_id, target_id)
+	var coalition := get_containment_coalition(record, target_id)
+	if coalition.is_empty():
+		return
+	record["containment_coalition"] = {}
+	set_record(relations, member_id, target_id, record)
+
+
+static func calculate_containment_join_score(
+		candidate_profile: Dictionary,
+		target_profile: Dictionary,
+		relation: int,
+		candidate_power: float,
+		target_power: float,
+		common_ally_count: int,
+		already_at_war: bool,
+		progress_lead: int,
+		target_affinity_id: String
+) -> int:
+	var score := 20
+	score += clampi(roundi(float(20 - relation) * 0.30), -10, 36)
+	var personality_id := str(candidate_profile.get("personality_id", ""))
+	match personality_id:
+		"aggressor": score += 16
+		"expansionist": score += 14
+		"honorable": score += 7
+		"isolationist": score -= 6
+		"merchant": score -= 3
+	var affinity_reaction := calculate_action_reaction(
+		candidate_profile,
+		["containment", "war_declared", target_affinity_id],
+		target_profile
+	)
+	score += affinity_reaction * 2
+	var ratio := candidate_power / maxf(1.0, target_power)
+	if ratio >= 1.10:
+		score += 15
+	elif ratio >= 0.70:
+		score += 10
+	elif ratio >= 0.40:
+		score += 5
+	else:
+		score -= 8
+	score += mini(16, maxi(0, common_ally_count) * 8)
+	if already_at_war:
+		score += 30
+	score += clampi(floori(float(progress_lead - 18) / 2.0), 0, 14)
+	return clampi(score, 0, 100)
 
 
 static func _maybe_create_player_war_call(
@@ -1351,7 +1489,7 @@ static func _tick_record(record: Dictionary, turn_number: int) -> void:
 	var active_claims: Array[Dictionary] = []
 	if raw_claims is Array:
 		for claim_value in raw_claims:
-			if claim_value is Dictionary and int(claim_value.get("expires_turn", 0)) >= turn_number:
+			if claim_value is Dictionary and (bool(claim_value.get("permanent", false)) or int(claim_value.get("expires_turn", 0)) >= turn_number):
 				active_claims.append(claim_value)
 	record["casus_belli"] = active_claims
 	if treaty != "war" and expires > 0 and turn_number > expires:

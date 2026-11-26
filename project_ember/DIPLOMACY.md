@@ -278,3 +278,14 @@ The v0.39 extension keeps the existing 45-pair diplomacy matrix and `SAVE_VERSIO
 ### Validation additions
 
 - Tests cover personality/preference reaction, action idempotency, bounded history, lifetime gift caps, legacy normalization, public statements and AI-to-player gift transfers.
+
+
+## v0.39 — Block 5: permanent affinity claims and containment coalitions
+
+- Completed Arcane Conduits now create permanent, pair-specific diplomatic claims for nearby rival realms. Each claim preserves the source improvement, source cell and dominant affinity of the builder's saved ruler profile.
+- A permanent claim is distinct from the existing eight-turn claims: it survives normal expiry, peace treaties and the use of another casus belli. Repeated checks of the same improvement cell are idempotent; separate sites remain separate sources.
+- The existing Arcane Conduit remains the only province improvement tied to the ascension system. It retains its existing +2 arcane power/turn; no extra income or duplicate affinity bonus is introduced.
+- Magical containment is no longer only a pressure score and a claim. AI rulers evaluate hostility, personality, ideological reaction to the leader's dominant affinity, relative army power, common allies and current war status.
+- AI rulers that commit are stored as coalition members in the existing diplomatic pair records. When at least two members have enough combined power, qualifying members declare real wars with reason `victory_race` and join reason `containment_coalition`. The existing war-target selection then moves their armies against the magical leader.
+- Player and legacy save data remain on `SAVE_VERSION = 1`. New claim source fields and coalition membership are optional pair-record fields with bounded normalization.
+- Arcane Conduit counting is deduplicated by occupied hex across cities and outposts so a duplicated record cannot stack arcane power.

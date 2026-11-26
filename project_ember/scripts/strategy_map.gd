@@ -1587,6 +1587,8 @@ func _refresh_diplomacy_panel() -> void:
 			"ally_call": war_reason_text = "\nПовод: выполнение союзного призыва."
 	if str(record.get("war_join_reason", "none")) == "ally_call":
 		war_reason_text += "\nТы вступил в конфликт по призыву союзника."
+	elif str(record.get("war_join_reason", "none")) == "containment_coalition":
+		war_reason_text += "\nДержава вступила в войну в рамках коалиции сдерживания магического лидера."
 	var claims_text := _format_casus_belli_claims(record.get("casus_belli", []), CampaignState.turn_number)
 	var statement_value: Variant = record.get("public_statement", {})
 	var statement: Dictionary = statement_value if statement_value is Dictionary else {}
@@ -1624,7 +1626,9 @@ func _refresh_diplomacy_panel() -> void:
 		overlord_text,
 		army_count,
 	]
-	_diplomacy_summary_label.text += "\nПубличная позиция: %s%s" % [statement_text, history_text]
+	var coalition_names := CampaignState.get_containment_coalition_member_names(kingdom_id)
+	var coalition_text := "\nКоалиция сдерживания: " + ", ".join(coalition_names) if not coalition_names.is_empty() else ""
+	_diplomacy_summary_label.text += "\nПубличная позиция: %s%s%s" % [statement_text, history_text, coalition_text]
 	for child in _diplomacy_actions_list.get_children():
 		child.queue_free()
 	var action_options := [
@@ -1666,19 +1670,27 @@ func _format_casus_belli_claims(raw_value: Variant, turn_number: int) -> String:
 		"ally_attacked": "нападение на союзника",
 		"treaty_breach": "нарушение договора",
 		"victory_race": "гонка за магической победой",
+		"affinity_improvement": "спор из-за аффинного улучшения провинции",
 	}
 	var lines: Array[String] = []
 	for value in claims_value:
 		if not value is Dictionary:
 			continue
 		var claim: Dictionary = value
-		if int(claim.get("expires_turn", 0)) < turn_number:
+		if not bool(claim.get("permanent", false)) and int(claim.get("expires_turn", 0)) < turn_number:
 			continue
 		var claimant_id := int(claim.get("claimant_id", -99))
 		var source_text := "Твоё основание" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else "Претензия соперника"
 		var cause_text := str(cause_labels.get(str(claim.get("cause", "")), "политическое разногласие"))
-		var turns_left := maxi(0, int(claim.get("expires_turn", turn_number)) - turn_number)
-		lines.append("%s: %s · ещё %d ход(а/ов)" % [source_text, cause_text, turns_left])
+		var permanent_text := " · постоянно" if bool(claim.get("permanent", false)) else " · ещё %d ход(а/ов)" % maxi(0, int(claim.get("expires_turn", turn_number)) - turn_number)
+		var source_affinity := str(claim.get("source_affinity_id", ""))
+		var source_cell_value: Variant = claim.get("source_cell", [])
+		if str(claim.get("cause", "")) == "affinity_improvement":
+			var cell_text := ""
+			if source_cell_value is Array and source_cell_value.size() >= 2:
+				cell_text = " · гекс %d:%d" % [int(source_cell_value[0]), int(source_cell_value[1])]
+			permanent_text += " · %s%s" % [source_affinity, cell_text]
+		lines.append("%s: %s%s" % [source_text, cause_text, permanent_text])
 	if lines.is_empty():
 		return ""
 	return "\nДействующие поводы для войны:\n" + "\n".join(lines)

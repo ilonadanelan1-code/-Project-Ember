@@ -295,6 +295,47 @@ func _run() -> void:
 	_check(DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(manual_claim_relations, 0, 1), 12, 0), "casus belli remains active through its eighth turn")
 	_check(not DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(manual_claim_relations, 0, 1), 13, 0), "casus belli expires after its eight-turn window")
 
+	var permanent_claim_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	var permanent_claim := DiplomacyCatalogScript.create_casus_belli(
+		permanent_claim_relations, 0, 1, "affinity_improvement", 4, 3, [5, -2], true, "arcane_conduit", "astral"
+	)
+	var duplicate_permanent_claim := DiplomacyCatalogScript.create_casus_belli(
+		permanent_claim_relations, 0, 1, "affinity_improvement", 20, 3, [5, -2], true, "arcane_conduit", "astral"
+	)
+	_check(not permanent_claim.is_empty() and permanent_claim == duplicate_permanent_claim, "the same affinity improvement creates one permanent claim without stacking")
+	var other_site_claim := DiplomacyCatalogScript.create_casus_belli(
+		permanent_claim_relations, 0, 1, "affinity_improvement", 20, 2, [6, -2], true, "arcane_conduit", "astral"
+	)
+	_check(not other_site_claim.is_empty() and other_site_claim.get("source_cell", []) == [6, -2], "different affinity improvement sites retain distinct claims")
+	var permanent_record := DiplomacyCatalogScript.get_record(permanent_claim_relations, 0, 1)
+	_check(DiplomacyCatalogScript.has_active_casus_belli(permanent_record, 200, 0), "permanent affinity claims survive ordinary claim expiry")
+	DiplomacyCatalogScript.set_treaty(permanent_claim_relations, 0, 1, "peace", 40)
+	var consumed_permanent := DiplomacyCatalogScript.consume_casus_belli(permanent_claim_relations, 0, 1, 200, "affinity_improvement")
+	_check(not consumed_permanent.is_empty() and DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(permanent_claim_relations, 0, 1), 200, 0), "peace and war justification do not consume permanent affinity claims")
+	var migrated_permanent := DiplomacyCatalogScript.normalize_relations(
+		{"0:1": {"casus_belli": [permanent_claim]}}, 2, 841207
+	)
+	var migrated_permanent_claims := DiplomacyCatalogScript.get_active_casus_belli(DiplomacyCatalogScript.get_record(migrated_permanent, 0, 1), 500, 0)
+	_check(not migrated_permanent_claims.is_empty() and bool(migrated_permanent_claims[0].get("permanent", false)) and str(migrated_permanent_claims[0].get("source_affinity_id", "")) == "astral", "save normalization preserves permanent source and affinity metadata")
+
+	var high_motive_score := DiplomacyCatalogScript.calculate_containment_join_score(
+		{"personality_id": "aggressor", "likes": [], "dislikes": []},
+		{"personality_id": "merchant", "likes": [], "dislikes": []},
+		-60, 140.0, 100.0, 2, true, 70, "shadow"
+	)
+	var low_motive_score := DiplomacyCatalogScript.calculate_containment_join_score(
+		{"personality_id": "merchant", "likes": ["merchant"], "dislikes": []},
+		{"personality_id": "honorable", "likes": [], "dislikes": []},
+		55, 20.0, 100.0, 0, false, 20, "order"
+	)
+	_check(high_motive_score >= 75 and high_motive_score > low_motive_score, "containment motivation weighs hostility, ruler motive, power, allies and an existing war")
+	var coalition_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	DiplomacyCatalogScript.set_containment_coalition(coalition_relations, 0, 1, 9, high_motive_score, [2, 3])
+	var coalition_record := DiplomacyCatalogScript.get_record(coalition_relations, 0, 1)
+	_check(DiplomacyCatalogScript.get_containment_coalition(coalition_record, 1).get("ally_ids", []) == [2, 3], "containment coalition membership and common allies persist in the pair record")
+	var normalized_coalition := DiplomacyCatalogScript.normalize_relations({"0:1": coalition_record}, 2, 841207)
+	_check(not DiplomacyCatalogScript.get_containment_coalition(DiplomacyCatalogScript.get_record(normalized_coalition, 0, 1), 1).is_empty(), "legacy-compatible normalization preserves optional coalition membership")
+
 
 	var ai_war_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
 	var hostile_ai_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)

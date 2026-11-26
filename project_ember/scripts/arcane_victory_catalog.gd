@@ -12,6 +12,7 @@ const CONDUIT_POWER_PER_TURN := 2
 const MAX_TURN_POWER := 18
 const NEXUS_LOCATION_ID := "leyline_nexus"
 const CONDUIT_IMPROVEMENT_ID := "arcane_conduit"
+const AFFINITY_IDS := ["order", "chaos", "nature", "astral", "shadow", "materium"]
 
 
 static func count_controlled_nexuses(locations: Array, owner_id: int) -> int:
@@ -29,18 +30,42 @@ static func count_controlled_nexuses(locations: Array, owner_id: int) -> int:
 	return count
 
 
-static func count_arcane_conduits(cities: Array) -> int:
+static func count_arcane_conduits(cities: Array, outposts: Array = []) -> int:
 	var count := 0
-	for city_value in cities:
-		if not city_value is Dictionary:
-			continue
-		var improvements_value: Variant = city_value.get("province_improvements", [])
-		if not improvements_value is Array:
-			continue
-		for improvement_value in improvements_value:
-			if improvement_value is Dictionary and str(improvement_value.get("id", "")) == CONDUIT_IMPROVEMENT_ID:
+	var occupied_cells: Dictionary = {}
+	for settlement_group in [cities, outposts]:
+		for settlement_value in settlement_group:
+			if not settlement_value is Dictionary:
+				continue
+			var improvements_value: Variant = settlement_value.get("province_improvements", [])
+			if not improvements_value is Array:
+				continue
+			for improvement_value in improvements_value:
+				if not improvement_value is Dictionary or str(improvement_value.get("id", "")) != CONDUIT_IMPROVEMENT_ID:
+					continue
+				var cell_value: Variant = improvement_value.get("cell", [])
+				if not cell_value is Array or cell_value.size() < 2:
+					continue
+				var cell_key := "%d:%d" % [int(cell_value[0]), int(cell_value[1])]
+				if occupied_cells.has(cell_key):
+					continue
+				occupied_cells[cell_key] = true
 				count += 1
 	return count
+
+
+static func get_dominant_affinity(profile: Dictionary) -> String:
+	var affinities_value: Variant = profile.get("affinities", {})
+	var affinities: Dictionary = affinities_value if affinities_value is Dictionary else {}
+	var dominant_id := str(AFFINITY_IDS[0])
+	var dominant_value := -999999
+	for affinity_id_value in AFFINITY_IDS:
+		var affinity_id := str(affinity_id_value)
+		var affinity_value := int(affinities.get(affinity_id, 0))
+		if affinity_value > dominant_value:
+			dominant_value = affinity_value
+			dominant_id = affinity_id
+	return dominant_id
 
 
 static func get_affinity_power(profile: Dictionary) -> int:
@@ -57,10 +82,11 @@ static func calculate_turn_power(
 		locations: Array,
 		cities: Array,
 		profile: Dictionary,
-		owner_id: int
+		owner_id: int,
+		outposts: Array = []
 ) -> int:
 	var nexus_count := count_controlled_nexuses(locations, owner_id)
-	var conduit_count := count_arcane_conduits(cities)
+	var conduit_count := count_arcane_conduits(cities, outposts)
 	if nexus_count <= 0 and conduit_count <= 0:
 		return 0
 	var affinity_power := get_affinity_power(profile)
