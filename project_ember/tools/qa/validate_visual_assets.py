@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Validate Project Ember's compact, licensed runtime visual atlas."""
+"""Validate Project Ember's native Godot visual atlas, sprite metadata and licences."""
 from __future__ import annotations
 
-import base64
 import json
-import re
 import sys
 from pathlib import Path
 
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
+ASSETS = ROOT / "assets/visuals"
 checks = 0
 failures: list[str] = []
 
@@ -24,40 +23,23 @@ def check(condition: bool, message: str) -> None:
         print(f"FAIL: {message}")
 
 
-data_path = SCRIPTS / "visual_asset_data.gd"
-data_text = data_path.read_text(encoding="utf-8") if data_path.is_file() else ""
-meta_match = re.search(r'const META_JSON := """(.*?)"""', data_text, re.DOTALL)
+atlas_path = ASSETS / "project_ember_visual_atlas.webp"
+metadata_path = ASSETS / "visual_assets_runtime.json"
+atlas_bytes = atlas_path.read_bytes() if atlas_path.is_file() else b""
+check(atlas_path.is_file(), "native Godot WebP visual atlas exists")
+check(len(atlas_bytes) > 20000, "lossless WebP atlas payload is complete")
+check(atlas_bytes.startswith(b"RIFF") and atlas_bytes[8:12] == b"WEBP", "atlas file has a valid RIFF/WebP signature")
 try:
-    metadata = json.loads(meta_match.group(1)) if meta_match else {}
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.is_file() else {}
     check(bool(metadata), "visual atlas metadata is valid JSON")
 except json.JSONDecodeError as exc:
     metadata = {}
     check(False, f"visual atlas metadata is valid JSON ({exc})")
 
-chunks: list[str] = []
-for index in range(8):
-    chunk_path = SCRIPTS / f"visual_asset_chunk_{index:02d}.gd"
-    chunk_text = chunk_path.read_text(encoding="utf-8") if chunk_path.is_file() else ""
-    match = re.search(r'const DATA := """(.*?)"""', chunk_text, re.DOTALL)
-    check(match is not None, f"visual atlas data segment {index:02d} exists")
-    if match:
-        chunks.append(match.group(1))
-        check(f"VisualAssetChunk{index:02d}Script.DATA" in data_text, f"visual atlas data segment {index:02d} is linked into the runtime")
-    else:
-        chunks.append("")
-
-encoded = "".join(chunks)
-check(len(encoded) == 35000, "combined visual atlas Base64 payload has the expected length")
-try:
-    webp = base64.b64decode(encoded, validate=True)
-    check(webp.startswith(b"RIFF") and webp[8:12] == b"WEBP", "combined atlas decodes as a WebP image")
-    check(len(webp) > 20000, "lossless runtime atlas payload is complete")
-except Exception as exc:
-    webp = b""
-    check(False, f"visual atlas Base64 is valid ({exc})")
-
+check(metadata_path.is_file(), "runtime sprite metadata resource exists")
 expected_size = metadata.get("image_size", [])
 check(expected_size == [1024, 960], "runtime atlas uses the expected 1024x960 canvas")
+
 atlas_regions = metadata.get("atlas_regions", {})
 expected_regions = {
     "monsters": ([0, 0], [256, 960]),
@@ -68,8 +50,7 @@ expected_regions = {
 for atlas_id, (offset, size) in expected_regions.items():
     region = atlas_regions.get(atlas_id, {})
     check(region.get("offset") == offset and region.get("size") == size, f"{atlas_id} atlas region is present and correctly placed")
-    if len(offset) == 2 and len(size) == 2:
-        check(offset[0] >= 0 and offset[1] >= 0 and offset[0] + size[0] <= 1024 and offset[1] + size[1] <= 960, f"{atlas_id} atlas region stays inside the texture")
+    check(offset[0] >= 0 and offset[1] >= 0 and offset[0] + size[0] <= 1024 and offset[1] + size[1] <= 960, f"{atlas_id} atlas region stays inside the texture")
 
 monster_meta = metadata.get("monsters", {})
 monsters = monster_meta.get("monsters", {})
@@ -101,21 +82,21 @@ red_knight = metadata.get("red_knight", {})
 animations = red_knight.get("animations", {})
 check(red_knight.get("cell") == [71, 54] and all(animations.get(key, {}).get("frames") == count for key, count in {"idle": 8, "run": 8, "attack": 10}.items()), "red knight animation metadata matches the 71x54 frame sheet")
 
-for path, tokens, label in [
-    (SCRIPTS / "visual_asset_catalog.gd", ["Marshalls.base64_to_raw", "load_webp_from_buffer", "get_monster_frames", "get_faction_banner"], "runtime atlas loader"),
+for source, tokens, label in [
+    (SCRIPTS / "visual_asset_catalog.gd", ["ATLAS_TEXTURE", "visual_assets_runtime.json", "get_monster_frames", "get_faction_banner"], "runtime atlas loader"),
     (SCRIPTS / "game_icon_catalog.gd", ["medieval_prop_icon", "faction_banner_icon", "VisualAssetCatalogScript"], "game icon integration"),
     (SCRIPTS / "strategy_map.gd", ["medieval_prop_icon", "faction_banner_icon", "get_map_icon"], "strategic map visual integration"),
     (SCRIPTS / "battle_unit.gd", ["visual_override_id", "get_monster_frames", "get_red_knight_frames"], "battle unit visual overrides"),
     (SCRIPTS / "combat_test.gd", ["get_guard_visual_ids", "get_guardian_visual_id"], "neutral encounter sprite assignment"),
     (SCRIPTS / "world_location_catalog.gd", ["get_map_icon", "get_guard_visual_ids", "get_guardian_visual_id"], "neutral site visual catalog"),
 ]:
-    content = path.read_text(encoding="utf-8") if path.is_file() else ""
-    check(path.is_file() and all(token in content for token in tokens), f"{label} is wired into the game")
+    source_text = source.read_text(encoding="utf-8") if source.is_file() else ""
+    check(source.is_file() and all(token in source_text for token in tokens), f"{label} is wired into the game")
 
 check((ROOT / "tests/visual_asset_catalog_smoke_test.gd").is_file(), "visual asset runtime smoke test is included")
 campaign_state = (SCRIPTS / "campaign_state.gd").read_text(encoding="utf-8")
 check("const SAVE_VERSION := 1" in campaign_state, "visual integration leaves campaign save version 1 unchanged")
-credits_path = ROOT / "assets/visuals/ASSET_CREDITS.md"
+credits_path = ASSETS / "ASSET_CREDITS.md"
 credits = credits_path.read_text(encoding="utf-8") if credits_path.is_file() else ""
 check(credits_path.is_file() and all(name in credits for name in ["reodesuxz", "Antahonist", "Scrython"]), "visual asset creators and licence notes are credited")
 check("coa-shields.zip" in credits and "9 Heraldry constructor.zip" in credits, "unlicensed heraldry archives are documented as excluded")
