@@ -494,6 +494,7 @@ static func _make_record(initial_relation: int = 0) -> Dictionary:
 		"war_reason": "none",
 		"war_initiator_id": -99,
 		"war_target_id": -99,
+		"war_join_reason": "none",
 		"casus_belli": [],
 		"last_war_call_turn": 0,
 		"truce_until": 0,
@@ -629,6 +630,8 @@ static func normalize_relations(
 			var raw_target_id := int(raw_record.get("war_target_id", -99))
 			record["war_initiator_id"] = -99 if raw_initiator_id == -99 else clampi(raw_initiator_id, PLAYER_ID, kingdom_count - 1)
 			record["war_target_id"] = -99 if raw_target_id == -99 else clampi(raw_target_id, PLAYER_ID, kingdom_count - 1)
+			var war_join_reason := str(raw_record.get("war_join_reason", "none"))
+			record["war_join_reason"] = war_join_reason if war_join_reason in ["none", "ally_call"] else "none"
 			var pair_parts := key.split(":")
 			if pair_parts.size() == 2:
 				record["casus_belli"] = _normalize_casus_belli(raw_record.get("casus_belli", []), int(pair_parts[0]), int(pair_parts[1]), kingdom_count)
@@ -868,6 +871,7 @@ static func set_treaty(
 		record["war_exhaustion"] = 0
 		record["war_initiator_id"] = -99
 		record["war_target_id"] = -99
+		record["war_join_reason"] = "none"
 	set_record(relations, first_id, second_id, record)
 
 
