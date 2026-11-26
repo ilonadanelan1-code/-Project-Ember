@@ -94,6 +94,10 @@ func _run() -> void:
 	_check(not bool(hostile_plan.get("expansion_allowed", true)), "a threatened weaker kingdom delays expansion until it can defend itself")
 	_check(str(hostile_plan.get("defensive_posture", "")) == "alert", "peace-time threat is exposed as an alert posture")
 
+	var hostile_war_target := Planner.select_war_target(defender, threat_kingdoms, hostile_relations, Vector2i(28, 28), [])
+	_check(not bool(hostile_war_target.get("war_active", false)), "hostile relations alone do not start a war")
+	_check(not bool(hostile_war_target.get("has_target", false)), "pre-war defensive alert does not create an attack destination")
+
 	var claim_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
 	var claim_record: Dictionary = Diplomacy.get_record(claim_relations, 0, 1)
 	claim_record["relation"] = 0
