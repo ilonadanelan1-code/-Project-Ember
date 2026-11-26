@@ -2697,12 +2697,11 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			var call_is_valid := enemy_id >= 0 and enemy_id < kingdoms.size() and enemy_id != kingdom_id
 			call_is_valid = call_is_valid and str(caller_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(caller_record, turn_number)
 			call_is_valid = call_is_valid and str(enemy_record.get("treaty", "peace")) == "war"
-			call_is_valid = call_is_valid and int(enemy_record.get("war_initiator_id", -99)) == kingdom_id
 			var expired_call := turn_number > int(offer.get("expires_turn", 0))
 			if expired_call:
 				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
 				pending_diplomacy_offers.remove_at(offer_index)
-				_record_diplomacy_event("Срок ответа на призыв державы «%s» истёк. Это сочтено отказом." % kingdom_name)
+				_record_diplomacy_event("Срок ответа на призыв державы «%s» истёк. Это сочтено отказом." % str(kingdoms[kingdom_id].get("name", "Держава")))
 				save_campaign()
 				return {"ok": true, "message": "Срок ответа истёк. Отношение союзника ухудшилось."}
 			if not call_is_valid:
@@ -2715,12 +2714,13 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, "war", turn_number)
 				var joined_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id)
 				joined_record["war_reason"] = "ally_call"
-				joined_record["war_initiator_id"] = kingdom_id
-				joined_record["war_target_id"] = enemy_id
+				var original_initiator := int(enemy_record.get("war_initiator_id", kingdom_id))
+				joined_record["war_initiator_id"] = original_initiator
+				joined_record["war_target_id"] = int(enemy_record.get("war_target_id", enemy_id))
 				DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, joined_record)
 				DiplomacyCatalogScript.change_relation(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, -8, turn_number)
 				DiplomacyCatalogScript.change_relation(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, 5, turn_number)
-				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [kingdom_name, enemy_name]
+				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [str(kingdoms[kingdom_id].get("name", "Держава")), enemy_name]
 			else:
 				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
 				response_message = "Ты отказался поддержать «%s». Отношение союзника ухудшилось на %d пунктов." % [kingdom_name, DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY]
