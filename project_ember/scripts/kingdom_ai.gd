@@ -10,6 +10,7 @@ const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
 const WorldLocationCatalog = preload("res://scripts/world_location_catalog.gd")
 const StrategicAI = preload("res://scripts/strategic_ai_planner.gd")
 const SettlementCatalog = preload("res://scripts/settlement_catalog.gd")
+const ArcaneVictory = preload("res://scripts/arcane_victory_catalog.gd")
 
 const KINGDOM_NAMES := [
 	"Королевство Алых Парусов",
@@ -428,6 +429,16 @@ static func _queue_next_order(
 	var faction_value: Variant = kingdom.get("faction", {})
 	var kingdom_faction: Dictionary = faction_value if faction_value is Dictionary else {}
 	var province_order := _get_ai_province_build_order(city, kingdom_faction, world_seed, world_generation_version, bool(strategic_plan.get("threatened", false)))
+	var kingdom_cities_value: Variant = kingdom.get("cities", [])
+	var kingdom_city_records: Array = kingdom_cities_value if kingdom_cities_value is Array else []
+	var arcane_conduit_target := 0
+	var arcane_progress := int(kingdom.get("arcane_victory_progress", 0))
+	if arcane_progress >= 12:
+		arcane_conduit_target = clampi(1 + floori(float(arcane_progress - 12) / 40.0), 1, 3)
+	if ArcaneVictory.count_arcane_conduits(kingdom_city_records) < arcane_conduit_target:
+		var arcane_order := _get_ai_arcane_conduit_order(city, kingdom_faction, world_seed, world_generation_version)
+		if not arcane_order.is_empty():
+			province_order = arcane_order
 	var desired_army_size := clampi(int(strategic_plan.get("desired_army_size", 10)), 0, 24)
 	var can_recruit := bool(strategic_plan.get("can_recruit", false))
 	var recruit_role := str(strategic_plan.get("recruit_role", UnitCatalog.ROLE_MELEE))
@@ -540,6 +551,46 @@ static func _get_ai_building_upgrade_id(city: Dictionary, economy_focus: String 
 			if next_level <= city_level and not CityDevelopment.get_building_upgrade_data(building_id, next_level).is_empty():
 				return building_id
 	return ""
+
+
+
+static func _get_ai_arcane_conduit_order(
+		city: Dictionary,
+		kingdom_faction: Dictionary,
+		world_seed: int,
+		world_generation_version: int
+) -> Dictionary:
+	var improvements_value: Variant = city.get("province_improvements", [])
+	var improvements: Array = improvements_value if improvements_value is Array else []
+	var faction_effects := FactionCatalog.get_effects(kingdom_faction)
+	var province_slots := mini(6, CityDevelopment.get_province_slots(CityDevelopment.get_city_level(int(city.get("population", 1)))) + int(faction_effects.get("province_slot_bonus", 0)))
+	if improvements.size() >= province_slots:
+		return {}
+	var used: Dictionary = {}
+	for item in improvements:
+		if not item is Dictionary:
+			continue
+		var used_cell := World.array_to_cell(item.get("cell", []))
+		used["%d:%d" % [used_cell.x, used_cell.y]] = true
+	var center := World.array_to_cell(city.get("cell", []))
+	var data := CityDevelopment.get_improvement_data(ArcaneVictory.CONDUIT_IMPROVEMENT_ID)
+	var valid_terrain: Array = data.get("terrain", [])
+	for offset in World.neighbors():
+		var cell := center + offset
+		var key := "%d:%d" % [cell.x, cell.y]
+		if used.has(key) or not World.is_inside_world(cell):
+			continue
+		var terrain := World.terrain_at(cell, world_seed, world_generation_version)
+		if not valid_terrain.has(terrain):
+			continue
+		return {
+			"id": ArcaneVictory.CONDUIT_IMPROVEMENT_ID,
+			"cell": [cell.x, cell.y],
+			"name": data.get("name", "Арканный обелиск"),
+			"gold_cost": int(data.get("gold_cost", 0)),
+			"production_cost": int(data.get("production_cost", 1)),
+		}
+	return {}
 
 
 static func _get_ai_province_build_order(city: Dictionary, kingdom_faction: Dictionary, world_seed: int, world_generation_version: int, prefer_fortification: bool = false) -> Dictionary:
