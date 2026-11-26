@@ -808,7 +808,8 @@ static func _maybe_create_player_war_call(
 	if pending_offers.size() >= MAX_PENDING_OFFERS:
 		return {}
 	var caller_record := get_record(relations, PLAYER_ID, caller_id)
-	if turn_number - int(caller_record.get("last_war_call_turn", 0)) < WAR_CALL_COOLDOWN:
+	var last_war_call_turn := int(caller_record.get("last_war_call_turn", 0))
+	if last_war_call_turn > 0 and turn_number - last_war_call_turn < WAR_CALL_COOLDOWN:
 		return {}
 	var claim_record := get_record(relations, caller_id, enemy_id)
 	var active_claims := get_active_casus_belli(claim_record, turn_number, caller_id)
