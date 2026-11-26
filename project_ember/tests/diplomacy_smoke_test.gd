@@ -244,6 +244,7 @@ func _run() -> void:
 			war_call_offer = offer_value
 			break
 	_check(not war_call_offer.is_empty(), "AI ally sends a formal call to war to the player")
+	_check(str(war_call_offer.get("war_cause", "")) == "border_encroachment", "war call preserves the original border claim after declaration consumes it")
 	_check(int(war_call_offer.get("expires_turn", 0)) == 8, "war call gives the player three turns to answer")
 
 
@@ -327,7 +328,8 @@ func _run() -> void:
 	var accepted_call: Dictionary = call_state.respond_to_diplomacy_offer("ally-call-accept", true)
 	_check(bool(accepted_call.get("ok", false)), "player can accept an allied war call while the alliance and war remain active")
 	_check(str(call_state.get_diplomacy_record(0).get("treaty", "")) == "war", "accepting a call to war enters the player into the ally's conflict")
-	_check(str(call_state.get_diplomacy_record(0).get("war_reason", "")) == "ally_call", "joined war records the alliance call as its political reason")
+	_check(str(call_state.get_diplomacy_record(0).get("war_reason", "")) == "ally_attacked", "joined war retains the original conflict cause")
+	_check(str(call_state.get_diplomacy_record(0).get("war_join_reason", "")) == "ally_call", "joined war separately records that the player entered through an allied call")
 	call_state.free()
 
 
