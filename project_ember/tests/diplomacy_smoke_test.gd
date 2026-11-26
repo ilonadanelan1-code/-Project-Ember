@@ -189,12 +189,32 @@ func _run() -> void:
 	DiplomacyCatalogScript.process_turn(border_relations, border_kingdoms, 5, 841207, 100.0, no_offers, border_player_sources)
 	_check(int(DiplomacyCatalogScript.get_record(border_relations, -1, 0).get("relation", 0)) == -42, "aggressive AI applies deterministic border tension near player territory")
 
+	var border_claims := DiplomacyCatalogScript.get_active_casus_belli(
+		DiplomacyCatalogScript.get_record(border_relations, -1, 0),
+		5,
+		0
+	)
+	_check(not border_claims.is_empty(), "aggressive border pressure creates a visible casus belli")
+	_check(str(border_claims[0].get("cause", "")) == "border_encroachment", "border claim records its concrete reason")
+	var no_claim_legacy := DiplomacyCatalogScript.normalize_relations({"-1:0": {"relation": 10}}, 2, 841207)
+	_check(DiplomacyCatalogScript.get_record(no_claim_legacy, -1, 0).get("casus_belli", []) is Array, "legacy relationship records receive an empty casus belli list")
+	var manual_claim_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	var first_claim := DiplomacyCatalogScript.create_casus_belli(manual_claim_relations, 0, 1, "treaty_breach", 4, 3)
+	var duplicate_claim := DiplomacyCatalogScript.create_casus_belli(manual_claim_relations, 0, 1, "treaty_breach", 5, 2)
+	_check(not first_claim.is_empty() and first_claim == duplicate_claim, "duplicate causes do not stack multiple active claims")
+	_check(DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(manual_claim_relations, 0, 1), 12, 0), "casus belli remains active through its eighth turn")
+	_check(not DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(manual_claim_relations, 0, 1), 13, 0), "casus belli expires after its eight-turn window")
+
+
 	var ai_war_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
 	var hostile_ai_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)
 	hostile_ai_record["relation"] = -62
 	DiplomacyCatalogScript.set_record(ai_war_relations, 0, 1, hostile_ai_record)
 	DiplomacyCatalogScript.process_turn(ai_war_relations, ai_deal_kingdoms, 5, 841207, 100.0, no_offers)
 	_check(str(DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1).get("treaty", "")) == "war", "aggressive AI can declare war on a hostile neighbouring realm")
+	var ai_war_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)
+	_check(str(ai_war_record.get("war_reason", "")) == "border_encroachment", "AI war record stores the casus belli that justified the declaration")
+	_check(DiplomacyCatalogScript.get_active_casus_belli(ai_war_record, 5).is_empty(), "declaring war consumes the claim used as its justification")
 	var exhausted_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)
 	exhausted_record["war_exhaustion"] = 60
 	DiplomacyCatalogScript.set_record(ai_war_relations, 0, 1, exhausted_record)
@@ -205,6 +225,22 @@ func _run() -> void:
 			ai_peace_resolved = true
 			break
 	_check(ai_peace_resolved, "AI-AI wars can resolve into a four-turn truce after war exhaustion")
+
+	var call_to_war_kingdoms: Array[Dictionary] = [
+		{"id": 0, "alive": true, "name": "Союзник", "cities": [{"cell": [0, 0]}], "army": []},
+		{"id": 1, "alive": true, "name": "Противник", "cities": [{"cell": [2, 0]}], "army": []},
+	]
+	var call_to_war_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	DiplomacyCatalogScript.set_treaty(call_to_war_relations, -1, 0, "alliance", 1, 8)
+	var call_war_record := DiplomacyCatalogScript.get_record(call_to_war_relations, 0, 1)
+	call_war_record["relation"] = -62
+	DiplomacyCatalogScript.set_record(call_to_war_relations, 0, 1, call_war_record)
+	var call_offers: Array[Dictionary] = []
+	DiplomacyCatalogScript.process_turn(call_to_war_relations, call_to_war_kingdoms, 5, 841207, 100.0, call_offers)
+	_check(str(DiplomacyCatalogScript.get_record(call_to_war_relations, 0, 1).get("treaty", "")) == "war", "border claim can trigger the AI-AI war that activates allied calls")
+	_check(not call_offers.is_empty() and str(call_offers[0].get("action", "")) == "call_to_war", "AI ally sends a formal call to war to the player")
+	_check(int(call_offers[0].get("expires_turn", 0)) == 8, "war call gives the player three turns to answer")
+
 
 	var player_war_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
 	var hostile_player_record := DiplomacyCatalogScript.get_record(player_war_relations, -1, 0)
@@ -246,6 +282,49 @@ func _run() -> void:
 	_check(str(state.get_diplomacy_record(0).get("war_reason", "")) == "player_declaration", "war record stores the declared cause")
 	_check(state.get_diplomacy_action_preview(0, "offer_peace").get("available", false), "peace proposal becomes available while at war")
 	_check(CampaignStateScript.SAVE_VERSION == 1, "optional diplomacy fields preserve legacy save schema version")
+
+	var call_state: Variant = CampaignStateScript.new()
+	root.add_child(call_state)
+	call_state.prepare_new_campaign(true)
+	call_state.faction_setup_pending = false
+	call_state.turn_number = 5
+	DiplomacyCatalogScript.set_treaty(call_state.diplomacy_relations, -1, 1, "alliance", 5, 8)
+	var defending_war := DiplomacyCatalogScript.get_record(call_state.diplomacy_relations, 1, 0)
+	defending_war["treaty"] = "war"
+	defending_war["war_initiator_id"] = 0
+	defending_war["war_target_id"] = 1
+	DiplomacyCatalogScript.set_record(call_state.diplomacy_relations, 1, 0, defending_war)
+	var ally_relation_before := int(call_state.get_diplomacy_record(1).get("relation", 0))
+	call_state.pending_diplomacy_offers.append({
+		"offer_id": "ally-call-decline",
+		"kingdom_id": 1,
+		"enemy_kingdom_id": 0,
+		"action": "call_to_war",
+		"war_cause": "ally_attacked",
+		"created_turn": 5,
+		"expires_turn": 8,
+	})
+	var declined_call: Dictionary = call_state.respond_to_diplomacy_offer("ally-call-decline", false)
+	_check(bool(declined_call.get("ok", false)), "player can explicitly decline a formal allied war call")
+	_check(
+		int(call_state.get_diplomacy_record(1).get("relation", 0)) == ally_relation_before - DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY,
+		"refusing a call to war reduces the caller's diplomatic relation"
+	)
+	call_state.pending_diplomacy_offers.append({
+		"offer_id": "ally-call-accept",
+		"kingdom_id": 1,
+		"enemy_kingdom_id": 0,
+		"action": "call_to_war",
+		"war_cause": "ally_attacked",
+		"created_turn": 5,
+		"expires_turn": 8,
+	})
+	var accepted_call: Dictionary = call_state.respond_to_diplomacy_offer("ally-call-accept", true)
+	_check(bool(accepted_call.get("ok", false)), "player can accept an allied war call while the alliance and war remain active")
+	_check(str(call_state.get_diplomacy_record(0).get("treaty", "")) == "war", "accepting a call to war enters the player into the ally's conflict")
+	_check(str(call_state.get_diplomacy_record(0).get("war_reason", "")) == "ally_call", "joined war records the alliance call as its political reason")
+	call_state.free()
+
 
 	var offer := {
 		"offer_id": "1:offer_trade:4",
