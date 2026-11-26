@@ -504,7 +504,7 @@ check(all(token in battle_unit_text for token in ["CommanderStatsScript.calculat
 check(all(token in strategy_map_text for token in ["ЭКИПИРОВКА И ИНВЕНТАРЬ", "НАДЕТЬ", "СНЯТЬ", "get_hero_stats_with_item"]), "mobile equipment panel supports slot selection, comparison and equip actions")
 check(equipment_test_path.is_file() and all(token in equipment_test_text for token in [
     "legacy hero records receive all missing equipment slots",
-    "replacement weapon returns to the inventory",
+    "replaced equipment returns to the inventory",
     "tactical commander damage uses the shared equipment calculation",
     "equipped weapon survives save and load",
     "battle victory adds the reward to the assigned commander inventory",
