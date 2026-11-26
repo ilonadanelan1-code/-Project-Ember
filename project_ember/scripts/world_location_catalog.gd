@@ -309,6 +309,57 @@ static func _normalize_guard_roster(raw: Variant, guard_tier: int, type_id: Stri
 	return result if raw is Array else _make_guard_roster(guard_tier, type_id)
 
 
+static func get_map_icon(type_id: String) -> String:
+	match type_id:
+		"ancient_ruins":
+			return "gravestone"
+		"monster_lair":
+			return "dragon"
+		"abandoned_mine":
+			return "stone_well"
+		"forgotten_shrine":
+			return "statue"
+		"mercenary_camp":
+			return "campfire"
+		"leyline_nexus":
+			return "torch"
+	return "signpost"
+
+
+static func get_guard_visual_ids(type_id: String) -> Array[String]:
+	match type_id:
+		"ancient_ruins":
+			return ["skeleton", "mummy", "zombie", "lich"]
+		"monster_lair":
+			return ["goblin", "spider", "demon", "wyrm", "imp"]
+		"abandoned_mine":
+			return ["golem", "orc", "scorpion", "boar"]
+		"forgotten_shrine":
+			return ["ghost", "lich", "vampire", "mummy"]
+		"mercenary_camp":
+			return ["dark_knight", "red_knight"]
+		"leyline_nexus":
+			return ["fire_elemental", "ice_elemental", "storm_elemental", "water_elemental"]
+	return ["skeleton"]
+
+
+static func get_guardian_visual_id(type_id: String) -> String:
+	match type_id:
+		"ancient_ruins":
+			return "skeleton"
+		"monster_lair":
+			return "demon"
+		"abandoned_mine":
+			return "golem"
+		"forgotten_shrine":
+			return "lich"
+		"mercenary_camp":
+			return "red_knight"
+		"leyline_nexus":
+			return "storm_elemental"
+	return "dark_knight"
+
+
 static func _cell_hash(cell: Vector2i, world_seed: int) -> int:
 	var mixed := posmod(cell.x * 92837111 + cell.y * 689287499 + world_seed * 283923481, 2147483647)
 	mixed = mixed ^ (mixed >> 13)
