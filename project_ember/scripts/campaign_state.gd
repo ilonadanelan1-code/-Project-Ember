@@ -94,6 +94,7 @@ var world_seed: int = WorldGeneratorScript.DEFAULT_SEED
 var world_generation_version: int = WorldGeneratorScript.WORLD_GENERATION_VERSION
 var kingdoms: Array[Dictionary] = []
 var diplomacy_relations: Dictionary = {}
+var player_diplomacy_profile: Dictionary = {}
 var pending_diplomacy_offers: Array[Dictionary] = []
 var last_diplomacy_events: Array[String] = []
 var last_kingdom_events: Array[String] = []
@@ -174,6 +175,18 @@ func apply_player_faction(raw_selection: Dictionary) -> bool:
 	if not faction_setup_pending or not FactionCatalogScript.is_valid_selection(raw_selection):
 		return false
 	player_faction = FactionCatalogScript.normalize_selection(raw_selection)
+	player_diplomacy_profile = DiplomacyCatalogScript.normalize_leader_profile(
+		{},
+		DiplomacyCatalogScript.PLAYER_ID,
+		player_faction,
+		0,
+		world_seed
+	)
+	DiplomacyCatalogScript.refresh_relationship_modifiers(
+		diplomacy_relations,
+		kingdoms,
+		player_diplomacy_profile
+	)
 	var starting_resources := FactionCatalogScript.apply_starting_bonus(
 		player_faction,
 		{"food": city_food, "gold": city_gold, "production": city_production_bank},
@@ -236,7 +249,18 @@ func new_campaign(persist: bool = true) -> void:
 	selected_player_army_id = PRIMARY_PLAYER_ARMY_ID
 	player_armies.append(_make_player_army_record(PRIMARY_PLAYER_ARMY_ID, "Первая армия", player_cell, player_units, active_hero_id, army_upgrades, player_moves_left))
 	kingdoms = KingdomAIScript.create_initial_kingdoms(world_seed)
-	diplomacy_relations = DiplomacyCatalogScript.create_initial_relations(kingdoms.size(), world_seed)
+	player_diplomacy_profile = DiplomacyCatalogScript.create_leader_profile(
+		DiplomacyCatalogScript.PLAYER_ID,
+		player_faction,
+		0,
+		world_seed
+	)
+	diplomacy_relations = DiplomacyCatalogScript.create_initial_relations(
+		kingdoms.size(),
+		world_seed,
+		kingdoms,
+		player_diplomacy_profile
+	)
 	pending_diplomacy_offers.clear()
 	last_diplomacy_events.clear()
 	neutral_locations = WorldLocationCatalogScript.generate_locations(world_seed, world_generation_version)
@@ -2481,7 +2505,8 @@ func advance_campaign_turn() -> void:
 		world_seed,
 		get_player_army_total_power(),
 		pending_diplomacy_offers,
-		_get_player_diplomacy_sources()
+		_get_player_diplomacy_sources(),
+		player_diplomacy_profile
 	)
 	last_diplomacy_events.clear()
 	for event_text in diplomacy_result.get("events", []):
@@ -3156,6 +3181,7 @@ func save_campaign() -> bool:
 		"last_world_event_text": last_world_event_text,
 		"world_events_resolved": world_events_resolved,
 		"kingdoms": kingdoms,
+		"player_diplomacy_profile": player_diplomacy_profile,
 		"diplomacy_relations": diplomacy_relations,
 		"pending_diplomacy_offers": pending_diplomacy_offers,
 		"campaign_lost": campaign_lost,
@@ -3372,7 +3398,7 @@ func load_campaign() -> bool:
 		for index in range(KINGDOM_COUNT):
 			var fallback: Dictionary = default_kingdoms[index]
 			if saved_kingdoms[index] is Dictionary:
-				kingdoms.append(KingdomAIScript.normalize_kingdom(saved_kingdoms[index], fallback))
+				kingdoms.append(KingdomAIScript.normalize_kingdom(saved_kingdoms[index], fallback, world_seed))
 			else:
 				kingdoms.append(fallback.duplicate(true))
 	else:
@@ -3384,7 +3410,20 @@ func load_campaign() -> bool:
 		migrated_primary["army"] = _copy_unit_records(enemy_units) if enemy_present else []
 		migrated_primary["hero"] = enemy_hero.duplicate(true)
 		kingdoms[0] = migrated_primary
-	diplomacy_relations = DiplomacyCatalogScript.normalize_relations(data.get("diplomacy_relations", {}), kingdoms.size(), world_seed)
+	player_diplomacy_profile = DiplomacyCatalogScript.normalize_leader_profile(
+		data.get("player_diplomacy_profile", {}),
+		DiplomacyCatalogScript.PLAYER_ID,
+		player_faction,
+		0,
+		world_seed
+	)
+	diplomacy_relations = DiplomacyCatalogScript.normalize_relations(
+		data.get("diplomacy_relations", {}),
+		kingdoms.size(),
+		world_seed,
+		kingdoms,
+		player_diplomacy_profile
+	)
 	pending_diplomacy_offers.clear()
 	var saved_diplomacy_offers: Variant = data.get("pending_diplomacy_offers", [])
 	if saved_diplomacy_offers is Array:
