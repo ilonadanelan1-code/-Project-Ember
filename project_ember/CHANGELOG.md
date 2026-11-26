@@ -1,3 +1,11 @@
+## v0.39 — Block 9: diplomatic border threat assessment
+
+- Adds deterministic peace-time threat scoring for nearby rival kingdoms using diplomatic hostility, active incoming casus belli, distance to the realm's settlements and relative army strength.
+- Threatened AI kingdoms enter a defensive alert posture, may recruit before war begins and delay expansion when their field force is too weak against the nearby rival.
+- Existing war-only target selection remains unchanged: a warning does not start a war or send an army against a peaceful neighbor.
+- The plan is transient; no new campaign save fields, resources or IDs are introduced. `SAVE_VERSION = 1` remains unchanged.
+- Adds regression coverage for hostile neighbors, formal incoming claims, pre-war recruitment, defensive expansion holds, neutral-neighbor false positives and the absence of surprise war.
+
 ## v0.39 — Block 8: roads and internal trade routes
 
 - Adds player-built roads between founded cities along deterministic axial hex paths. Routes can only use explored land in player or unclaimed territory; water, disputed and enemy-controlled cells are rejected.
