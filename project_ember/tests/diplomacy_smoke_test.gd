@@ -196,6 +196,29 @@ func _run() -> void:
 	)
 	_check(not border_claims.is_empty(), "aggressive border pressure creates a visible casus belli")
 	_check(str(border_claims[0].get("cause", "")) == "border_encroachment", "border claim records its concrete reason")
+	var outpost_claim_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	var outpost_claim_kingdoms: Array[Dictionary] = [
+		{"id": 0, "alive": true, "name": "Пограничная держава", "cities": [{"cell": [6, 0]}], "outposts": [], "army": []},
+	]
+	var player_outpost_sources: Array[Vector2i] = [Vector2i(5, 0)]
+	DiplomacyCatalogScript.process_turn(
+		outpost_claim_relations,
+		outpost_claim_kingdoms,
+		5,
+		841207,
+		100.0,
+		no_offers,
+		border_player_sources,
+		{},
+		player_outpost_sources
+	)
+	var outpost_claims := DiplomacyCatalogScript.get_active_casus_belli(
+		DiplomacyCatalogScript.get_record(outpost_claim_relations, -1, 0),
+		5,
+		0
+	)
+	_check(not outpost_claims.is_empty() and str(outpost_claims[0].get("cause", "")) == "outpost_encroachment", "a player outpost near an AI city creates a distinct outpost encroachment claim")
+
 	var no_claim_legacy := DiplomacyCatalogScript.normalize_relations({"-1:0": {"relation": 10}}, 2, 841207)
 	_check(DiplomacyCatalogScript.get_record(no_claim_legacy, -1, 0).get("casus_belli", []) is Array, "legacy relationship records receive an empty casus belli list")
 	var manual_claim_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
