@@ -26,9 +26,9 @@ Engine: Godot 4.7.2.stable.official.ed1daf0bf (Linux x86_64)
 | Playable ZIP integrity | Passed |
 | Tiny Swords atlas | 1152x2304 RGBA; 24 animation entries |
 
-Visual captures ran at 1280x720 in Xvfb with Mesa llvmpipe. This validates scene rendering, not Android FPS. Android device controls, performance and long-session stability remain unverified.
+Visual captures ran at 1280x720 in Xvfb with Mesa llvmpipe. GitHub Actions run [45845972194](https://github.com/ilonadanelan1-code/-Project-Ember/actions/runs/45845972194) completed with conclusion **success**. The run re-imported all resources, restored the licensed Tiny Swords atlas and manifest into its temporary workspace after SHA-256 verification, compiled scripts, passed all 37 smoke suites, and passed all four map zoom captures. This validates Linux software-rendered scene startup and screenshots, not Android FPS. Android device controls, performance and long-session stability remain unverified.
 
 `SAVE_VERSION` remains 1.
 
 ## Publishing note
-This report is a GitHub audit record. The full v0.38.2 playable archive was created in the ChatGPT session, but the current GitHub connector does not provide a binary release-asset upload action. Therefore no claim is made here that the full source ZIP has been uploaded. The licensed Tiny Swords atlas and manifest are also excluded from public source by project policy.
+The full playable archive is published in [GitHub Release v0.38.2](https://github.com/ilonadanelan1-code/-Project-Ember/releases/tag/v0.38.2). Public source is imported to [`release/v0.38.2-godot-audited`](https://github.com/ilonadanelan1-code/-Project-Ember/tree/release/v0.38.2-godot-audited). The licensed Tiny Swords atlas and manifest remain excluded from public source and are restored only inside temporary CI workspaces from the checksummed release asset.
