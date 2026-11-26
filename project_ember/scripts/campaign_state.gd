@@ -2508,7 +2508,8 @@ func advance_campaign_turn() -> void:
 		get_player_army_total_power(),
 		pending_diplomacy_offers,
 		_get_player_diplomacy_sources(),
-		player_diplomacy_profile
+		player_diplomacy_profile,
+		player_outpost_cells
 	)
 	last_diplomacy_events.clear()
 	for event_text in diplomacy_result.get("events", []):
