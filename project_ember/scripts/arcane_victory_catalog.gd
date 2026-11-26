@@ -61,6 +61,8 @@ static func calculate_turn_power(
 ) -> int:
 	var nexus_count := count_controlled_nexuses(locations, owner_id)
 	var conduit_count := count_arcane_conduits(cities)
+	if nexus_count <= 0 and conduit_count <= 0:
+		return 0
 	var affinity_power := get_affinity_power(profile)
 	return clampi(
 		nexus_count * NEXUS_POWER_PER_TURN + conduit_count * CONDUIT_POWER_PER_TURN + affinity_power,
