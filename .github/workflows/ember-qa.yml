@@ -82,7 +82,7 @@ jobs:
           fi
 
       - name: Parse every GDScript and run all smoke tests
-        run: project_ember/tools/qa/run_smoke_tests.sh project_ember
+        run: bash project_ember/tools/qa/run_smoke_tests.sh project_ember
 
       - name: Capture strategic map at four zoom levels
         shell: bash
