@@ -483,6 +483,34 @@ static func _initial_ai_relation(first_id: int, second_id: int, world_seed: int)
 	return clampi(score, -30, 30)
 
 
+static func _initial_player_profile_relation(profile: Dictionary) -> int:
+	match str(profile.get("personality_id", "")):
+		"aggressor": return -14
+		"merchant": return 18
+		"isolationist": return -2
+		"honorable": return 15
+		"expansionist": return -8
+	return 0
+
+
+static func _initial_ai_profile_relation(
+		first_id: int,
+		second_id: int,
+		world_seed: int,
+		first_profile: Dictionary,
+		second_profile: Dictionary
+) -> int:
+	var token := "diplomacy-profile:%d:%d:%d" % [world_seed, first_id, second_id]
+	var score := int(posmod(token.hash(), 31)) - 15
+	var first_personality := str(first_profile.get("personality_id", ""))
+	var second_personality := str(second_profile.get("personality_id", ""))
+	if first_personality == second_personality:
+		score += 8
+	elif first_personality == "aggressor" or second_personality == "aggressor":
+		score -= 7
+	return clampi(score, -30, 30)
+
+
 static func create_initial_relations(
 		kingdom_count: int,
 		world_seed: int,
@@ -491,9 +519,19 @@ static func create_initial_relations(
 ) -> Dictionary:
 	var result: Dictionary = {}
 	for kingdom_id in range(kingdom_count):
-		result[pair_key(PLAYER_ID, kingdom_id)] = _make_record(_initial_player_relation(kingdom_id))
+		var kingdom_profile := _get_profile_for_id(kingdoms, kingdom_id, {})
+		var player_relation := _initial_player_relation(kingdom_id)
+		if not player_profile.is_empty():
+			player_relation = _initial_player_profile_relation(kingdom_profile)
+		result[pair_key(PLAYER_ID, kingdom_id)] = _make_record(player_relation)
 		for other_id in range(kingdom_id + 1, kingdom_count):
-			result[pair_key(kingdom_id, other_id)] = _make_record(_initial_ai_relation(kingdom_id, other_id, world_seed))
+			var relation_value := _initial_ai_relation(kingdom_id, other_id, world_seed)
+			if kingdoms.size() == kingdom_count:
+				var first_profile := _get_profile_for_id(kingdoms, kingdom_id, {})
+				var second_profile := _get_profile_for_id(kingdoms, other_id, {})
+				if not first_profile.is_empty() and not second_profile.is_empty():
+					relation_value = _initial_ai_profile_relation(kingdom_id, other_id, world_seed, first_profile, second_profile)
+			result[pair_key(kingdom_id, other_id)] = _make_record(relation_value)
 	if kingdoms.size() == kingdom_count:
 		refresh_relationship_modifiers(result, kingdoms, player_profile)
 	return result
@@ -621,9 +659,10 @@ static func acceptance_chance(
 		record: Dictionary,
 		kingdom_id: int,
 		player_power: float,
-		target_power: float
+		target_power: float,
+		leader_profile: Dictionary = {}
 ) -> int:
-	var personality := get_personality(kingdom_id)
+	var personality := get_personality_for_profile(leader_profile) if not leader_profile.is_empty() else get_personality(kingdom_id)
 	var relation := int(record.get("relation", 0))
 	var ratio := player_power / maxf(1.0, target_power)
 	var pressure := clampf((ratio - 1.0) * 20.0, -18.0, 25.0)
@@ -673,11 +712,15 @@ static func process_turn(
 		var player_record := get_record(relations, PLAYER_ID, kingdom_id)
 		_tick_record(player_record, turn_number)
 		set_record(relations, PLAYER_ID, kingdom_id, player_record)
-		var personality_id := personality_id_for_kingdom(kingdom_id)
+		var kingdom_profile := _get_profile_for_id(kingdoms, kingdom_id, {})
+		var personality_id := str(kingdom_profile.get("personality_id", personality_id_for_kingdom(kingdom_id)))
+		var personality := get_personality_for_profile(kingdom_profile)
+		if personality.is_empty():
+			personality = get_personality(kingdom_id)
 		var current_treaty := str(player_record.get("treaty", "peace"))
 		if current_treaty == "peace":
 			if turn_number % 3 == 0:
-				var drift := int(get_personality(kingdom_id).get("peace_drift", 0))
+				var drift := int(personality.get("peace_drift", 0))
 				if drift != 0:
 					change_relation(relations, PLAYER_ID, kingdom_id, drift, turn_number)
 					player_record = get_record(relations, PLAYER_ID, kingdom_id)
@@ -700,7 +743,8 @@ static func process_turn(
 				relations,
 				kingdoms[kingdom_id],
 				kingdom_id,
-				turn_number
+				turn_number,
+				kingdom_profile
 		)
 
 	for first_id in range(kingdoms.size()):
@@ -711,14 +755,22 @@ static func process_turn(
 				continue
 			var record := get_record(relations, first_id, second_id)
 			_tick_record(record, turn_number)
+			var first_profile := _get_profile_for_id(kingdoms, first_id, {})
+			var second_profile := _get_profile_for_id(kingdoms, second_id, {})
+			var first_personality := get_personality_for_profile(first_profile)
+			var second_personality := get_personality_for_profile(second_profile)
+			if first_personality.is_empty():
+				first_personality = get_personality(first_id)
+			if second_personality.is_empty():
+				second_personality = get_personality(second_id)
 			if turn_number % 3 == 0:
-				var drift_total := int(get_personality(first_id).get("peace_drift", 0)) + int(get_personality(second_id).get("peace_drift", 0))
+				var drift_total := int(first_personality.get("peace_drift", 0)) + int(second_personality.get("peace_drift", 0))
 				if drift_total != 0:
 					record["relation"] = clampi(int(record.get("relation", 0)) + signi(drift_total), RELATION_MIN, RELATION_MAX)
 			if str(record.get("treaty", "peace")) == "peace":
 				var rival_border_distance := _nearest_city_distance(kingdoms[first_id].get("cities", []), kingdoms[second_id].get("cities", []))
-				var first_personality_id := personality_id_for_kingdom(first_id)
-				var second_personality_id := personality_id_for_kingdom(second_id)
+				var first_personality_id := str(first_profile.get("personality_id", personality_id_for_kingdom(first_id)))
+				var second_personality_id := str(second_profile.get("personality_id", personality_id_for_kingdom(second_id)))
 				var rivalry := first_personality_id in ["aggressor", "expansionist"] or second_personality_id in ["aggressor", "expansionist"]
 				if rivalry and rival_border_distance <= BORDER_TENSION_DISTANCE and turn_number % BORDER_TENSION_INTERVAL == posmod(first_id * 7 + second_id * 3, BORDER_TENSION_INTERVAL):
 					var ai_border_penalty := 2 if rival_border_distance <= 2 else 1
@@ -734,9 +786,9 @@ static func process_turn(
 				set_treaty(relations, first_id, second_id, "alliance", turn_number, ALLIANCE_DURATION)
 				events.append("%s и %s заключили союз." % [str(kingdoms[first_id].get("name", "Держава")), str(kingdoms[second_id].get("name", "Держава"))])
 			elif ai_treaty == "peace" and ai_relation <= -60 and turn_number % 4 == posmod(first_id + second_id, 4):
-				var first_personality := personality_id_for_kingdom(first_id)
-				var second_personality := personality_id_for_kingdom(second_id)
-				if first_personality == "aggressor" or first_personality == "expansionist" or second_personality == "aggressor" or second_personality == "expansionist":
+				var first_personality_id := str(first_profile.get("personality_id", personality_id_for_kingdom(first_id)))
+				var second_personality_id := str(second_profile.get("personality_id", personality_id_for_kingdom(second_id)))
+				if first_personality_id == "aggressor" or first_personality_id == "expansionist" or second_personality_id == "aggressor" or second_personality_id == "expansionist":
 					set_treaty(relations, first_id, second_id, "war", turn_number)
 					var war_record := get_record(relations, first_id, second_id)
 					war_record["war_reason"] = "border_tension"
@@ -744,8 +796,8 @@ static func process_turn(
 					change_relation(relations, first_id, second_id, -8, turn_number)
 					events.append("%s и %s начали войну из-за пограничной напряжённости." % [str(kingdoms[first_id].get("name", "Держава")), str(kingdoms[second_id].get("name", "Держава"))])
 			elif ai_treaty == "war" and int(record.get("war_exhaustion", 0)) >= 50 and turn_number % 4 == posmod(first_id + second_id, 4):
-				var first_peace := float(get_personality(first_id).get("peace", 0))
-				var second_peace := float(get_personality(second_id).get("peace", 0))
+				var first_peace := float(first_personality.get("peace", 0))
+				var second_peace := float(second_personality.get("peace", 0))
 				var peace_score := 25.0 + float(record.get("war_exhaustion", 0)) * 0.55 + float(ai_relation) * 0.12 + (first_peace + second_peace) * 0.5
 				var peace_chance := clampi(roundi(peace_score), 5, 95)
 				if deterministic_acceptance("ai_peace", second_id, turn_number + first_id * 13, world_seed, peace_chance):
@@ -814,9 +866,10 @@ static func _tick_record(record: Dictionary, turn_number: int) -> void:
 static func _maybe_create_player_offer(
 		pending_offers: Array[Dictionary],
 		relations: Dictionary,
-		_kingdom: Dictionary,
+		kingdom: Dictionary,
 		kingdom_id: int,
-		turn_number: int
+		turn_number: int,
+		leader_profile: Dictionary = {}
 ) -> void:
 	if pending_offers.size() >= MAX_PENDING_OFFERS:
 		return
@@ -830,7 +883,9 @@ static func _maybe_create_player_offer(
 	if turn_number - last_offer < 4:
 		return
 	var action_id := ""
-	var personality := personality_id_for_kingdom(kingdom_id)
+	var personality := str(leader_profile.get("personality_id", ""))
+	if personality.is_empty():
+		personality = str(kingdom.get("diplomacy_profile", {}).get("personality_id", personality_id_for_kingdom(kingdom_id)))
 	if treaty == "war" and int(record.get("war_exhaustion", 0)) >= 35 and turn_number % 2 == 0:
 		action_id = "offer_peace"
 	elif treaty == "trade" and relation >= 55 and turn_number % 5 == 2:
