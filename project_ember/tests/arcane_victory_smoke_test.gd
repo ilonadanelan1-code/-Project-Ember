@@ -71,8 +71,8 @@ func _run() -> void:
 	state.cities[0]["province_improvements"] = [{"id": "arcane_conduit", "cell": [-2, 1]}]
 	state.neutral_locations.append({"id": "test_player_nexus", "type": "leyline_nexus", "cleared": true, "cleared_by": -1})
 	state._advance_arcane_victory_race()
-	_check(state.arcane_victory_progress == 8, "player progress advances from controlled sites, conduits and affinity")
-	_check(state.last_arcane_power_gain == 8, "campaign records the player's per-turn arcane income")
+	_check(state.arcane_victory_progress == 9, "player progress advances from controlled sites, conduits and affinity")
+	_check(state.last_arcane_power_gain == 9, "campaign records the player's per-turn arcane income")
 
 	var leader: Dictionary = state.kingdoms[0]
 	leader["arcane_victory_progress"] = 71
