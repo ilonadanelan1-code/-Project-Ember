@@ -1,0 +1,86 @@
+name: Assemble Project Ember v0.36.1 archive
+
+on:
+  push:
+    branches: [release/v0.36.1]
+    paths:
+      - ".github/workflows/assemble-project-archive.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Inspect retained legacy package for reusable Tiny Swords assets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          report = []
+          old = Path("Project-Ember-v0.29.0-Diplomacy-Expansion.zip")
+          required = [
+              f"Tiny Swords (Free Pack)/Units/{team} Units/{unit}/{file}"
+              for team in ("Blue", "Red")
+              for unit, files in {
+                  "Warrior": ["Warrior_Idle.png", "Warrior_Run.png", "Warrior_Attack1.png", "Warrior_Attack2.png", "Warrior_Guard.png"],
+                  "Archer": ["Archer_Idle.png", "Archer_Run.png", "Archer_Shoot.png"],
+                  "Lancer": ["Lancer_Idle.png", "Lancer_Run.png", "Lancer_Right_Attack.png", "Lancer_Right_Defence.png"],
+              }.items()
+              for file in files
+          ]
+          if old.is_file():
+              with zipfile.ZipFile(old) as z:
+                  names = set(z.namelist())
+                  atlases = [n for n in names if n.endswith("combat_units_atlas.png")]
+                  manifests = [n for n in names if n.endswith("atlas_manifest.json")]
+                  available = sum(n in names for n in required)
+                  report += [
+                      f"Legacy archive: {old.name}",
+                      f"Required original Tiny Swords sheets found: {available}/{len(required)}",
+                      f"Existing combat atlases found: {atlases}",
+                      f"Atlas manifests found: {manifests}",
+                  ]
+                  if available == len(required):
+                      Path("tiny-swords-source-available.txt").write_text("yes\n")
+                      report.append("A complete source pack is available in the retained archive.")
+                  else:
+                      report.append("The retained archive cannot reconstruct the required combat atlas.")
+          else:
+              report.append("No retained legacy archive was found.")
+          Path("archive-inspection.txt").write_text("\n".join(report) + "\n")
+          print("\n".join(report))
+          PY
+
+      - name: Build playable ZIP when required art is available
+        id: playable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [[ -s project_ember/assets/combat/tiny_swords/combat_units_atlas.png && -s project_ember/assets/combat/tiny_swords/atlas_manifest.json ]]; then
+            bash project_ember/tools/assets/package_playable_release.sh "$PWD/dist/Project-Ember-v0.36.1.zip"
+            echo "kind=playable" >> "$GITHUB_OUTPUT"
+          else
+            echo "kind=source-only" >> "$GITHUB_OUTPUT"
+            echo "Required Tiny Swords atlas and manifest are not present in the public source checkout." > dist/BUILD-LIMITATIONS.txt
+            echo "This archive is source code only and is not a complete playable release." >> dist/BUILD-LIMITATIONS.txt
+            echo "Restore the owner-provided Tiny Swords (Free Pack) ZIP, then run project_ember/tools/assets/package_playable_release.sh." >> dist/BUILD-LIMITATIONS.txt
+            zip -qr dist/Project-Ember-v0.36.1-source.zip project_ember README.md RELEASE_v0.36.1.md archive-inspection.txt dist/BUILD-LIMITATIONS.txt
+            unzip -tq dist/Project-Ember-v0.36.1-source.zip
+          fi
+
+      - name: Upload assembled archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-Ember-v0.36.1-${{ steps.playable.outputs.kind }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
