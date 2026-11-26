@@ -947,6 +947,12 @@ static func process_turn(
 	var events: Array[String] = []
 	for offer_index in range(pending_offers.size() - 1, -1, -1):
 		if int(pending_offers[offer_index].get("expires_turn", 0)) < turn_number:
+			var expired_offer: Dictionary = pending_offers[offer_index]
+			if str(expired_offer.get("action", "")) == "call_to_war":
+				var caller_id := int(expired_offer.get("kingdom_id", -1))
+				if caller_id >= 0 and caller_id < kingdoms.size():
+					_apply_war_call_refusal(relations, caller_id, turn_number)
+					events.append("Ты не ответил на призыв державы «%s». Союзники сочли молчание отказом." % str(kingdoms[caller_id].get("name", "Держава")))
 			pending_offers.remove_at(offer_index)
 
 	for kingdom_id in range(kingdoms.size()):
@@ -968,18 +974,31 @@ static func process_turn(
 					change_relation(relations, PLAYER_ID, kingdom_id, drift, turn_number)
 					player_record = get_record(relations, PLAYER_ID, kingdom_id)
 			var player_border_distance := _nearest_sources_to_cities(player_sources, kingdoms[kingdom_id].get("cities", []))
-			if (personality_id == "aggressor" or personality_id == "expansionist") and player_border_distance <= BORDER_TENSION_DISTANCE and turn_number % BORDER_TENSION_INTERVAL == posmod(kingdom_id, BORDER_TENSION_INTERVAL):
+			var player_outpost_distance := _nearest_sources_to_cities(player_sources, kingdoms[kingdom_id].get("outposts", []))
+			var is_aggressive := personality_id in ["aggressor", "expansionist"]
+			if is_aggressive and player_border_distance <= BORDER_TENSION_DISTANCE:
+				var claim_cause := "outpost_encroachment" if player_outpost_distance <= 3 else "border_encroachment"
+				var created_claim := create_casus_belli(relations, kingdom_id, PLAYER_ID, claim_cause, turn_number, 2 if player_border_distance <= 2 else 1)
+				if not created_claim.is_empty() and int(created_claim.get("created_turn", -1)) == turn_number:
+					events.append("%s выдвинуло претензию против твоей державы: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), claim_cause])
+				player_record = get_record(relations, PLAYER_ID, kingdom_id)
+			if is_aggressive and player_border_distance <= BORDER_TENSION_DISTANCE and turn_number % BORDER_TENSION_INTERVAL == posmod(kingdom_id, BORDER_TENSION_INTERVAL):
 				var player_border_penalty := 2 if player_border_distance <= 2 else 1
 				change_relation(relations, PLAYER_ID, kingdom_id, -player_border_penalty, turn_number)
 				player_record = get_record(relations, PLAYER_ID, kingdom_id)
-		if current_treaty == "peace" and int(player_record.get("relation", 0)) <= -55 and (personality_id == "aggressor" or personality_id == "expansionist") and turn_number % 4 == posmod(kingdom_id, 4):
+		if current_treaty == "peace" and int(player_record.get("relation", 0)) <= -55 and personality_id in ["aggressor", "expansionist"] and has_active_casus_belli(player_record, turn_number, kingdom_id) and turn_number % 4 == posmod(kingdom_id, 4):
 			if turn_number >= int(player_record.get("truce_until", 0)):
+				var active_claims := get_active_casus_belli(player_record, turn_number, kingdom_id)
+				var war_cause := str(active_claims[0].get("cause", "border_encroachment")) if not active_claims.is_empty() else "unjustified_declaration"
 				set_treaty(relations, PLAYER_ID, kingdom_id, "war", turn_number)
 				var war_record := get_record(relations, PLAYER_ID, kingdom_id)
-				war_record["war_reason"] = "border_tension"
+				war_record["war_reason"] = war_cause
+				war_record["war_initiator_id"] = kingdom_id
+				war_record["war_target_id"] = PLAYER_ID
 				set_record(relations, PLAYER_ID, kingdom_id, war_record)
+				consume_casus_belli(relations, kingdom_id, PLAYER_ID, turn_number)
 				change_relation(relations, PLAYER_ID, kingdom_id, -8, turn_number)
-				events.append("%s объявило тебе войну." % str(kingdoms[kingdom_id].get("name", "Королевство")))
+				events.append("%s объявило тебе войну по причине: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), war_cause])
 				player_record = get_record(relations, PLAYER_ID, kingdom_id)
 		_maybe_create_player_offer(
 				pending_offers,
@@ -1014,7 +1033,14 @@ static func process_turn(
 				var rival_border_distance := _nearest_city_distance(kingdoms[first_id].get("cities", []), kingdoms[second_id].get("cities", []))
 				var first_personality_id := str(first_profile.get("personality_id", personality_id_for_kingdom(first_id)))
 				var second_personality_id := str(second_profile.get("personality_id", personality_id_for_kingdom(second_id)))
-				var rivalry := first_personality_id in ["aggressor", "expansionist"] or second_personality_id in ["aggressor", "expansionist"]
+				var first_is_aggressive := first_personality_id in ["aggressor", "expansionist"]
+				var second_is_aggressive := second_personality_id in ["aggressor", "expansionist"]
+				var rivalry := first_is_aggressive or second_is_aggressive
+				if rivalry and rival_border_distance <= BORDER_TENSION_DISTANCE and ai_relation <= -50:
+					var claimant_id := first_id if first_is_aggressive else second_id
+					var disputed_id := second_id if claimant_id == first_id else first_id
+					create_casus_belli(relations, claimant_id, disputed_id, "border_encroachment", turn_number, 2 if rival_border_distance <= 2 else 1)
+					record = get_record(relations, first_id, second_id)
 				if rivalry and rival_border_distance <= BORDER_TENSION_DISTANCE and turn_number % BORDER_TENSION_INTERVAL == posmod(first_id * 7 + second_id * 3, BORDER_TENSION_INTERVAL):
 					var ai_border_penalty := 2 if rival_border_distance <= 2 else 1
 					record["relation"] = clampi(int(record.get("relation", 0)) - ai_border_penalty, RELATION_MIN, RELATION_MAX)
@@ -1028,16 +1054,24 @@ static func process_turn(
 			elif ai_treaty == "trade" and ai_relation >= 60 and posmod(turn_number + first_id * 5 + second_id * 3, 17) == 0:
 				set_treaty(relations, first_id, second_id, "alliance", turn_number, ALLIANCE_DURATION)
 				events.append("%s и %s заключили союз." % [str(kingdoms[first_id].get("name", "Держава")), str(kingdoms[second_id].get("name", "Держава"))])
-			elif ai_treaty == "peace" and ai_relation <= -60 and turn_number % 4 == posmod(first_id + second_id, 4):
-				var first_personality_id := str(first_profile.get("personality_id", personality_id_for_kingdom(first_id)))
-				var second_personality_id := str(second_profile.get("personality_id", personality_id_for_kingdom(second_id)))
-				if first_personality_id == "aggressor" or first_personality_id == "expansionist" or second_personality_id == "aggressor" or second_personality_id == "expansionist":
-					set_treaty(relations, first_id, second_id, "war", turn_number)
-					var war_record := get_record(relations, first_id, second_id)
-					war_record["war_reason"] = "border_tension"
-					set_record(relations, first_id, second_id, war_record)
-					change_relation(relations, first_id, second_id, -8, turn_number)
-					events.append("%s и %s начали войну из-за пограничной напряжённости." % [str(kingdoms[first_id].get("name", "Держава")), str(kingdoms[second_id].get("name", "Держава"))])
+			elif ai_treaty == "peace" and ai_relation <= -60 and turn_number % 4 == posmod(first_id + second_id, 4) and has_active_casus_belli(record, turn_number):
+				var active_claims := get_active_casus_belli(record, turn_number)
+				var war_claim: Dictionary = active_claims[0] if not active_claims.is_empty() else {}
+				var claimant_id := int(war_claim.get("claimant_id", first_id))
+				var war_cause := str(war_claim.get("cause", "unjustified_declaration"))
+				var war_target_id := second_id if claimant_id == first_id else first_id
+				set_treaty(relations, first_id, second_id, "war", turn_number)
+				var war_record := get_record(relations, first_id, second_id)
+				war_record["war_reason"] = war_cause
+				war_record["war_initiator_id"] = claimant_id
+				war_record["war_target_id"] = war_target_id
+				set_record(relations, first_id, second_id, war_record)
+				consume_casus_belli(relations, claimant_id, war_target_id, turn_number)
+				change_relation(relations, first_id, second_id, -8, turn_number)
+				var war_call := _maybe_create_player_war_call(pending_offers, relations, kingdoms, first_id, second_id, turn_number)
+				if not war_call.is_empty():
+					events.append("%s призывает тебя вступить в войну против державы «%s». Ответ нужен за 3 хода." % [str(kingdoms[int(war_call.get("kingdom_id", first_id))].get("name", "Держава")), str(kingdoms[int(war_call.get("enemy_kingdom_id", second_id))].get("name", "Держава"))])
+				events.append("%s и %s начали войну по причине: %s." % [str(kingdoms[first_id].get("name", "Держава")), str(kingdoms[second_id].get("name", "Держава")), war_cause])
 			elif ai_treaty == "war" and int(record.get("war_exhaustion", 0)) >= 50 and turn_number % 4 == posmod(first_id + second_id, 4):
 				var first_peace := float(first_personality.get("peace", 0))
 				var second_peace := float(second_personality.get("peace", 0))
@@ -1087,6 +1121,13 @@ static func _nearest_city_distance(first_values: Variant, second_values: Variant
 static func _tick_record(record: Dictionary, turn_number: int) -> void:
 	var treaty := str(record.get("treaty", "peace"))
 	var expires := int(record.get("treaty_until", 0))
+	var raw_claims: Variant = record.get("casus_belli", [])
+	var active_claims: Array[Dictionary] = []
+	if raw_claims is Array:
+		for claim_value in raw_claims:
+			if claim_value is Dictionary and int(claim_value.get("expires_turn", 0)) >= turn_number:
+				active_claims.append(claim_value)
+	record["casus_belli"] = active_claims
 	if treaty != "war" and expires > 0 and turn_number > expires:
 		record["treaty"] = "peace"
 		record["treaty_until"] = 0
