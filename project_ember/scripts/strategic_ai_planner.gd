@@ -95,6 +95,8 @@ static func evaluate_kingdom(
 	var threatened := false
 	var nearest_threat_distance := 999999
 	var nearest_threat_strength := 0.0
+	var threat_score := 0.0
+	var threat_source_id := -99
 	var kingdom_id := int(kingdom.get("id", -1))
 	var own_city_cells: Array[Vector2i] = []
 	for city_value in cities:
