@@ -1,3 +1,14 @@
+## v0.39 — Block 9: Strategic AI defensive readiness
+
+- [x] Score nearby peace-time threats using relationship hostility, incoming formal claims, distance and relative army strength.
+- [x] Give threatened kingdoms a defensive alert posture before war begins.
+- [x] Allow affordable pre-war recruitment and delay expansion when the realm is militarily exposed.
+- [x] Keep alliances, trade treaties and vassal agreements outside the peace-time hostile-neighbor warning.
+- [x] Preserve war-only target selection; defensive warnings never declare war or create an attack target.
+- [x] Add deterministic regression coverage for hostile borders, incoming claims, neutral neighbors and expansion readiness.
+- [x] Preserve existing resources, IDs and `SAVE_VERSION = 1`.
+- [ ] Balance warning thresholds during multi-dozen-turn campaigns and verify AI behavior on Android.
+
 ## v0.34.0 — Stage IV: Hero Roster & Recruitable Lords
 
 - [x] Add stable hero IDs and a persistent player hero roster while retaining the legacy player_hero save field.
