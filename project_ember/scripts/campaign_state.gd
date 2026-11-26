@@ -2143,6 +2143,7 @@ func load_campaign() -> bool:
 		player_hero = hero_roster[0].duplicate(true)
 	player_faction = FactionCatalogScript.normalize_selection(data.get("player_faction", {}))
 	faction_setup_pending = false
+	var enemy_hero_fallback := _make_hero_record("Варг", "Воевода Красного Отряда")
 	enemy_hero = _read_hero_record(data.get("enemy_hero", enemy_hero_fallback), enemy_hero_fallback)
 	enemy_present = bool(data.get("enemy_present", true)) and not enemy_units.is_empty()
 	world_seed = int(data.get("world_seed", WorldGeneratorScript.DEFAULT_SEED))
