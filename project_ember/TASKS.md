@@ -15,8 +15,7 @@
 - [x] Assign one available hero to each army and prevent assigning the same hero twice.
 - [x] Migrate legacy player_units and player_cell into the original primary army while retaining legacy save fields.
 - [x] Preserve existing unit records, role IDs, per-army upgrades, movement allowance and campaign save version.
-- [x] Add initial army creation, assignment, movement, legacy migration and save/load smoke coverage.
-- [ ] Complete multi-army combat handoff, city recruitment, hero recovery and battle result coverage.
+- [x] Add smoke coverage for army creation, assignment, recruitment targeting, movement, combat handoff/results, legacy migration and save/load.
 - [ ] Validate map readability, touch selection and performance on the target Android device.
 
 ## v0.36.0 — Stage VI: Hero Equipment & Loot
