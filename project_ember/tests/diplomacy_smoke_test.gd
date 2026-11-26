@@ -383,7 +383,7 @@ func _run() -> void:
 	var state_gift: Dictionary = state.perform_diplomacy_action("send_gift_small", 1)
 	var gift_gold_after := int(state.get_economy_snapshot().get("gold", 0))
 	_check(bool(state_gift.get("ok", false)) and gift_gold_before - gift_gold_after == 25, "sending a gift spends the exact gold cost from city treasuries")
-	var state_gift_record := state.get_diplomacy_record(1)
+	var state_gift_record: Dictionary = state.get_diplomacy_record(1)
 	_check(int(state_gift_record.get("last_gift_turn", 0)) == state.turn_number and not state_gift_record.get("relationship_history", []).is_empty(), "campaign gift persists its cooldown and event history")
 	_check(not state.get_diplomacy_action_preview(1, "send_gift_small").get("available", true), "a second gift is blocked during the cooldown")
 
