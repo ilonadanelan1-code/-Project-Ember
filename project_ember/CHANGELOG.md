@@ -1,3 +1,12 @@
+## v0.39 — Block 8: roads and internal trade routes
+
+- Adds player-built roads between founded cities along deterministic axial hex paths. Routes can only use explored land in player or unclaimed territory; water, disputed and enemy-controlled cells are rejected.
+- Road costs scale with distance and are paid from the active source city's gold and stored production. Each city can support up to two trade connections.
+- Each connected city receives +1 gold per turn while the road remains operational. A hostile or disputed corridor suspends the trade income without deleting the road record.
+- The city panel provides destination selection, route cost and status; completed roads appear as highlighted paths on the strategic map.
+- Route endpoints, hex paths and creation turn are stored as optional save fields. Legacy saves receive an empty route list; SAVE_VERSION = 1 remains unchanged.
+- Adds regression tests for path legality, costs, connection limits, city income, save/load and hostile interruption.
+
 ## v0.39 — Block 7: founded city list and quick switching
 
 - Adds a compact two-column founded-city selector to the mobile city panel. Each entry shows the city name, population and treasury, with the active city clearly marked.

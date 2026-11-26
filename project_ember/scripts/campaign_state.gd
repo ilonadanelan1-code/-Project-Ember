@@ -20,6 +20,7 @@ const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
 const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
 const ArcaneVictoryCatalogScript = preload("res://scripts/arcane_victory_catalog.gd")
 const BattleEstimatorScript = preload("res://scripts/battle_estimator.gd")
+const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -34,6 +35,13 @@ const SAVE_VERSION := 1
 const WORLD_RADIUS := WorldGeneratorScript.WORLD_RADIUS
 const WORLD_HEX_COUNT := WorldGeneratorScript.WORLD_HEX_COUNT
 const KINGDOM_COUNT := WorldGeneratorScript.KINGDOM_COUNT
+const MAX_TRADE_ROUTE_DISTANCE := 18
+const MAX_TRADE_ROUTES_PER_CITY := 2
+const TRADE_ROUTE_GOLD_PER_CITY := 1
+const TRADE_ROUTE_BASE_GOLD_COST := 16
+const TRADE_ROUTE_GOLD_PER_HEX := 3
+const TRADE_ROUTE_BASE_PRODUCTION_COST := 3
+const TRADE_ROUTE_PRODUCTION_PER_HEX := 1
 
 const CITY_BUILDINGS := {
 	"farm": {
@@ -135,6 +143,7 @@ var city_province_improvements: Array[Dictionary] = []
 var army_upkeep_last_due: int = 0
 var army_upkeep_last_paid: int = 0
 var cities: Array[Dictionary] = []
+var trade_routes: Array[Dictionary] = []
 var outposts: Array[Dictionary] = []
 var active_city_id: int = 0
 var settler_active: bool = false
@@ -296,6 +305,7 @@ func new_campaign(persist: bool = true) -> void:
 	army_upkeep_last_due = 0
 	army_upkeep_last_paid = 0
 	cities.clear()
+	trade_routes.clear()
 	outposts.clear()
 	active_city_id = 0
 	cities.append(_make_city_record(0, city_name, city_cell, city_population, city_food, city_gold, city_production_bank, city_buildings, city_build_queue))
@@ -2330,7 +2340,8 @@ func get_economy_snapshot() -> Dictionary:
 	var income_production := 0
 	var low_treasury_cities := 0
 	var poor_outposts := 0
-	for city_value in cities:
+	for city_index in range(cities.size()):
+		var city_value: Variant = cities[city_index]
 		if not city_value is Dictionary:
 			continue
 		var city: Dictionary = city_value
@@ -2341,6 +2352,7 @@ func get_economy_snapshot() -> Dictionary:
 		var improvements_value: Variant = city.get("province_improvements", [])
 		var improvements: Array = improvements_value if improvements_value is Array else []
 		var base_income := CityDevelopmentCatalogScript.get_city_income(buildings, levels, improvements, str(city.get("specialization", "")))
+		base_income["gold"] = int(base_income.get("gold", 0)) + get_city_trade_income(city_index)
 		var city_income := FactionCatalogScript.apply_income_modifiers(base_income, buildings, player_faction)
 		treasury_gold += maxi(0, int(city.get("gold", 0)))
 		treasury_food += maxi(0, int(city.get("food", 0)))
@@ -2394,10 +2406,188 @@ func get_economy_summary() -> String:
 	return "Чистый баланс: %s зол./ход · поселений: %d · застав: %d" % [net_label, int(economy.get("settlement_count", 0)), int(economy.get("outpost_count", 0))]
 
 
+func get_city_trade_route_count(city_id: int) -> int:
+	if city_id < 0 or city_id >= cities.size():
+		return 0
+	var count := 0
+	for route in trade_routes:
+		if int(route.get("from_city_id", -1)) == city_id or int(route.get("to_city_id", -1)) == city_id:
+			count += 1
+	return count
+
+
+func _trade_route_pair_key(first_city_id: int, second_city_id: int) -> String:
+	return "%d:%d" % [mini(first_city_id, second_city_id), maxi(first_city_id, second_city_id)]
+
+
+func get_trade_route_quote(from_city_id: int, to_city_id: int) -> Dictionary:
+	var quote := {"valid": false, "reason": "Выбери другой основанный город.", "distance": 0, "gold_cost": 0, "production_cost": 0, "cells": []}
+	if campaign_lost or battle_in_progress:
+		quote["reason"] = "Строительство дорог сейчас недоступно."
+		return quote
+	if from_city_id < 0 or to_city_id < 0 or from_city_id >= cities.size() or to_city_id >= cities.size() or from_city_id == to_city_id:
+		return quote
+	var start_cell := WorldGeneratorScript.array_to_cell(cities[from_city_id].get("cell", []))
+	var end_cell := WorldGeneratorScript.array_to_cell(cities[to_city_id].get("cell", []))
+	var distance := StrategicMapDetailsScript.axial_distance(start_cell, end_cell)
+	quote["distance"] = distance
+	if distance < 2:
+		quote["reason"] = "Города должны находиться минимум в двух гексах друг от друга."
+		return quote
+	if distance > MAX_TRADE_ROUTE_DISTANCE:
+		quote["reason"] = "Маршрут слишком длинный: максимум %d гексов." % MAX_TRADE_ROUTE_DISTANCE
+		return quote
+	var pair_key := _trade_route_pair_key(from_city_id, to_city_id)
+	for existing_route in trade_routes:
+		if _trade_route_pair_key(int(existing_route.get("from_city_id", -1)), int(existing_route.get("to_city_id", -1))) == pair_key:
+			quote["reason"] = "Между этими городами уже есть дорога."
+			return quote
+	if get_city_trade_route_count(from_city_id) >= MAX_TRADE_ROUTES_PER_CITY or get_city_trade_route_count(to_city_id) >= MAX_TRADE_ROUTES_PER_CITY:
+		quote["reason"] = "У одного из городов уже достигнут лимит торговых путей."
+		return quote
+	var path: Array[Vector2i] = StrategicMapDetailsScript.axial_line(start_cell, end_cell)
+	if path.size() != distance + 1:
+		quote["reason"] = "Не удалось рассчитать путь между городами."
+		return quote
+	for cell in path:
+		if not WorldGeneratorScript.is_inside_world(cell):
+			quote["reason"] = "Путь выходит за границы известного мира."
+			return quote
+		if not is_cell_explored(cell):
+			quote["reason"] = "Сначала исследуй все гексы будущей дороги."
+			return quote
+		if get_world_terrain(cell) == "water":
+			quote["reason"] = "Дорога не может проходить через воду."
+			return quote
+		var owner_id := get_world_owner_at(cell)
+		if owner_id != TerritoryCatalogScript.OWNER_PLAYER and owner_id != TerritoryCatalogScript.OWNER_UNCLAIMED:
+			quote["reason"] = "Путь проходит через спорную или чужую территорию."
+			return quote
+	var gold_cost := TRADE_ROUTE_BASE_GOLD_COST + distance * TRADE_ROUTE_GOLD_PER_HEX
+	var production_cost := TRADE_ROUTE_BASE_PRODUCTION_COST + distance * TRADE_ROUTE_PRODUCTION_PER_HEX
+	quote["gold_cost"] = gold_cost
+	quote["production_cost"] = production_cost
+	quote["cells"] = path
+	var balance := _get_city_resource_balance(from_city_id)
+	if int(balance.get("gold", 0)) < gold_cost or int(balance.get("production", 0)) < production_cost:
+		quote["reason"] = "В казне города не хватает золота или производства."
+		return quote
+	quote["valid"] = true
+	quote["reason"] = "Дорога даст каждому городу +%d золота за ход." % TRADE_ROUTE_GOLD_PER_CITY
+	return quote
+
+
+func create_trade_route(target_city_id: int) -> bool:
+	var source_city_id := active_city_id
+	var quote := get_trade_route_quote(source_city_id, target_city_id)
+	if not bool(quote.get("valid", false)):
+		return false
+	var gold_cost := int(quote.get("gold_cost", 0))
+	var production_cost := int(quote.get("production_cost", 0))
+	if not _spend_city_resources(source_city_id, gold_cost, production_cost):
+		return false
+	var path_value: Variant = quote.get("cells", [])
+	var path: Array = path_value if path_value is Array else []
+	var cells: Array = []
+	for cell_value in path:
+		if cell_value is Vector2i:
+			var cell: Vector2i = cell_value
+			cells.append([cell.x, cell.y])
+	trade_routes.append({"id": trade_routes.size(), "from_city_id": source_city_id, "to_city_id": target_city_id, "cells": cells, "distance": int(quote.get("distance", 0)), "created_turn": turn_number})
+	_save_active_city()
+	save_campaign()
+	return true
+
+
+func is_trade_route_operational(route: Dictionary) -> bool:
+	var cells_value: Variant = route.get("cells", [])
+	if not cells_value is Array or cells_value.size() < 2:
+		return false
+	for cell_value in cells_value:
+		var cell := WorldGeneratorScript.array_to_cell(cell_value, Vector2i(9999, 9999))
+		if not WorldGeneratorScript.is_inside_world(cell) or get_world_terrain(cell) == "water":
+			return false
+		var owner_id := get_world_owner_at(cell)
+		if owner_id != TerritoryCatalogScript.OWNER_PLAYER and owner_id != TerritoryCatalogScript.OWNER_UNCLAIMED:
+			return false
+	return true
+
+
+func get_city_trade_income(city_id: int) -> int:
+	if city_id < 0 or city_id >= cities.size():
+		return 0
+	var income := 0
+	for route in trade_routes:
+		if int(route.get("from_city_id", -1)) != city_id and int(route.get("to_city_id", -1)) != city_id:
+			continue
+		if is_trade_route_operational(route):
+			income += TRADE_ROUTE_GOLD_PER_CITY
+	return income
+
+
+func get_city_trade_route_summary(city_id: int) -> String:
+	if city_id < 0 or city_id >= cities.size():
+		return "Торговые пути недоступны."
+	var lines: Array[String] = []
+	for route in trade_routes:
+		var from_id := int(route.get("from_city_id", -1))
+		var to_id := int(route.get("to_city_id", -1))
+		if from_id != city_id and to_id != city_id:
+			continue
+		var other_id := to_id if from_id == city_id else from_id
+		if other_id < 0 or other_id >= cities.size():
+			continue
+		var other_name := str(cities[other_id].get("name", "Город"))
+		if is_trade_route_operational(route):
+			lines.append("↔ %s · +%d зол./ход" % [other_name, TRADE_ROUTE_GOLD_PER_CITY])
+		else:
+			lines.append("↔ %s · дорога перекрыта" % other_name)
+	if lines.is_empty():
+		return "Пока нет построенных торговых дорог. Каждый маршрут приносит обоим городам +%d золота за ход." % TRADE_ROUTE_GOLD_PER_CITY
+	return "\n".join(lines)
+
+
+func _read_trade_routes(value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not value is Array:
+		return result
+	var used_pairs: Dictionary = {}
+	for raw_value in value:
+		if not raw_value is Dictionary:
+			continue
+		var from_id := int(raw_value.get("from_city_id", -1))
+		var to_id := int(raw_value.get("to_city_id", -1))
+		if from_id < 0 or to_id < 0 or from_id >= cities.size() or to_id >= cities.size() or from_id == to_id:
+			continue
+		var pair_key := _trade_route_pair_key(from_id, to_id)
+		if used_pairs.has(pair_key) or result.size() >= 24:
+			continue
+		var start_cell := WorldGeneratorScript.array_to_cell(cities[from_id].get("cell", []))
+		var end_cell := WorldGeneratorScript.array_to_cell(cities[to_id].get("cell", []))
+		var distance := StrategicMapDetailsScript.axial_distance(start_cell, end_cell)
+		if distance < 2 or distance > MAX_TRADE_ROUTE_DISTANCE:
+			continue
+		var path: Array[Vector2i] = StrategicMapDetailsScript.axial_line(start_cell, end_cell)
+		var valid_path := path.size() == distance + 1
+		for cell in path:
+			if not WorldGeneratorScript.is_inside_world(cell) or get_world_terrain(cell) == "water":
+				valid_path = false
+				break
+		if not valid_path:
+			continue
+		var cells: Array = []
+		for cell in path:
+			cells.append([cell.x, cell.y])
+		result.append({"id": result.size(), "from_city_id": from_id, "to_city_id": to_id, "cells": cells, "distance": distance, "created_turn": maxi(1, int(raw_value.get("created_turn", 1)))})
+		used_pairs[pair_key] = true
+	return result
+
+
 func get_city_income() -> Dictionary:
 	var base_income := CityDevelopmentCatalogScript.get_city_income(
 		city_buildings, city_building_levels, city_province_improvements, city_specialization
 	)
+	base_income["gold"] = int(base_income.get("gold", 0)) + get_city_trade_income(active_city_id)
 	return FactionCatalogScript.apply_income_modifiers(base_income, city_buildings, player_faction)
 
 
@@ -3803,6 +3993,7 @@ func save_campaign() -> bool:
 		"city_buildings": city_buildings,
 		"city_build_queue": city_build_queue,
 		"cities": cities,
+		"trade_routes": trade_routes,
 		"outposts": outposts,
 		"active_city_id": active_city_id,
 		"settler_active": settler_active,
@@ -4082,6 +4273,7 @@ func load_campaign() -> bool:
 	if cities.is_empty():
 		cities.append(_make_city_record(0, city_name, city_cell, city_population, city_food, city_gold, city_production_bank, city_buildings, city_build_queue))
 	outposts = _read_outposts(data.get("outposts", []))
+	trade_routes = _read_trade_routes(data.get("trade_routes", []))
 	active_city_id = clampi(int(data.get("active_city_id", 0)), 0, cities.size() - 1)
 	settler_active = bool(data.get("settler_active", false))
 	var settler_xy: Variant = data.get("settler_cell", [city_cell.x, city_cell.y + 1])

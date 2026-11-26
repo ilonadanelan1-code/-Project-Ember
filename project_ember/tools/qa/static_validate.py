@@ -165,6 +165,17 @@ check("func select_city_by_id(" in campaign_state_text and "func select_city_at(
 check(all(token in city_switch_ui_text for token in ["_city_list_container", "_refresh_city_selector()", "_select_city_from_list(", "ОСНОВАННЫЕ ГОРОДА"]), "mobile city panel displays founded cities and quick-switch controls")
 check(city_switch_test_path.is_file() and all(token in city_switch_test_text for token in ["select_city_by_id", "independent treasury", "invalid city index", "map-based city selection"]), "city-switch regression tests cover city activation, independent data and invalid indices")
 
+# Player-built roads and city-to-city trade routes.
+trade_route_test_path = ROOT / "tests/trade_routes_smoke_test.gd"
+trade_route_test_text = trade_route_test_path.read_text(encoding="utf-8") if trade_route_test_path.is_file() else ""
+trade_route_state_text = campaign_state_text
+trade_route_ui_text = (ROOT / "scripts/strategy_map.gd").read_text(encoding="utf-8")
+check("var trade_routes: Array[Dictionary]" in trade_route_state_text and '"trade_routes": trade_routes' in trade_route_state_text and '_read_trade_routes(data.get("trade_routes", []))' in trade_route_state_text, "trade routes persist as additive campaign data and old saves default to an empty route list")
+check(all(token in trade_route_state_text for token in ["func get_trade_route_quote(", "func create_trade_route(", "func is_trade_route_operational(", "func get_city_trade_income(", "MAX_TRADE_ROUTES_PER_CITY"]), "campaign state validates, builds and suspends roads while limiting per-city route connections")
+check(all(token in trade_route_ui_text for token in ["ДОРОГИ И ТОРГОВЫЕ МАРШРУТЫ", "_refresh_trade_route_controls()", "_build_trade_route()", "_draw_trade_route_roads()"]), "mobile city panel can build trade routes and strategic map renders their physical road paths")
+check(trade_route_test_path.is_file() and all(token in trade_route_test_text for token in ["route quote accepts", "build a road and activate a trade route", "both connected cities gain one gold", "trade route record survives save and load", "enemy-controlled corridor suspends"]), "trade route regression tests cover path legality, costs, income, persistence and hostile interruption")
+check("const SAVE_VERSION := 1" in trade_route_state_text, "trade route data leaves the existing save version unchanged")
+
 # Army veterancy, role-specific upgrades and legacy-save compatibility.
 unit_catalog_text = (ROOT / "scripts/unit_catalog.gd").read_text(encoding="utf-8")
 army_upgrade_path = ROOT / "scripts/army_upgrade_catalog.gd"

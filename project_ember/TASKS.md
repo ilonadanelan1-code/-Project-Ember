@@ -267,7 +267,7 @@
 - [x] AI kingdom settlement expansion and strategic target planning (v0.32.0).
 - [x] Add a non-mutating battle estimate before kingdom engagements using unit stats, veterancy, upgrades, role counters, commander stats and terrain; keep the actual tactical battle unchanged.
 - [x] Add city list and quick switching between founded cities.
-- [ ] Add roads and trade routes.
+- [x] Add roads and trade routes.
 
 ## Previous v0.6.0 roster and command status
 
@@ -322,3 +322,14 @@
 - [x] Reject invalid city indices without changing the current selection; preserve map-cell city selection through the same validated API.
 - [x] Add regression tests for switching, independent treasuries, invalid indices and map-selection compatibility.
 - [x] Keep `SAVE_VERSION = 1` and all existing city record fields unchanged.
+
+
+## v0.39 — Block 8: roads and internal trade routes
+
+- [x] Allow a city to build a road to another founded player city using a deterministic axial hex path.
+- [x] Require every road hex to be explored, passable land and either player-owned or unclaimed; reject water, disputed and enemy-controlled cells.
+- [x] Scale gold and production costs by road length and cap each city at two active route connections.
+- [x] Give each connected city +1 gold per turn while the corridor remains open; suspend income if hostile/disputed ownership interrupts the road.
+- [x] Persist endpoint IDs, route path and creation turn as optional campaign fields; keep SAVE_VERSION = 1.
+- [x] Add mobile route construction controls and draw built routes as highlighted roads on the strategic map.
+- [x] Add smoke coverage for path legality, costs, route capacity, income, persistence and hostile interruption.

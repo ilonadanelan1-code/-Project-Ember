@@ -87,6 +87,10 @@ var _city_overview_label: Label
 var _city_title_label: Label
 var _city_list_title_label: Label
 var _city_list_container: GridContainer
+var _trade_route_target_selector: OptionButton
+var _trade_route_build_button: Button
+var _trade_routes_label: Label
+var _trade_route_hint_label: Label
 var _settler_button: Button
 var _found_city_button: Button
 var _settler_selected: bool = false
@@ -490,6 +494,32 @@ func _draw_roads() -> void:
 		return
 	draw_multiline(road_segments, Palette.MAP_ROAD_SHADOW, maxf(1.1, 4.2 * _map_zoom), true)
 	draw_multiline(road_segments, Palette.MAP_ROAD_LIGHT, maxf(0.7, 1.8 * _map_zoom), true)
+	_draw_trade_route_roads()
+
+
+func _draw_trade_route_roads() -> void:
+	for route in CampaignState.trade_routes:
+		var route_cells_value: Variant = route.get("cells", [])
+		if not route_cells_value is Array or route_cells_value.size() < 2:
+			continue
+		var road_segments := PackedVector2Array()
+		for index in range(route_cells_value.size() - 1):
+			var start_cell := WorldGeneratorScript.array_to_cell(route_cells_value[index], Vector2i(9999, 9999))
+			var finish_cell := WorldGeneratorScript.array_to_cell(route_cells_value[index + 1], Vector2i(9999, 9999))
+			if not CampaignState.is_cell_explored(start_cell) or not CampaignState.is_cell_explored(finish_cell):
+				continue
+			var start_point := _hex_center(start_cell)
+			var finish_point := _hex_center(finish_cell)
+			if not _point_is_visible((start_point + finish_point) * 0.5, 24.0 * _map_zoom):
+				continue
+			road_segments.append(start_point)
+			road_segments.append(finish_point)
+		if road_segments.is_empty():
+			continue
+		var route_open := CampaignState.is_trade_route_operational(route)
+		var route_color := Color(0.91, 0.68, 0.29, 0.96) if route_open else Color(0.55, 0.44, 0.34, 0.82)
+		draw_multiline(road_segments, Color(0.12, 0.10, 0.08, 0.88), maxf(2.2, 5.2 * _map_zoom), true)
+		draw_multiline(road_segments, route_color, maxf(1.2, 2.6 * _map_zoom), true)
 
 
 func _append_city_road_segments(
@@ -1944,6 +1974,34 @@ func _create_city_panel(root: Control) -> void:
 	_city_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	details.add_child(_city_list_container)
 
+	var trade_title := Label.new()
+	trade_title.text = "ДОРОГИ И ТОРГОВЫЕ МАРШРУТЫ"
+	trade_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	trade_title.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(trade_title)
+
+	_trade_routes_label = Label.new()
+	_trade_routes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trade_routes_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_trade_routes_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	details.add_child(_trade_routes_label)
+
+	_trade_route_target_selector = OptionButton.new()
+	_trade_route_target_selector.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	_trade_route_target_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_trade_route_target_selector.item_selected.connect(_on_trade_route_target_changed)
+	details.add_child(_trade_route_target_selector)
+
+	_trade_route_build_button = _add_button(details, "ПОСТРОИТЬ ДОРОГУ", _build_trade_route)
+	_trade_route_build_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+	_trade_route_build_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+
+	_trade_route_hint_label = Label.new()
+	_trade_route_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trade_route_hint_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
+	_trade_route_hint_label.add_theme_color_override("font_color", Palette.UI_TEXT_HINT)
+	details.add_child(_trade_route_hint_label)
+
 	_city_overview_label = Label.new()
 	_city_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_city_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
@@ -2635,11 +2693,80 @@ func _select_city_from_list(city_index: int) -> void:
 	queue_redraw()
 
 
+func _refresh_trade_route_controls() -> void:
+	if not is_instance_valid(_trade_route_target_selector):
+		return
+	_trade_route_target_selector.clear()
+	var first_available_item := -1
+	for city_index in range(CampaignState.cities.size()):
+		if city_index == CampaignState.active_city_id:
+			continue
+		var city_record: Dictionary = CampaignState.cities[city_index]
+		var quote := CampaignState.get_trade_route_quote(CampaignState.active_city_id, city_index)
+		var option_text := str(city_record.get("name", "Город"))
+		if bool(quote.get("valid", false)):
+			option_text += " · %d гексов · %d зол. · %d пр." % [int(quote.get("distance", 0)), int(quote.get("gold_cost", 0)), int(quote.get("production_cost", 0))]
+		else:
+			option_text += " · " + str(quote.get("reason", "Недоступно"))
+		_trade_route_target_selector.add_item(option_text, city_index)
+		_trade_route_target_selector.set_item_disabled(_trade_route_target_selector.item_count - 1, not bool(quote.get("valid", false)))
+		if first_available_item < 0 and bool(quote.get("valid", false)):
+			first_available_item = _trade_route_target_selector.item_count - 1
+	if CampaignState.cities.size() <= 1:
+		_trade_route_target_selector.add_item("Нужно основать второй город", -1)
+		_trade_route_target_selector.set_item_disabled(0, true)
+		_trade_route_target_selector.select(0)
+		_trade_route_build_button.disabled = true
+		_trade_route_build_button.text = "НЕТ ГОРОДА ДЛЯ СВЯЗИ"
+		_trade_route_hint_label.text = "Построй поселение, исследуй путь и соедини города дорогой."
+		return
+	if first_available_item >= 0:
+		_trade_route_target_selector.select(first_available_item)
+		_on_trade_route_target_changed(first_available_item)
+	else:
+		_trade_route_target_selector.select(0)
+		_trade_route_build_button.disabled = true
+		_trade_route_build_button.text = "НЕТ ДОСТУПНОГО МАРШРУТА"
+		_trade_route_hint_label.text = "Маршрут недоступен: проверь расстояние, территорию, разведку и казну."
+
+
+func _on_trade_route_target_changed(_index: int) -> void:
+	if not is_instance_valid(_trade_route_target_selector):
+		return
+	var target_city_id := _trade_route_target_selector.get_selected_id()
+	var quote := CampaignState.get_trade_route_quote(CampaignState.active_city_id, target_city_id)
+	_trade_route_build_button.disabled = not bool(quote.get("valid", false))
+	if bool(quote.get("valid", false)):
+		_trade_route_build_button.text = "ПОСТРОИТЬ ДОРОГУ · %d зол. · %d пр." % [int(quote.get("gold_cost", 0)), int(quote.get("production_cost", 0))]
+		_trade_route_hint_label.text = "%d гексов. После завершения оба города получают +%d золота за ход. Чужая или спорная территория и вода блокируют прокладку." % [int(quote.get("distance", 0)), CampaignState.TRADE_ROUTE_GOLD_PER_CITY]
+	else:
+		_trade_route_build_button.text = "ПОСТРОИТЬ ДОРОГУ"
+		_trade_route_hint_label.text = str(quote.get("reason", "Маршрут недоступен."))
+
+
+func _build_trade_route() -> void:
+	if not is_instance_valid(_trade_route_target_selector):
+		return
+	var target_city_id := _trade_route_target_selector.get_selected_id()
+	if CampaignState.create_trade_route(target_city_id):
+		_message_text = "Дорога построена. Торговый маршрут приносит обоим городам +%d золота за ход." % CampaignState.TRADE_ROUTE_GOLD_PER_CITY
+		Haptics.confirm(35)
+	else:
+		var quote := CampaignState.get_trade_route_quote(CampaignState.active_city_id, target_city_id)
+		_message_text = str(quote.get("reason", "Не удалось построить дорогу."))
+	_refresh_city_panel()
+	_refresh_ui()
+	queue_redraw()
+
+
 func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
 		return
 	_refresh_city_selector()
+	_refresh_trade_route_controls()
 	var income: Dictionary = CampaignState.get_city_income()
+	if is_instance_valid(_trade_routes_label):
+		_trade_routes_label.text = CampaignState.get_city_trade_route_summary(CampaignState.active_city_id)
 	var tower_count := TerritoryCatalogScript.get_watchtower_count(CampaignState.city_province_improvements)
 	var influence_radius := TerritoryCatalogScript.get_city_influence_radius(CampaignState.city_population, CampaignState.active_city_id, CampaignState.city_specialization)
 	if is_instance_valid(_city_title_label):
