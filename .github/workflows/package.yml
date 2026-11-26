@@ -132,6 +132,81 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Recover the original Tiny Swords atlas from retained Project Ember packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import zipfile
+          from pathlib import Path
+
+          project = Path("project_ember")
+          target_dir = project / "assets/combat/tiny_swords"
+          target_dir.mkdir(parents=True, exist_ok=True)
+          expected = {
+              "combat_units_atlas.png": "ee07ed04f8856859af89590f3412b5865959d9ac19bd2f669268778eed45cf00",
+              "atlas_manifest.json": "ff3b8b74ccf36c4c1cbc3d800acae42a9bbf047c774689fbec39073e81e95c2b",
+          }
+          archives = sorted(Path(".").glob("*.zip"))
+          found = {}
+          for archive_path in archives:
+              try:
+                  with zipfile.ZipFile(archive_path) as archive:
+                      for member in archive.namelist():
+                          base = Path(member).name
+                          if base not in expected or base in found:
+                              continue
+                          data = archive.read(member)
+                          digest = hashlib.sha256(data).hexdigest()
+                          if digest == expected[base]:
+                              destination = target_dir / base
+                              destination.write_bytes(data)
+                              found[base] = (str(archive_path), member, digest, len(data))
+                              print(f"RECOVERED {base} from {archive_path}:{member} ({len(data)} bytes)")
+              except (zipfile.BadZipFile, OSError) as exc:
+                  print(f"SKIP {archive_path}: {exc}")
+          for name in expected:
+              if name not in found and (target_dir / name).is_file():
+                  data = (target_dir / name).read_bytes()
+                  digest = hashlib.sha256(data).hexdigest()
+                  if digest == expected[name]:
+                      found[name] = ("checkout", str(target_dir / name), digest, len(data))
+          if len(found) == len(expected):
+              Path("tiny-swords-recovery.txt").write_text(
+                  "\\n".join(f"{name}: {value[0]} / {value[1]} / sha256={value[2]}" for name, value in found.items()) + "\\n",
+                  encoding="utf-8",
+              )
+              print("RECOVERY RESULT: both manifest-matched assets are available.")
+          else:
+              missing = sorted(set(expected) - set(found))
+              print("RECOVERY RESULT: still missing: " + ", ".join(missing))
+              Path("tiny-swords-recovery.txt").write_text(
+                  "Missing from all tracked repository ZIP archives: " + ", ".join(missing) + "\\n",
+                  encoding="utf-8",
+              )
+          PY
+
+      - name: Assemble complete playable ZIP
+        if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          bash project_ember/tools/assets/package_playable_release.sh "$PWD/dist/Project-Ember-v0.36.1.zip"
+          cp tiny-swords-recovery.txt dist/TINY-SWORDS-ASSET-RECOVERY.txt
+
+      - name: Upload complete playable ZIP
+        if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-Ember-v0.36.1-playable
+          path: |
+            dist/Project-Ember-v0.36.1.zip
+            dist/TINY-SWORDS-ASSET-RECOVERY.txt
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Explain why source-only checkout cannot produce a playable archive
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
         run: |
