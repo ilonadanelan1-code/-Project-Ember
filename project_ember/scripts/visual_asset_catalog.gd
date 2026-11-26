@@ -2,9 +2,9 @@ extends RefCounted
 class_name VisualAssetCatalog
 
 ## Runtime atlas catalog for the additional licensed Project Ember visual packs.
-## A single lossless WebP is embedded in a compact JSON resource to avoid hundreds
-## of loose mobile asset files. Decoded textures and frame resources are cached.
-const VisualAssetDataScript = preload("res://scripts/visual_asset_data.gd")
+## The lossless WebP is a native Godot resource. Frame regions are cached for mobile use.
+const ATLAS_TEXTURE: Texture2D = preload("res://assets/visuals/project_ember_visual_atlas.webp")
+const DATA_PATH := "res://assets/visuals/visual_assets_runtime.json"
 
 static var _loaded: bool = false
 static var _data: Dictionary = {}
@@ -17,7 +17,14 @@ static func _get_data() -> Dictionary:
 	if _loaded:
 		return _data
 	_loaded = true
-	var parsed: Variant = JSON.parse_string(VisualAssetDataScript.META_JSON)
+	if not FileAccess.file_exists(DATA_PATH):
+		push_warning("VisualAssetCatalog: runtime visual atlas metadata is missing.")
+		return _data
+	var file := FileAccess.open(DATA_PATH, FileAccess.READ)
+	if file == null:
+		push_warning("VisualAssetCatalog: unable to read runtime visual atlas metadata.")
+		return _data
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	if parsed is Dictionary:
 		_data = parsed
 	else:
@@ -26,30 +33,20 @@ static func _get_data() -> Dictionary:
 
 
 static func has_assets() -> bool:
-	return not VisualAssetDataScript.get_image_webp_base64().is_empty()
+	return is_instance_valid(ATLAS_TEXTURE)
 
 
 static func _get_meta() -> Dictionary:
-	var value: Variant = _get_data().get("meta", {})
-	return value if value is Dictionary else {}
+	return _get_data()
 
 
 static func _get_texture() -> Texture2D:
 	if is_instance_valid(_atlas_texture):
 		return _atlas_texture
-	var encoded: String = VisualAssetDataScript.get_image_webp_base64()
-	if encoded.is_empty():
+	if not is_instance_valid(ATLAS_TEXTURE):
+		push_warning("VisualAssetCatalog: native Godot visual atlas resource failed to load.")
 		return null
-	var bytes := Marshalls.base64_to_raw(encoded)
-	if bytes.is_empty():
-		push_warning("VisualAssetCatalog: atlas payload could not be decoded.")
-		return null
-	var image := Image.new()
-	var error := image.load_webp_from_buffer(bytes)
-	if error != OK:
-		push_warning("VisualAssetCatalog: lossless WebP atlas could not be loaded (%s)." % error_string(error))
-		return null
-	_atlas_texture = ImageTexture.create_from_image(image)
+	_atlas_texture = ATLAS_TEXTURE
 	return _atlas_texture
 
 
