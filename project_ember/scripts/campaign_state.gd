@@ -2727,7 +2727,7 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [str(kingdoms[kingdom_id].get("name", "Держава")), enemy_name]
 			else:
 				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
-				response_message = "Ты отказался поддержать «%s». Отношение союзника ухудшилось на %d пунктов." % [kingdom_name, DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY]
+				response_message = "Ты отказался поддержать «%s». Отношение союзника ухудшилось на %d пунктов." % [str(kingdoms[kingdom_id].get("name", "Держава")), DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY]
 			pending_diplomacy_offers.remove_at(offer_index)
 			_record_diplomacy_event(response_message)
 			save_campaign()
