@@ -155,6 +155,24 @@ static func generate_locations(world_seed: int, generation_version: int) -> Arra
 			"cleared_turn": 0,
 			"reward": get_reward(type_id, guard_tier),
 		})
+	var nexus_count := 0
+	for location in result:
+		if str(location.get("type", "")) == "leyline_nexus":
+			nexus_count += 1
+	if nexus_count < 2:
+		# Keep at least two strategic race objectives in every generated world.
+		# Promote distant, already-spaced POIs instead of changing the terrain map.
+		for index in range(8, result.size()):
+			if nexus_count >= 2:
+				break
+			var location: Dictionary = result[index]
+			if str(location.get("type", "")) == "leyline_nexus":
+				continue
+			var guard_tier := clampi(int(location.get("guard_tier", 1)), 1, 3)
+			location["type"] = "leyline_nexus"
+			location["reward"] = get_reward("leyline_nexus", guard_tier)
+			result[index] = location
+			nexus_count += 1
 	return result
 
 
