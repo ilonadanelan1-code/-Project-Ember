@@ -81,7 +81,7 @@ func _run() -> void:
 	state.turn_number = 3
 	state._advance_arcane_victory_race()
 	_check(int(state.kingdoms[0].get("arcane_victory_progress", 0)) >= 72, "AI kingdoms accumulate magical power from captured nexus sites")
-	var containment_record := state.get_diplomacy_record(0)
+	var containment_record: Dictionary = state.get_diplomacy_record(0)
 	_check(
 		DiplomacyCatalogScript.has_active_casus_belli(containment_record, state.turn_number, DiplomacyCatalogScript.PLAYER_ID),
 		"the player receives a formal containment claim against a magical leader"
@@ -98,7 +98,7 @@ func _run() -> void:
 	player_winner._advance_arcane_victory_race()
 	_check(player_winner.arcane_victory_progress == ArcaneVictoryScript.VICTORY_THRESHOLD, "player can complete the magical ascension race")
 	_check(player_winner.campaign_winner_id == DiplomacyCatalogScript.PLAYER_ID, "player victory is stored as the campaign winner")
-	var finished_turn := player_winner.turn_number
+	var finished_turn: int = player_winner.turn_number
 	player_winner.advance_campaign_turn()
 	_check(player_winner.turn_number == finished_turn, "campaign turns stop after a magical victory")
 	player_winner.free()
