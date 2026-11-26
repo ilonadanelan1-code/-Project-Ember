@@ -28,6 +28,8 @@ const MAP_RADIUS := WorldGeneratorScript.WORLD_RADIUS
 const HEX_SIZE := 30.0
 const MAP_ZOOM_MIN := 0.075
 const MAP_ZOOM_MAX := 1.25
+# While the camera is moving, keep the map legible but defer expensive cartographic overlays.
+const MAP_MOTION_DETAIL_COOLDOWN_MS := 160
 const PLAYER_TEAM_COLOR := Palette.PLAYER_TEAM
 const ENEMY_TEAM_COLOR := Palette.ENEMY_TEAM
 
@@ -41,6 +43,8 @@ const NEIGHBOR_OFFSETS: Array[Vector2i] = [
 ]
 
 var _cells: Array[Vector2i] = []
+var _map_motion_active: bool = false
+var _map_motion_last_input_msec: int = 0
 var _hex_tileset_renderer: HexTerrainTileMapRenderer
 var _owner_lookup: Dictionary = {}
 var _camera_center_world: Vector2 = Vector2.ZERO
@@ -123,6 +127,7 @@ var _bottom_panel: PanelContainer
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	set_process(false)
 	get_tree().set_auto_accept_quit(false)
 	if not CampaignState.campaign_started:
 		CampaignState.new_campaign()
@@ -144,10 +149,16 @@ func _ready() -> void:
 
 func _draw() -> void:
 	_cells = _get_visible_map_cells()
-	_refresh_owner_lookup()
+	if not _map_motion_active:
+		_refresh_owner_lookup()
 	for index in range(_cells.size()):
 		var cell: Vector2i = _cells[index]
 		var center := _hex_center(cell)
+		if _map_motion_active:
+			# Fog remains accurate during the drag; ownership tint is restored on the settled frame.
+			if not CampaignState.is_cell_visible(cell):
+				draw_colored_polygon(_hex_points(center), Color(0.012, 0.020, 0.025, 0.28))
+			continue
 		var overlay := Color(0.0, 0.0, 0.0, 0.0)
 		var owner_id := int(_owner_lookup.get(cell, -1))
 		if owner_id == -2:
@@ -170,12 +181,13 @@ func _draw() -> void:
 			get_viewport_rect().size
 		)
 
-	_draw_hex_grid()
-	_draw_coastlines()
-	_draw_roads()
-	_draw_province_improvements()
-	_draw_neutral_locations()
-	_draw_territory_borders()
+	if not _map_motion_active:
+		_draw_hex_grid()
+		_draw_coastlines()
+		_draw_roads()
+		_draw_province_improvements()
+		_draw_neutral_locations()
+		_draw_territory_borders()
 
 	# Explored cities remain on the map as remembered locations. Enemy armies,
 	# unlike cities, are shown only while currently inside the player's sight.
@@ -185,7 +197,7 @@ func _draw() -> void:
 		var center := _hex_center(cell)
 		if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
 			_draw_city_marker(center, PLAYER_TEAM_COLOR, city_index == 0, true)
-			if StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
+			if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 				_draw_city_label(center, str(city_data.get("name", "Поселение")), PLAYER_TEAM_COLOR)
 
 	for kingdom_index in range(CampaignState.kingdoms.size()):
@@ -199,7 +211,7 @@ func _draw() -> void:
 			if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
 				var remembered_color := faction_color if CampaignState.is_cell_visible(cell) else faction_color.darkened(0.34)
 				_draw_city_marker(center, remembered_color, city_index == 0, false)
-				if StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
+				if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 					_draw_city_label(center, str(city_data.get("name", "Поселение")), remembered_color)
 		var army: Array = kingdom.get("army", [])
 		if not army.is_empty():
@@ -685,6 +697,7 @@ func _center_map_on_cell(cell: Vector2i) -> void:
 
 func _pan_map(delta_screen: Vector2) -> void:
 	_camera_center_world -= delta_screen / _map_zoom
+	_mark_map_motion()
 	queue_redraw()
 
 
@@ -693,6 +706,26 @@ func _zoom_map(factor: float, screen_anchor: Vector2) -> void:
 	_map_zoom = clampf(_map_zoom * factor, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
 	var after := _screen_to_world(screen_anchor)
 	_camera_center_world += before - after
+	_mark_map_motion()
+	queue_redraw()
+
+
+func _mark_map_motion() -> void:
+	_map_motion_active = true
+	_map_motion_last_input_msec = Time.get_ticks_msec()
+	if not is_processing():
+		set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if not _map_motion_active:
+		set_process(false)
+		return
+	if Time.get_ticks_msec() - _map_motion_last_input_msec < MAP_MOTION_DETAIL_COOLDOWN_MS:
+		return
+	_map_motion_active = false
+	set_process(false)
+	# One full-quality redraw restores ownership, roads, borders and small details.
 	queue_redraw()
 
 
