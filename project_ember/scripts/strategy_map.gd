@@ -1426,7 +1426,20 @@ func _refresh_kingdoms_panel() -> void:
 			var offer_text := "торговый договор" if offer_action == "offer_trade" else "союз" if offer_action == "offer_alliance" else "мир"
 			var offer_label := Label.new()
 			offer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			offer_label.text = "%s предлагает: %s · истекает через %d хода(ов)." % [offer_name, offer_text, maxi(0, int(offer.get("expires_turn", 0)) - CampaignState.turn_number)]
+			if offer_action == "call_to_war":
+				var enemy_id := int(offer.get("enemy_kingdom_id", -1))
+				var enemy_name := str(CampaignState.kingdoms[enemy_id].get("name", "Держава")) if enemy_id >= 0 and enemy_id < CampaignState.kingdoms.size() else "неизвестного врага"
+				var cause_labels := {
+					"border_encroachment": "пограничное расширение",
+					"outpost_encroachment": "спор из-за аванпоста",
+					"ally_attacked": "нападение на союзника",
+					"treaty_breach": "нарушение договора",
+					"victory_race": "гонка за магической победой",
+				}
+				var cause_text := str(cause_labels.get(str(offer.get("war_cause", "ally_attacked")), "политический конфликт"))
+				offer_label.text = "%s призывает вступить в войну против «%s». Повод: %s. Ответ нужен за 3 хода. Осталось: %d." % [offer_name, enemy_name, cause_text, maxi(0, int(offer.get("expires_turn", 0)) - CampaignState.turn_number)]
+			else:
+				offer_label.text = "%s предлагает: %s · истекает через %d хода(ов)." % [offer_name, offer_text, maxi(0, int(offer.get("expires_turn", 0)) - CampaignState.turn_number)]
 			_kingdoms_list.add_child(offer_label)
 			var offer_actions := HBoxContainer.new()
 			offer_actions.add_theme_constant_override("separation", int(UiMetrics.dp(6.0)))
@@ -1562,13 +1575,20 @@ func _refresh_diplomacy_panel() -> void:
 	var war_reason_text := ""
 	if treaty_value == "war":
 		match war_reason:
-			"player_declaration": war_reason_text = "\nПовод: объявление войны игроком."
+			"player_declaration": war_reason_text = "\nПовод: объявление войны игроком без претензии."
 			"battle_provocation": war_reason_text = "\nПовод: нападение на армию в мирное время."
 			"border_tension": war_reason_text = "\nПовод: пограничная напряжённость."
+			"border_encroachment": war_reason_text = "\nПовод: пограничное расширение."
+			"outpost_encroachment": war_reason_text = "\nПовод: спор из-за аванпоста."
+			"ally_attacked": war_reason_text = "\nПовод: защита союзника."
+			"treaty_breach": war_reason_text = "\nПовод: нарушение договора."
+			"victory_race": war_reason_text = "\nПовод: борьба с лидером магической гонки."
+			"ally_call": war_reason_text = "\nПовод: выполнение союзного призыва."
+	var claims_text := _format_casus_belli_claims(record.get("casus_belli", []), CampaignState.turn_number)
 	var overlord_text := ""
 	if treaty_value == "tribute" or treaty_value == "vassal":
 		overlord_text = "\nПолучатель выплат: %s." % ("твоё королевство" if int(record.get("overlord_id", -99)) == -1 else "другая держава")
-	_diplomacy_summary_label.text = "%s · %s\nХарактер: %s\n%s\nМировоззрение: %s\nАффинити: %s\nПредпочитает: %s\nНе любит: %s\n%s\nОтношение: %d — %s\nДоговор: %s%s%s%s%s\nАрмия по последним сведениям: %d бойцов" % [
+	_diplomacy_summary_label.text = "%s · %s\nХарактер: %s\n%s\nМировоззрение: %s\nАффинити: %s\nПредпочитает: %s\nНе любит: %s\n%s\nОтношение: %d — %s\nДоговор: %s%s%s%s%s%s\nАрмия по последним сведениям: %d бойцов" % [
 		str(kingdom.get("name", "Королевство")),
 		str(kingdom.get("ruler", "Правитель")),
 		str(personality.get("name", "Неизвестен")),
@@ -1584,6 +1604,7 @@ func _refresh_diplomacy_panel() -> void:
 		duration_text,
 		war_text,
 		war_reason_text,
+		claims_text,
 		overlord_text,
 		army_count,
 	]
@@ -1614,6 +1635,33 @@ func _refresh_diplomacy_panel() -> void:
 		_diplomacy_actions_list.add_child(action_button)
 		_diplomacy_actions_list.add_child(reason_label)
 
+
+
+
+func _format_casus_belli_claims(raw_value: Variant, turn_number: int) -> String:
+	var claims_value: Array = raw_value if raw_value is Array else []
+	var cause_labels := {
+		"border_encroachment": "пограничное расширение",
+		"outpost_encroachment": "спор из-за аванпоста",
+		"ally_attacked": "нападение на союзника",
+		"treaty_breach": "нарушение договора",
+		"victory_race": "гонка за магической победой",
+	}
+	var lines: Array[String] = []
+	for value in claims_value:
+		if not value is Dictionary:
+			continue
+		var claim: Dictionary = value
+		if int(claim.get("expires_turn", 0)) < turn_number:
+			continue
+		var claimant_id := int(claim.get("claimant_id", -99))
+		var source_text := "Твоё основание" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else "Претензия соперника"
+		var cause_text := str(cause_labels.get(str(claim.get("cause", "")), "политическое разногласие"))
+		var turns_left := maxi(0, int(claim.get("expires_turn", turn_number)) - turn_number)
+		lines.append("%s: %s · ещё %d ход(а/ов)" % [source_text, cause_text, turns_left])
+	if lines.is_empty():
+		return ""
+	return "\nДействующие поводы для войны:\n" + "\n".join(lines)
 
 
 func _format_diplomacy_profile_tags(value: Variant) -> String:
