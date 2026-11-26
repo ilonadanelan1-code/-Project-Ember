@@ -27,6 +27,8 @@ const PERSONALITY_IDS := ["aggressor", "merchant", "isolationist", "honorable", 
 const PROFILE_VERSION := 1
 const COMMON_ENEMY_OPINION_BONUS := 3
 const MAX_COMMON_ENEMY_BONUS := 6
+const COMMON_ALLY_OPINION_BONUS := 2
+const MAX_COMMON_ALLY_BONUS := 4
 
 const PERSONALITIES := {
 	"aggressor": {
@@ -311,25 +313,55 @@ static func calculate_relationship_modifiers(
 	preference_score = clampi(preference_score, -8, 8)
 
 	var shared_enemy_score := 0
+	var shared_ally_score := 0
 	if not relations.is_empty() and first_id != -99 and second_id != -99:
 		for other_id in range(9):
 			if other_id == first_id or other_id == second_id:
 				continue
 			var first_record := get_record(relations, first_id, other_id)
 			var second_record := get_record(relations, second_id, other_id)
-			if str(first_record.get("treaty", "peace")) == "war" and str(second_record.get("treaty", "peace")) == "war":
+			var first_treaty := str(first_record.get("treaty", "peace"))
+			var second_treaty := str(second_record.get("treaty", "peace"))
+			if first_treaty == "war" and second_treaty == "war":
 				shared_enemy_score += COMMON_ENEMY_OPINION_BONUS
+			elif first_treaty == "alliance" and second_treaty == "alliance":
+				shared_ally_score += COMMON_ALLY_OPINION_BONUS
 	shared_enemy_score = mini(shared_enemy_score, MAX_COMMON_ENEMY_BONUS)
+	shared_ally_score = mini(shared_ally_score, MAX_COMMON_ALLY_BONUS)
 
-	var total := clampi(alignment_score + affinity_score + personality_score + preference_score + shared_enemy_score, -24, 24)
+	var total := clampi(alignment_score + affinity_score + personality_score + preference_score + shared_enemy_score + shared_ally_score, -24, 24)
 	return {
 		"alignment": alignment_score,
 		"affinity": affinity_score,
 		"personality": personality_score,
 		"preferences": preference_score,
 		"shared_enemies": shared_enemy_score,
+		"shared_allies": shared_ally_score,
 		"total": total,
 	}
+
+
+static func refresh_player_relationships(
+		relations: Dictionary,
+		kingdoms: Array[Dictionary],
+		player_profile: Dictionary
+) -> void:
+	for kingdom_id in range(kingdoms.size()):
+		var kingdom_profile := _get_profile_for_id(kingdoms, kingdom_id, {})
+		if kingdom_profile.is_empty():
+			continue
+		var record := get_record(relations, PLAYER_ID, kingdom_id)
+		var base_relation := _initial_player_profile_relation(kingdom_profile)
+		var modifiers := calculate_relationship_modifiers(
+			player_profile,
+			kingdom_profile,
+			relations,
+			PLAYER_ID,
+			kingdom_id
+		)
+		record["relation"] = clampi(base_relation + int(modifiers.get("total", 0)), RELATION_MIN, RELATION_MAX)
+		record["opinion_modifiers"] = modifiers
+		set_record(relations, PLAYER_ID, kingdom_id, record)
 
 
 static func refresh_relationship_modifiers(
@@ -563,6 +595,7 @@ static func normalize_relations(
 					"personality": clampi(int(modifiers.get("personality", 0)), -8, 8),
 					"preferences": clampi(int(modifiers.get("preferences", 0)), -8, 8),
 					"shared_enemies": clampi(int(modifiers.get("shared_enemies", 0)), 0, MAX_COMMON_ENEMY_BONUS),
+					"shared_allies": clampi(int(modifiers.get("shared_allies", 0)), 0, MAX_COMMON_ALLY_BONUS),
 					"total": clampi(int(modifiers.get("total", 0)), -24, 24),
 				}
 			else:
