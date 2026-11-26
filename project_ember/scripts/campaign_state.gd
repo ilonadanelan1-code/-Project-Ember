@@ -2563,6 +2563,8 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 	var relation := int(record.get("relation", 0))
 	var player_power := _get_army_power(player_units)
 	var target_power := _get_army_power(kingdoms[kingdom_id].get("army", []))
+	var player_claims := DiplomacyCatalogScript.get_active_casus_belli(record, turn_number, DiplomacyCatalogScript.PLAYER_ID)
+	var rival_claims := DiplomacyCatalogScript.get_active_casus_belli(record, turn_number, kingdom_id)
 	var available := true
 	var reason := ""
 	match action_id:
@@ -2572,8 +2574,12 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 				reason = "Вассал защищён договором. Сначала договор должен закончиться."
 			elif turn_number < int(record.get("truce_until", 0)):
 				reason = "Перемирие действует ещё %d ход(а)." % (int(record.get("truce_until", 0)) - turn_number)
+			elif not player_claims.is_empty():
+				reason = "Есть действующий повод для войны: %s. Дипломатический штраф будет меньше." % str(player_claims[0].get("cause", "территориальная претензия"))
+			elif not rival_claims.is_empty():
+				reason = "Соперник уже выдвинул претензию против твоей державы: %s." % str(rival_claims[0].get("cause", "территориальный спор"))
 			else:
-				reason = "Начнётся война; отношение ухудшится на 35 пунктов."
+				reason = "Формального повода нет. Объявление войны ухудшит отношение на 35 пунктов."
 		"offer_trade":
 			available = treaty == "peace" and int(record.get("truce_until", 0)) <= turn_number
 			reason = "Договор на 6 ходов: +2 золота каждый ход обеим сторонам." if available else "Торговля возможна только в мирное время."
@@ -2615,12 +2621,20 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 		return {"ok": false, "message": str(preview.get("reason", "Действие недоступно."))}
 	var kingdom_name := str(kingdoms[kingdom_id].get("name", "Королевство"))
 	if action_id == "declare_war":
+		var player_claims := DiplomacyCatalogScript.get_active_casus_belli(preview, turn_number, DiplomacyCatalogScript.PLAYER_ID)
 		DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "war", turn_number)
 		var declared_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
-		declared_record["war_reason"] = "player_declaration"
+		var war_reason := str(player_claims[0].get("cause", "border_encroachment")) if not player_claims.is_empty() else "player_declaration"
+		declared_record["war_reason"] = war_reason
+		declared_record["war_initiator_id"] = DiplomacyCatalogScript.PLAYER_ID
+		declared_record["war_target_id"] = kingdom_id
 		DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, declared_record)
-		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -35, turn_number)
-		var message := "Ты объявил войну державе «%s»." % kingdom_name
+		if not player_claims.is_empty():
+			DiplomacyCatalogScript.consume_casus_belli(diplomacy_relations, -1, kingdom_id, turn_number)
+		var relation_penalty := -18 if not player_claims.is_empty() else -35
+		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, relation_penalty, turn_number)
+		var reason_text := " по обоснованной претензии" if not player_claims.is_empty() else " без формального повода"
+		var message := "Ты объявил войну державе «%s»%s." % [kingdom_name, reason_text]
 		_record_diplomacy_event(message)
 		save_campaign()
 		return {"ok": true, "accepted": true, "message": message, "chance": 100}
@@ -2676,6 +2690,44 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			pending_diplomacy_offers.remove_at(offer_index)
 			save_campaign()
 			return {"ok": false, "message": "Держава больше не существует. Предложение отменено."}
+		if action_id == "call_to_war":
+			var enemy_id := int(offer.get("enemy_kingdom_id", -1))
+			var caller_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id)
+			var enemy_record := DiplomacyCatalogScript.get_record(diplomacy_relations, kingdom_id, enemy_id) if enemy_id >= 0 and enemy_id < kingdoms.size() else {}
+			var call_is_valid := enemy_id >= 0 and enemy_id < kingdoms.size() and enemy_id != kingdom_id
+			call_is_valid = call_is_valid and str(caller_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(caller_record, turn_number)
+			call_is_valid = call_is_valid and str(enemy_record.get("treaty", "peace")) == "war"
+			call_is_valid = call_is_valid and int(enemy_record.get("war_initiator_id", -99)) == kingdom_id
+			var expired_call := turn_number > int(offer.get("expires_turn", 0))
+			if expired_call:
+				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
+				pending_diplomacy_offers.remove_at(offer_index)
+				_record_diplomacy_event("Срок ответа на призыв державы «%s» истёк. Это сочтено отказом." % kingdom_name)
+				save_campaign()
+				return {"ok": true, "message": "Срок ответа истёк. Отношение союзника ухудшилось."}
+			if not call_is_valid:
+				pending_diplomacy_offers.remove_at(offer_index)
+				save_campaign()
+				return {"ok": false, "message": "Призыв больше недействителен: союз или война уже завершились."}
+			var enemy_name := str(kingdoms[enemy_id].get("name", "Держава"))
+			var response_message := ""
+			if accept:
+				DiplomacyCatalogScript.set_treaty(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, "war", turn_number)
+				var joined_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id)
+				joined_record["war_reason"] = "ally_call"
+				joined_record["war_initiator_id"] = kingdom_id
+				joined_record["war_target_id"] = enemy_id
+				DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, joined_record)
+				DiplomacyCatalogScript.change_relation(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, -8, turn_number)
+				DiplomacyCatalogScript.change_relation(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, 5, turn_number)
+				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [kingdom_name, enemy_name]
+			else:
+				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
+				response_message = "Ты отказался поддержать «%s». Отношение союзника ухудшилось на %d пунктов." % [kingdom_name, DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY]
+			pending_diplomacy_offers.remove_at(offer_index)
+			_record_diplomacy_event(response_message)
+			save_campaign()
+			return {"ok": true, "message": response_message}
 		var current_record := get_diplomacy_record(kingdom_id)
 		var current_treaty := str(current_record.get("treaty", "peace"))
 		var offer_still_valid := (action_id == "offer_trade" and current_treaty == "peace" and int(current_record.get("truce_until", 0)) <= turn_number) or (action_id == "offer_alliance" and current_treaty == "trade") or (action_id == "offer_peace" and current_treaty == "war")
@@ -3441,8 +3493,12 @@ func load_campaign() -> bool:
 				continue
 			var offer_kingdom_id := int(offer_value.get("kingdom_id", -1))
 			var offer_action := str(offer_value.get("action", ""))
-			if offer_kingdom_id < 0 or offer_kingdom_id >= kingdoms.size() or not ["offer_trade", "offer_alliance", "offer_peace"].has(offer_action):
+			if offer_kingdom_id < 0 or offer_kingdom_id >= kingdoms.size() or not ["offer_trade", "offer_alliance", "offer_peace", "call_to_war"].has(offer_action):
 				continue
+			if offer_action == "call_to_war":
+				var enemy_id := int(offer_value.get("enemy_kingdom_id", -1))
+				if enemy_id < 0 or enemy_id >= kingdoms.size() or enemy_id == offer_kingdom_id:
+					continue
 			pending_diplomacy_offers.append(offer_value.duplicate(true))
 	last_diplomacy_events.clear()
 	battle_kingdom_id = -1
