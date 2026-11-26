@@ -182,7 +182,7 @@ func apply_player_faction(raw_selection: Dictionary) -> bool:
 		0,
 		world_seed
 	)
-	DiplomacyCatalogScript.refresh_relationship_modifiers(
+	DiplomacyCatalogScript.refresh_player_relationships(
 		diplomacy_relations,
 		kingdoms,
 		player_diplomacy_profile
@@ -2594,7 +2594,16 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 			reason = "Неизвестное дипломатическое действие."
 	var chance := 100
 	if action_id in ["offer_trade", "offer_alliance", "offer_peace", "demand_tribute", "demand_vassalage"]:
-		chance = DiplomacyCatalogScript.acceptance_chance(action_id, record, kingdom_id, player_power, target_power)
+		var target_profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+		var target_profile: Dictionary = target_profile_value if target_profile_value is Dictionary else {}
+		chance = DiplomacyCatalogScript.acceptance_chance(
+			action_id,
+			record,
+			kingdom_id,
+			player_power,
+			target_power,
+			target_profile
+		)
 	return {"available": available, "reason": reason, "chance": chance, "relation": relation, "treaty": treaty}
 
 
