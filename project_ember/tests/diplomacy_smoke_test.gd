@@ -228,6 +228,8 @@ func _run() -> void:
 	state.prepare_new_campaign(true)
 	state.faction_setup_pending = false
 	_check(state.diplomacy_relations.size() == 45, "new campaigns initialize all diplomacy relationships")
+	_check(not state.player_diplomacy_profile.is_empty(), "new campaigns initialize a persistent player diplomatic profile")
+	_check(state.player_diplomacy_profile.has("alignment") and state.player_diplomacy_profile.has("affinities"), "player profile includes alignment and affinity data")
 	_check(state.get_diplomacy_action_preview(0, "declare_war").get("available", false), "player can declare war when no truce blocks it")
 	var declaration: Dictionary = state.perform_diplomacy_action("declare_war", 0)
 	_check(bool(declaration.get("ok", false)), "player war declaration succeeds through campaign state")
