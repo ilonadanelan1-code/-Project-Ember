@@ -148,6 +148,15 @@ func _run() -> void:
 	_check(str(normalized_record.get("treaty", "")) == "peace", "unknown treaty IDs fall back to peace")
 	_check(normalized.size() == 45, "legacy or partial relationship data receives every missing pair")
 
+	var merchant_kingdom: Dictionary = kingdoms[1]
+	merchant_kingdom["diplomacy_profile"] = DiplomacyCatalogScript.normalize_leader_profile(
+		{"personality_id": "merchant"},
+		1,
+		merchant_kingdom.get("faction", {}),
+		int(merchant_kingdom.get("military_doctrine", 0)),
+		841207
+	)
+	kingdoms[1] = merchant_kingdom
 	var pending: Array[Dictionary] = []
 	var offer_relations := DiplomacyCatalogScript.create_initial_relations(kingdoms.size(), 841207)
 	var processed := DiplomacyCatalogScript.process_turn(offer_relations, kingdoms, 5, 841207, 100.0, pending)
