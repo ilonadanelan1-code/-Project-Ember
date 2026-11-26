@@ -11,6 +11,8 @@ Last audited working build: **v0.38.2 — Godot Audit Hotfix** (2026-11-26).
 ## Important publishing status
 The full playable v0.38.2 ZIP was audited and built in the ChatGPT session, but **the complete v0.38.2 source snapshot has not yet been imported to this repository**. This handoff file is a context marker, not a replacement for the game source. Do not claim that the current playable archive has been pushed until a release/source branch containing the files is verified.
 
+A one-time importer is now committed at [`.github/workflows/import-v0382-release.yml`](.github/workflows/import-v0382-release.yml). To finish the import, publish a GitHub Release tagged `v0.38.2` with the exact asset `Project-Ember-v0.38.2-Godot-Audited.zip`, then run **Actions → Import audited Project Ember v0.38.2 archive → Run workflow**. It will import the source-only tree to `release/v0.38.2-godot-audited`, omit the licensed atlas and manifest from public source, and run static source validation. The existing Godot 4.7.2 QA workflow should then validate the new branch.
+
 The user-provided playable ZIP contains the Tiny Swords combat atlas and animation manifest. The project policy excludes those licensed binaries from the public source repository; they remain in the playable ZIP.
 
 ## Verified v0.38.2
