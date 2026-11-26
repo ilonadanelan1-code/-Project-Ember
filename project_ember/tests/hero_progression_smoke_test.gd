@@ -27,7 +27,7 @@ func _run() -> void:
 	_check(int(state.player_hero.get("level", 0)) == 1, "new ruler starts at level one")
 	_check(is_equal_approx(state.get_hero_max_health(state.player_hero), 210.0), "ruler starts with the correct commander health")
 	_check(state.hero_roster.size() == 1 and state.active_hero_id == "hero_ruler", "new campaign initializes a stable ruler roster and active commander ID")
-	var starting_gold := state.city_gold
+	var starting_gold: int = int(state.city_gold)
 	_check(state.can_recruit_lord("lord_ragnar"), "capital can afford a recruitable lord")
 	_check(state.recruit_lord("lord_ragnar"), "player can recruit a lord from the city panel")
 	_check(state.city_gold == starting_gold - 100 and state.hero_roster.size() == 2, "lord recruitment charges the quoted cost and adds one roster record")
@@ -80,7 +80,7 @@ func _run() -> void:
 	var loaded_skills: Dictionary = state.player_hero.get("skills", {})
 	_check(int(loaded_skills.get("leadership", 0)) == 1, "hero skill ranks survive save and load")
 
-	var mirena_record := state._get_hero_record("lord_mirena")
+	var mirena_record: Dictionary = state._get_hero_record("lord_mirena")
 	mirena_record["health"] = 100.0
 	for hero_index in range(state.hero_roster.size()):
 		if str(state.hero_roster[hero_index].get("id", "")) == "lord_mirena":
