@@ -1019,6 +1019,8 @@ static func _choose_neutral_expedition_target(
 		var reward: Dictionary = location.get("reward", {})
 		var reward_value := int(reward.get("gold", 0)) + int(reward.get("production", 0)) * 2 + int(reward.get("food", 0))
 		var score := distance + guard_tier * 3 - mini(4, floori(float(reward_value) / 35.0))
+		if str(location.get("type", "")) == ArcaneVictory.NEXUS_LOCATION_ID:
+			score -= 7
 		if location_id == current_target_id:
 			score -= 5
 		if score < best_score:
