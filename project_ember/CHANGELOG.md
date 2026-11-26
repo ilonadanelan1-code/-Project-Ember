@@ -1,3 +1,12 @@
+## v0.39 — Block 7: founded city list and quick switching
+
+- Adds a compact two-column founded-city selector to the mobile city panel. Each entry shows the city name, population and treasury, with the active city clearly marked.
+- Allows direct switching between player cities without returning to the strategic map.
+- Saves the outgoing city's current fields before loading the selected city's resources, queue, buildings, specialization and province improvements.
+- Rejects invalid city indices and routes existing map-cell city selection through the same validated switching method.
+- Adds regression coverage for separate city treasuries, selection persistence, invalid indices and map-selection compatibility.
+- Keeps the existing city records and `SAVE_VERSION = 1` unchanged.
+
 ## v0.38.2 — Godot Audit Hotfix
 
 - Fixes an actual GDScript parse error in `kingdom_ai.gd` caused by a missing comment marker.

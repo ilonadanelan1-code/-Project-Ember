@@ -35,6 +35,17 @@ func _run() -> void:
 	var state: Variant = CampaignStateScript.new()
 	root.add_child(state)
 	state.new_campaign(false)
+	state.city_gold = 333
+	state._save_active_city()
+	var second_city: Dictionary = state._make_city_record(1, "Северный Дозор", Vector2i(-1, 1), 3, 4, 60, 2, [], [])
+	state.cities.append(second_city)
+	_check(state.select_city_by_id(1) and state.active_city_id == 1 and state.city_name == "Северный Дозор", "city list can activate a second founded city")
+	state.city_gold = 77
+	_check(state.select_city_by_id(0) and state.city_name == "Каменный Брод", "city switching returns to the capital")
+	_check(state.city_gold == 333, "switching cities saves the outgoing treasury before loading the next city")
+	_check(state.select_city_by_id(1) and state.city_gold == 77, "each founded city retains its independent treasury")
+	_check(not state.select_city_by_id(99) and state.active_city_id == 1, "invalid city index is rejected without changing the active city")
+	_check(state.select_city_at(Vector2i(-3, 1)) and state.active_city_id == 0, "map-based city selection reuses the validated quick-switch path")
 	_check(state.get_city_level() == 1 and state.get_city_level_name() == "Поселение", "new campaign starts with a settlement")
 	_check(not state.can_choose_city_specialization("agriculture"), "specialization remains locked below population eight")
 	state.city_population = 8

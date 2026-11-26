@@ -266,7 +266,7 @@
 - [x] Neutral camps, resource sites and exploration rewards (v0.27.0–v0.30.0).
 - [x] AI kingdom settlement expansion and strategic target planning (v0.32.0).
 - [x] Add a non-mutating battle estimate before kingdom engagements using unit stats, veterancy, upgrades, role counters, commander stats and terrain; keep the actual tactical battle unchanged.
-- [ ] Add city list and quick switching between founded cities.
+- [x] Add city list and quick switching between founded cities.
 - [ ] Add roads and trade routes.
 
 ## Previous v0.6.0 roster and command status
@@ -312,3 +312,13 @@
 - [x] Require explicit confirmation before entering the existing tactical battle scene; do not auto-resolve or mutate the campaign from the forecast.
 - [x] Preserve the existing save schema at version 1 and leave neutral-location encounters unchanged.
 - [x] Add regression tests for symmetry, force size, health, veterancy, upgrades, counters, terrain, commanders, deterministic output and non-mutation.
+
+## v0.39 — Block 7: founded city list and quick switching
+
+- [x] Add a compact two-column list of all founded player cities to the mobile city panel.
+- [x] Show each city's name, population and treasury; mark the currently active city.
+- [x] Switch the active city directly from the list without returning to the strategy map.
+- [x] Save the outgoing city's full record before loading the selected city's economy, queue, specialization, buildings and province improvements.
+- [x] Reject invalid city indices without changing the current selection; preserve map-cell city selection through the same validated API.
+- [x] Add regression tests for switching, independent treasuries, invalid indices and map-selection compatibility.
+- [x] Keep `SAVE_VERSION = 1` and all existing city record fields unchanged.

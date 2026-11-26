@@ -85,6 +85,8 @@ var _selected_outpost_id: int = -1
 var _settings_panel: SettingsPanel
 var _city_overview_label: Label
 var _city_title_label: Label
+var _city_list_title_label: Label
+var _city_list_container: GridContainer
 var _settler_button: Button
 var _found_city_button: Button
 var _settler_selected: bool = false
@@ -1929,6 +1931,19 @@ func _create_city_panel(root: Control) -> void:
 	details.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
 	scroll.add_child(details)
 
+	_city_list_title_label = Label.new()
+	_city_list_title_label.text = "ОСНОВАННЫЕ ГОРОДА"
+	_city_list_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	_city_list_title_label.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(_city_list_title_label)
+
+	_city_list_container = GridContainer.new()
+	_city_list_container.columns = 2
+	_city_list_container.add_theme_constant_override("h_separation", 7)
+	_city_list_container.add_theme_constant_override("v_separation", 6)
+	_city_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_child(_city_list_container)
+
 	_city_overview_label = Label.new()
 	_city_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_city_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
@@ -2581,9 +2596,49 @@ func _on_foundation_choice(choice_id: int) -> void:
 	queue_redraw()
 
 
+func _refresh_city_selector() -> void:
+	if not is_instance_valid(_city_list_container):
+		return
+	for child in _city_list_container.get_children():
+		_city_list_container.remove_child(child)
+		child.queue_free()
+	if is_instance_valid(_city_list_title_label):
+		_city_list_title_label.text = "ОСНОВАННЫЕ ГОРОДА · %d" % CampaignState.cities.size()
+	for city_index in range(CampaignState.cities.size()):
+		var city_record: Dictionary = CampaignState.cities[city_index]
+		var city_name := str(city_record.get("name", "Поселение"))
+		var population := int(city_record.get("population", 2))
+		var gold := int(city_record.get("gold", 0))
+		if city_index == CampaignState.active_city_id:
+			population = CampaignState.city_population
+			gold = CampaignState.city_gold
+		var city_cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
+		var city_button := Button.new()
+		city_button.toggle_mode = true
+		city_button.button_pressed = city_index == CampaignState.active_city_id
+		city_button.disabled = city_index == CampaignState.active_city_id
+		city_button.text = "%s%s\nНаселение: %d · %d зол." % ["✓ " if city_index == CampaignState.active_city_id else "", city_name, population, gold]
+		city_button.tooltip_text = "Активный город" if city_index == CampaignState.active_city_id else "Переключиться · гекс %d:%d" % [city_cell.x, city_cell.y]
+		city_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(58.0))
+		city_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		city_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+		city_button.pressed.connect(_select_city_from_list.bind(city_index))
+		_city_list_container.add_child(city_button)
+
+
+func _select_city_from_list(city_index: int) -> void:
+	if not CampaignState.select_city_by_id(city_index):
+		return
+	_message_text = "Активный город: %s." % CampaignState.city_name
+	_refresh_city_panel()
+	_refresh_ui()
+	queue_redraw()
+
+
 func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
 		return
+	_refresh_city_selector()
 	var income: Dictionary = CampaignState.get_city_income()
 	var tower_count := TerritoryCatalogScript.get_watchtower_count(CampaignState.city_province_improvements)
 	var influence_radius := TerritoryCatalogScript.get_city_influence_radius(CampaignState.city_population, CampaignState.active_city_id, CampaignState.city_specialization)

@@ -1652,15 +1652,18 @@ func _load_active_city() -> void:
 	city_province_improvements = CityDevelopmentCatalogScript.normalize_province_improvements(c.get("province_improvements", []))
 	city_last_event = str(c.get("last_event", ""))
 
-func select_city_at(cell: Vector2i) -> bool:
+func select_city_by_id(city_id: int) -> bool:
+	if city_id < 0 or city_id >= cities.size():
+		return false
+	if city_id == active_city_id:
+		return true
 	_save_active_city()
-	for i in range(cities.size()):
-		var xy: Array = cities[i].get("cell", [])
-		if xy.size() >= 2 and Vector2i(int(xy[0]), int(xy[1])) == cell:
-			active_city_id = i
-			_load_active_city()
-			return true
-	return false
+	active_city_id = city_id
+	_load_active_city()
+	return true
+
+func select_city_at(cell: Vector2i) -> bool:
+	return select_city_by_id(get_city_index_at(cell))
 
 func get_city_index_at(cell: Vector2i) -> int:
 	for i in range(cities.size()):

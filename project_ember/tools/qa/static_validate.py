@@ -157,6 +157,14 @@ check("func get_battle_estimate(" in campaign_state_text and "BattleEstimatorScr
 check(all(token in battle_estimator_ui_text for token in ["BattleEstimatePanel", "_open_battle_estimate(", "_start_battle_from_estimate(", "НАЧАТЬ ТАКТИЧЕСКИЙ БОЙ"]), "strategy map requires explicit forecast confirmation before launching a kingdom battle")
 check(battle_estimator_test_path.is_file() and all(token in battle_estimator_test_text for token in ["anti-cavalry multiplier", "veterancy damage", "woodland cover", "marsh terrain", "does not modify unit health"]), "battle estimator regression tests cover deterministic forecasts, counters, terrain and non-mutation")
 
+# Founded city list and safe quick switching.
+city_switch_test_path = ROOT / "tests/city_development_smoke_test.gd"
+city_switch_test_text = city_switch_test_path.read_text(encoding="utf-8") if city_switch_test_path.is_file() else ""
+city_switch_ui_text = (ROOT / "scripts/strategy_map.gd").read_text(encoding="utf-8")
+check("func select_city_by_id(" in campaign_state_text and "func select_city_at(" in campaign_state_text, "campaign state exposes validated city-index switching and preserves map-cell selection")
+check(all(token in city_switch_ui_text for token in ["_city_list_container", "_refresh_city_selector()", "_select_city_from_list(", "ОСНОВАННЫЕ ГОРОДА"]), "mobile city panel displays founded cities and quick-switch controls")
+check(city_switch_test_path.is_file() and all(token in city_switch_test_text for token in ["select_city_by_id", "independent treasury", "invalid city index", "map-based city selection"]), "city-switch regression tests cover city activation, independent data and invalid indices")
+
 # Army veterancy, role-specific upgrades and legacy-save compatibility.
 unit_catalog_text = (ROOT / "scripts/unit_catalog.gd").read_text(encoding="utf-8")
 army_upgrade_path = ROOT / "scripts/army_upgrade_catalog.gd"
