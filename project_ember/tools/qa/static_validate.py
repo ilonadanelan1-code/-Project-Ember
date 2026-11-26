@@ -511,6 +511,18 @@ check(equipment_test_path.is_file() and all(token in equipment_test_text for tok
 ]), "equipment smoke test covers migration, slots, combat stats, save/load and loot")
 check("const SAVE_VERSION := 1" in campaign_state_text, "hero equipment remains additive to the existing campaign save schema")
 
+# Map motion: fog stays live while expensive cartographic overlays wait until the drag settles.
+strategy_map_path = ROOT / "scripts/strategy_map.gd"
+strategy_map_perf_text = strategy_map_path.read_text(encoding="utf-8") if strategy_map_path.is_file() else ""
+check("MAP_MOTION_DETAIL_COOLDOWN_MS := 160" in strategy_map_perf_text, "map motion detail cooldown is explicitly bounded")
+check(all(token in strategy_map_perf_text for token in [
+    "func _mark_map_motion()",
+    "func _process(_delta: float)",
+    "if not _map_motion_active:",
+    "if not CampaignState.is_cell_visible(cell):",
+    "_mark_map_motion()",
+]), "map drag uses a temporary low-cost render mode while preserving fog-of-war visibility")
+
 print(f"\nStatic QA: {checks - len(failures)}/{checks} checks passed")
 if failures:
     print("Failures:")
