@@ -145,6 +145,17 @@ check("WorldGeneratorScript.hex_distance(cell, c)" in campaign_state_text and "W
 city_queue_reader = campaign_state_text.split("func _read_city_queue(", 1)[1].split("\nfunc _read_unit_records", 1)[0] if "func _read_city_queue(" in campaign_state_text and "\nfunc _read_unit_records" in campaign_state_text else ""
 check("var province_cell_value: Variant" in city_queue_reader and "var province_cell_array: Array" in city_queue_reader and "var valid_province: bool" in city_queue_reader, "province queue validation uses explicit Variant, Array and bool types")
 
+# Battle estimate: read-only forecast before entering tactical combat.
+battle_estimator_path = ROOT / "scripts/battle_estimator.gd"
+battle_estimator_text = battle_estimator_path.read_text(encoding="utf-8") if battle_estimator_path.is_file() else ""
+battle_estimator_test_path = ROOT / "tests/battle_estimator_smoke_test.gd"
+battle_estimator_test_text = battle_estimator_test_path.read_text(encoding="utf-8") if battle_estimator_test_path.is_file() else ""
+check(battle_estimator_path.is_file(), "non-mutating tactical battle estimator module exists")
+check(all(token in battle_estimator_text for token in ["UnitCatalogScript.get_data", "get_veterancy_data", "ArmyUpgradeCatalogScript.get_bonuses", "BattleAITacticsScript.get_target_score", "anti_cavalry_multiplier", "player_win_chance", "confidence_low", "estimate_note"]), "battle estimate uses unit roles, veterancy, upgrades, counters and visible uncertainty")
+check("func get_battle_estimate(" in campaign_state_text and "BattleEstimatorScript.estimate(" in campaign_state_text, "campaign state builds a read-only forecast from the selected player army and target kingdom")
+check(all(token in strategy_map_text for token in ["BattleEstimatePanel", "_open_battle_estimate(", "_start_battle_from_estimate(", "НАЧАТЬ ТАКТИЧЕСКИЙ БОЙ"]), "strategy map requires explicit forecast confirmation before launching a kingdom battle")
+check(battle_estimator_test_path.is_file() and all(token in battle_estimator_test_text for token in ["anti-cavalry multiplier", "veterancy damage", "woodland cover", "marsh terrain", "does not modify unit health"]), "battle estimator regression tests cover deterministic forecasts, counters, terrain and non-mutation")
+
 # Army veterancy, role-specific upgrades and legacy-save compatibility.
 unit_catalog_text = (ROOT / "scripts/unit_catalog.gd").read_text(encoding="utf-8")
 army_upgrade_path = ROOT / "scripts/army_upgrade_catalog.gd"

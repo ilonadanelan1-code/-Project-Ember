@@ -19,6 +19,7 @@ const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
 const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
 const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
 const ArcaneVictoryCatalogScript = preload("res://scripts/arcane_victory_catalog.gd")
+const BattleEstimatorScript = preload("res://scripts/battle_estimator.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -1129,6 +1130,77 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 	return true
 
 
+
+
+func get_battle_estimate(kingdom_id: int) -> Dictionary:
+	var unavailable := {"available": false, "message": "Сейчас нельзя начать это сражение."}
+	if battle_in_progress or campaign_lost or campaign_winner_id != -2:
+		unavailable["message"] = "Кампания сейчас не готова к новому сражению."
+		return unavailable
+	if player_units.is_empty():
+		unavailable["message"] = "В выбранной армии нет боеспособных отрядов."
+		return unavailable
+	if kingdom_id < 0 or kingdom_id >= kingdoms.size():
+		unavailable["message"] = "Вражеская держава не найдена."
+		return unavailable
+	var target_kingdom: Dictionary = kingdoms[kingdom_id]
+	if not bool(target_kingdom.get("alive", true)):
+		unavailable["message"] = "Эта держава больше не существует."
+		return unavailable
+	var target_army := _read_unit_records(target_kingdom.get("army", []))
+	if target_army.is_empty():
+		unavailable["message"] = "У противника нет полевой армии для этого сражения."
+		return unavailable
+	var target_cell := WorldGeneratorScript.array_to_cell(target_kingdom.get("army_cell", []))
+	if WorldGeneratorScript.hex_distance(player_cell, target_cell) > 1:
+		unavailable["message"] = "Для начала боя нужно подойти к вражеской армии вплотную."
+		return unavailable
+	var diplomatic_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
+	var current_treaty := str(diplomatic_record.get("treaty", "peace"))
+	if current_treaty == "vassal" and turn_number <= int(diplomatic_record.get("treaty_until", 0)):
+		unavailable["message"] = "Нельзя атаковать вассала, пока действует договор верховенства."
+		return unavailable
+	if current_treaty != "war" and turn_number < int(diplomatic_record.get("truce_until", 0)):
+		unavailable["message"] = "Перемирие ещё действует. Дождись его окончания."
+		return unavailable
+	var player_hero_copy := player_hero.duplicate(true)
+	if player_hero_copy.is_empty():
+		player_hero_copy = _make_hero_record("Эдрик", "Правитель державы")
+	_ensure_hero_ready_for_battle(player_hero_copy)
+	var default_enemy_hero := _make_hero_record(
+		str(target_kingdom.get("ruler", "Воевода")),
+		"Правитель " + str(target_kingdom.get("name", "Королевства"))
+	)
+	var enemy_hero_copy := _read_hero_record(target_kingdom.get("hero", default_enemy_hero), default_enemy_hero)
+	_ensure_hero_ready_for_battle(enemy_hero_copy)
+	var territory_bonus := TerritoryCatalogScript.get_defensive_armor_bonus(player_cell, cities, kingdoms, outposts)
+	var player_stats := get_hero_combat_stats(player_hero_copy, territory_bonus)
+	var enemy_stats := get_hero_combat_stats(enemy_hero_copy)
+	var terrain_map: Dictionary = {}
+	for offset in WorldGeneratorScript.neighbors():
+		var neighbor := player_cell + offset
+		terrain_map[neighbor] = get_world_terrain(neighbor)
+	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(terrain_map, player_cell)
+	var estimate := BattleEstimatorScript.estimate(
+		player_units,
+		target_army,
+		player_hero_copy,
+		enemy_hero_copy,
+		player_stats,
+		enemy_stats,
+		army_upgrades,
+		_read_army_upgrades(target_kingdom.get("army_upgrades", {})),
+		biome_id,
+		territory_bonus
+	)
+	if not bool(estimate.get("valid", false)):
+		unavailable["message"] = str(estimate.get("message", "Не удалось рассчитать силы армий."))
+		return unavailable
+	estimate["available"] = true
+	estimate["biome_name"] = "Лес" if biome_id == BattlefieldBiomesScript.WOODLAND else "Высоты" if biome_id == BattlefieldBiomesScript.HIGHLANDS else "Болото" if biome_id == BattlefieldBiomesScript.MARSH else "Равнина"
+	estimate["kingdom_name"] = str(target_kingdom.get("name", "Вражеская держава"))
+	estimate["will_start_war"] = current_treaty != "war"
+	return estimate
 func get_neutral_location_index_at(cell: Vector2i, include_cleared: bool = true) -> int:
 	for index in range(neutral_locations.size()):
 		var location: Dictionary = neutral_locations[index]

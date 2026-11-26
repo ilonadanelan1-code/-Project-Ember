@@ -244,3 +244,12 @@
 - Extends the AI economy with specializations, province projects, building upgrades and upkeep; capital AI prioritizes a market before repeated recruitment.
 - Preserves the three-resource economy, stable resource/building/unit IDs, 24-troop cap and save schema version 1.
 - Static validation: 93/93. Godot parser/import/runtime and Android tests remain pending.
+
+  
+## v0.39 — Block 6: tactical battle forecast
+
+- Adds a non-mutating strategic forecast before kingdom battles, showing estimated victory chance, uncertainty range, force counts and projected losses.
+- Reuses unit catalogue statistics, current health, veterancy, army upgrades, anti-cavalry/charge modifiers, role-target preferences, commander stats and average biome modifiers.
+- Requires a separate confirmation to enter the existing tactical scene. The forecast never auto-resolves a battle and never changes campaign state.
+- Documents the limits: formations, flanking, real-time orders and ability timing can change the actual result. Save schema remains version 1.
+- Adds `battle_estimator_smoke_test.gd` for deterministic calculations, matchups, terrain, commanders and non-mutation.

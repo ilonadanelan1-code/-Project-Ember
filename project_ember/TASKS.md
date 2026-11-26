@@ -265,7 +265,7 @@
 - [x] Gameplay terrain modifiers for forest cover, high ground, marsh movement and flanking (v0.24.1).
 - [x] Neutral camps, resource sites and exploration rewards (v0.27.0–v0.30.0).
 - [x] AI kingdom settlement expansion and strategic target planning (v0.32.0).
-- [ ] Add an auto-battle estimator using the same unit catalog and role matchups.
+- [x] Add a non-mutating battle estimate before kingdom engagements using unit stats, veterancy, upgrades, role counters, commander stats and terrain; keep the actual tactical battle unchanged.
 - [ ] Add city list and quick switching between founded cities.
 - [ ] Add roads and trade routes.
 
@@ -302,3 +302,13 @@
 - [ ] Weighted AI decisions for peace, trade, alliance, tribute and war.
 - [ ] War reasons, proposals and war-weariness.
 - [ ] Save/load regression tests and Android panel UX.
+
+  
+## v0.39 — Block 6: tactical battle forecast
+
+- [x] Add a read-only forecast before entering a kingdom battle.
+- [x] Use existing unit catalogue values, current health, veterancy, army upgrades, anti-cavalry and charge modifiers, role-target preferences, commander stats and a bounded average of battlefield-biome effects.
+- [x] Show estimated victory chance with an uncertainty interval, estimated survivors/losses and the battlefield biome.
+- [x] Require explicit confirmation before entering the existing tactical battle scene; do not auto-resolve or mutate the campaign from the forecast.
+- [x] Preserve the existing save schema at version 1 and leave neutral-location encounters unchanged.
+- [x] Add regression tests for symmetry, force size, health, veterancy, upgrades, counters, terrain, commanders, deterministic output and non-mutation.

@@ -65,6 +65,11 @@ var _message_label: Label
 var _hud_resource_labels: Dictionary = {}
 var _city_resource_labels: Dictionary = {}
 var _attack_button: Button
+var _battle_estimate_panel: PanelContainer
+var _battle_estimate_title_label: Label
+var _battle_estimate_body_label: Label
+var _battle_estimate_start_button: Button
+var _pending_battle_kingdom_id: int = -1
 var _split_army_button: Button
 var _turn_button: Button
 var _selection_button: Button
@@ -903,7 +908,7 @@ func _create_ui() -> void:
 	more_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	more_margin.add_child(more_grid)
 
-	_attack_button = _add_button(more_grid, "АТАКОВАТЬ", _attack_enemy)
+	_attack_button = _add_button(more_grid, "ОЦЕНИТЬ БОЙ", _attack_enemy)
 	_set_button_icon(_attack_button, GameIconCatalogScript.command_icon("attack"))
 	_split_army_button = _add_button(more_grid, "РАЗДЕЛИТЬ АРМИЮ", _create_player_army)
 	_set_button_icon(_split_army_button, GameIconCatalogScript.unit_icon("melee"))
@@ -937,6 +942,7 @@ func _create_ui() -> void:
 	_create_city_panel(root)
 	_create_outpost_panel(root)
 	_create_kingdoms_panel(root)
+	_create_battle_estimate_panel(root)
 	_create_world_event_panel(root)
 	_create_faction_setup_panel(root)
 	_settings_panel = SettingsPanelScript.new()
@@ -955,6 +961,120 @@ func _create_ui() -> void:
 		_open_faction_setup_panel()
 
 
+
+
+func _create_battle_estimate_panel(root: Control) -> void:
+	_battle_estimate_panel = PanelContainer.new()
+	_battle_estimate_panel.name = "BattleEstimatePanel"
+	_battle_estimate_panel.anchor_left = 0.10
+	_battle_estimate_panel.anchor_top = 0.17
+	_battle_estimate_panel.anchor_right = 0.90
+	_battle_estimate_panel.anchor_bottom = 0.83
+	_battle_estimate_panel.visible = false
+	_battle_estimate_panel.z_index = 24
+	root.add_child(_battle_estimate_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(12.0)))
+	margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(10.0)))
+	margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(12.0)))
+	margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(10.0)))
+	_battle_estimate_panel.add_child(margin)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	margin.add_child(content)
+	var header := HBoxContainer.new()
+	content.add_child(header)
+	_battle_estimate_title_label = Label.new()
+	_battle_estimate_title_label.text = "ПРОГНОЗ СРАЖЕНИЯ"
+	_battle_estimate_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_estimate_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
+	header.add_child(_battle_estimate_title_label)
+	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_battle_estimate)
+	close_button.custom_minimum_size = Vector2(UiMetrics.dp(100.0), UiThemeScript.touch_target(48.0))
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(scroll)
+	_battle_estimate_body_label = Label.new()
+	_battle_estimate_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_battle_estimate_body_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_estimate_body_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
+	_battle_estimate_body_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	scroll.add_child(_battle_estimate_body_label)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	content.add_child(actions)
+	_battle_estimate_start_button = _add_button(actions, "НАЧАТЬ ТАКТИЧЕСКИЙ БОЙ", _start_battle_from_estimate)
+	_battle_estimate_start_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+	var cancel_button := _add_button(actions, "ОТМЕНА", _close_battle_estimate)
+	cancel_button.custom_minimum_size = Vector2(UiMetrics.dp(92.0), UiThemeScript.touch_target(54.0))
+
+
+func _open_battle_estimate(kingdom_id: int) -> void:
+	if not is_instance_valid(_battle_estimate_panel):
+		return
+	_pending_battle_kingdom_id = kingdom_id
+	var estimate := CampaignState.get_battle_estimate(kingdom_id)
+	if not bool(estimate.get("available", false)):
+		_battle_estimate_title_label.text = "СРАЖЕНИЕ НЕДОСТУПНО"
+		_battle_estimate_body_label.text = str(estimate.get("message", "Не удалось оценить сражение."))
+		_battle_estimate_start_button.disabled = true
+		_battle_estimate_panel.visible = true
+		return
+	var chance := int(estimate.get("player_win_chance", 50))
+	var player_units := int(estimate.get("player_units", 0))
+	var enemy_units := int(estimate.get("enemy_units", 0))
+	var player_losses := int(estimate.get("player_losses", 0))
+	var enemy_losses := int(estimate.get("enemy_losses", 0))
+	var player_survivors := int(estimate.get("player_survivors", 0))
+	var enemy_survivors := int(estimate.get("enemy_survivors", 0))
+	var war_warning := "\nАтака нарушит мир и начнёт войну." if bool(estimate.get("will_start_war", false)) else ""
+	var commander_note := "Оба командира учтены." if bool(estimate.get("player_hero_included", false)) and bool(estimate.get("enemy_hero_included", false)) else "Не все командиры участвуют в прогнозе."
+	_battle_estimate_title_label.text = "ПРОГНОЗ: " + str(estimate.get("kingdom_name", "Вражеская держава"))
+	_battle_estimate_body_label.text = "%s\nВероятность победы: %d%% (ориентир %d–%d%%)\n%s\n\nТвои силы: %d бойцов · сохранится около %d · потери около %d\nПротивник: %d бойцов · сохранится около %d · потери около %d\nМестность: %s%s\n\n%s" % [
+		str(estimate.get("outcome_label", "Силы примерно равны")),
+		chance,
+		int(estimate.get("confidence_low", maxi(3, chance - 12))),
+		int(estimate.get("confidence_high", mini(97, chance + 12))),
+		commander_note,
+		player_units,
+		player_survivors,
+		player_losses,
+		enemy_units,
+		enemy_survivors,
+		enemy_losses,
+		str(estimate.get("biome_name", "Равнина")),
+		war_warning,
+		str(estimate.get("estimate_note", "Прогноз приблизительный.")),
+	]
+	_battle_estimate_start_button.disabled = false
+	_battle_estimate_panel.visible = true
+
+
+func _close_battle_estimate() -> void:
+	if is_instance_valid(_battle_estimate_panel):
+		_battle_estimate_panel.visible = false
+	_pending_battle_kingdom_id = -1
+
+
+func _start_battle_from_estimate() -> void:
+	var kingdom_id := _pending_battle_kingdom_id
+	if kingdom_id < 0:
+		_close_battle_estimate()
+		return
+	var estimate := CampaignState.get_battle_estimate(kingdom_id)
+	if not bool(estimate.get("available", false)):
+		_battle_estimate_body_label.text = str(estimate.get("message", "Условия боя изменились."))
+		_battle_estimate_start_button.disabled = true
+		return
+	var biome_id := str(estimate.get("biome_id", BattlefieldBiomesScript.GRASSLAND))
+	if CampaignState.begin_battle(biome_id, kingdom_id):
+		_close_battle_estimate()
+		get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
+		return
+	_battle_estimate_body_label.text = "Условия изменились. Сражение не было запущено."
+	_battle_estimate_start_button.disabled = true
+	_message_text = "Условия сражения изменились. Проверь статус армии и договор."
+	_refresh_ui()
 func _create_world_event_panel(root: Control) -> void:
 	_world_event_panel = PanelContainer.new()
 	_world_event_panel.name = "WorldEventChoicePanel"
@@ -1744,6 +1864,9 @@ func _respond_to_diplomacy_offer(offer_id: String, accept: bool) -> void:
 
 
 func _open_kingdoms_panel() -> void:
+	if is_instance_valid(_battle_estimate_panel):
+		_battle_estimate_panel.visible = false
+		_pending_battle_kingdom_id = -1
 	if is_instance_valid(_diplomacy_panel):
 		_diplomacy_panel.visible = false
 	if is_instance_valid(_map_more_panel):
@@ -1757,6 +1880,9 @@ func _open_kingdoms_panel() -> void:
 
 
 func _close_kingdoms_panel() -> void:
+	if is_instance_valid(_battle_estimate_panel):
+		_battle_estimate_panel.visible = false
+		_pending_battle_kingdom_id = -1
 	if is_instance_valid(_kingdoms_panel):
 		_kingdoms_panel.visible = false
 	if is_instance_valid(_diplomacy_panel):
@@ -2741,6 +2867,9 @@ func _notification(what: int) -> void:
 
 
 func _handle_system_back() -> void:
+	if is_instance_valid(_battle_estimate_panel) and _battle_estimate_panel.visible:
+		_close_battle_estimate()
+		return
 	if is_instance_valid(_faction_setup_panel) and _faction_setup_panel.visible:
 		return
 	if is_instance_valid(_restart_confirm_dialog) and _restart_confirm_dialog.visible:
@@ -3002,23 +3131,7 @@ func _attack_kingdom(kingdom_id: int) -> void:
 		_message_text = "Чтобы начать бой с %s, подойди к армии вплотную." % str(kingdom.get("name", "королевства"))
 		_refresh_ui()
 		return
-	var local_terrain: Dictionary = {}
-	local_terrain[CampaignState.player_cell] = CampaignState.get_world_terrain(CampaignState.player_cell)
-	for offset in NEIGHBOR_OFFSETS:
-		var nearby := CampaignState.player_cell + offset
-		local_terrain[nearby] = CampaignState.get_world_terrain(nearby)
-	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(local_terrain, CampaignState.player_cell)
-	if CampaignState.begin_battle(biome_id, kingdom_id):
-		get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
-	else:
-		var diplomacy_record := CampaignState.get_diplomacy_record(kingdom_id)
-		if str(diplomacy_record.get("treaty", "peace")) == "vassal":
-			_message_text = "Нельзя атаковать вассала, пока действует договор верховенства."
-		elif CampaignState.turn_number < int(diplomacy_record.get("truce_until", 0)):
-			_message_text = "Перемирие ещё действует. Сначала дождись его окончания."
-		else:
-			_message_text = "Сражение не удалось начать: проверь наличие армии и состояние кампании."
-		_refresh_ui()
+	_open_battle_estimate(kingdom_id)
 
 
 func _advance_turn() -> void:
