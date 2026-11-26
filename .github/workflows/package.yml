@@ -23,10 +23,10 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-      - name: Set up Godot 4.3
+      - name: Set up Godot 4.7.2
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.3.0
+          version: 4.7.2
       - name: Validate project structure
         run: |
           test -f project_ember/project.godot
@@ -36,6 +36,42 @@ jobs:
           test -f project_ember/tests/unit_roster_smoke_test.gd
           test -f project_ember/tests/hero_progression_smoke_test.gd
           test -f project_ember/scripts/unit_catalog.gd
+      - name: Restore licensed Tiny Swords atlas from the audited release (CI workspace only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ember-release"
+          gh release download v0.38.2 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "Project-Ember-v0.38.2-Godot-Audited.zip" \
+            --dir "$RUNNER_TEMP/ember-release"
+          python3 - "$RUNNER_TEMP/ember-release/Project-Ember-v0.38.2-Godot-Audited.zip" <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib
+          import sys
+
+          archive_path = Path(sys.argv[1])
+          expected = {
+              "combat_units_atlas.png": "ee07ed04f8856859af89590f3412b5865959d9ac19bd2f669268778eed45cf00",
+              "atlas_manifest.json": "ff3b8b74ccf36c4c1cbc3d800acae42a9bbf047c774689fbec39073e81e95c2b",
+          }
+          target = Path("project_ember/assets/combat/tiny_swords")
+          target.mkdir(parents=True, exist_ok=True)
+          with ZipFile(archive_path) as zf:
+              for name, digest in expected.items():
+                  matches = [item for item in zf.namelist() if item.endswith(f"assets/combat/tiny_swords/{name}")]
+                  if len(matches) != 1:
+                      raise SystemExit(f"Expected one {name} in playable release; found {len(matches)}")
+                  data = zf.read(matches[0])
+                  actual = hashlib.sha256(data).hexdigest()
+                  if actual != digest:
+                      raise SystemExit(f"SHA-256 mismatch for {name}: {actual}")
+                  (target / name).write_bytes(data)
+                  print(f"Restored {name} in CI workspace only; sha256={actual}")
+          PY
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
         run: |
@@ -113,22 +149,22 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           cat > dist/BUILD-LIMITATIONS.txt <<'EOF'
-          Project Ember v0.36.1 — source-only archive
+          Project Ember v0.38.2 — source-only archive
           This package contains the Godot project code and tracked assets from GitHub.
           It is not a complete playable release: the licensed Tiny Swords runtime atlas
           and atlas_manifest.json are excluded from the public source repository.
           Restore the owner-provided Tiny Swords (Free Pack) ZIP and run:
           bash project_ember/tools/assets/package_playable_release.sh
           EOF
-          zip -qr dist/Project-Ember-v0.36.1-source.zip project_ember README.md RELEASE_v0.36.1.md dist/BUILD-LIMITATIONS.txt
-          unzip -tq dist/Project-Ember-v0.36.1-source.zip
+          zip -qr dist/Project-Ember-v0.38.2-source.zip project_ember README.md RELEASE_v0.36.1.md dist/BUILD-LIMITATIONS.txt
+          unzip -tq dist/Project-Ember-v0.38.2-source.zip
 
       - name: Upload source-only archive
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.36.1-source
-          path: dist/Project-Ember-v0.36.1-source.zip
+          name: Project-Ember-v0.38.2-source
+          path: dist/Project-Ember-v0.38.2-source.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -193,16 +229,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          bash project_ember/tools/assets/package_playable_release.sh "$PWD/dist/Project-Ember-v0.36.1.zip"
+          bash project_ember/tools/assets/package_playable_release.sh "$PWD/dist/Project-Ember-v0.38.2.zip"
           cp tiny-swords-recovery.txt dist/TINY-SWORDS-ASSET-RECOVERY.txt
 
       - name: Upload complete playable ZIP
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.36.1-playable
+          name: Project-Ember-v0.38.2-playable
           path: |
-            dist/Project-Ember-v0.36.1.zip
+            dist/Project-Ember-v0.38.2.zip
             dist/TINY-SWORDS-ASSET-RECOVERY.txt
           if-no-files-found: error
           retention-days: 30
@@ -218,7 +254,7 @@ jobs:
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.33.1
+          name: Project-Ember-v0.38.2
           path: |
             project_ember/**
             !project_ember/.godot/**
