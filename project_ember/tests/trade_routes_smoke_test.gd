@@ -105,7 +105,7 @@ func _run() -> void:
 	if midpoint_index > 0 and midpoint_index < saved_route.get("cells", []).size() - 1:
 		var midpoint: Vector2i = WorldGeneratorScript.array_to_cell(saved_route["cells"][midpoint_index])
 		var old_kingdoms: Array[Dictionary] = restored.kingdoms.duplicate(true)
-		var hostile_city := restored.kingdoms[0].get("cities", [])[0].duplicate(true)
+		var hostile_city: Dictionary = restored.kingdoms[0].get("cities", [])[0].duplicate(true)
 		hostile_city["cell"] = [midpoint.x, midpoint.y]
 		hostile_city["population"] = 20
 		restored.kingdoms[0]["cities"] = [hostile_city]
