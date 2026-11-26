@@ -215,7 +215,7 @@ func _draw() -> void:
 		var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 		var center := _hex_center(cell)
 		if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
-			_draw_city_marker(center, PLAYER_TEAM_COLOR, city_index == 0, true)
+			_draw_city_marker(center, PLAYER_TEAM_COLOR, city_index == 0, true, 1)
 			if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 				_draw_city_label(center, str(city_data.get("name", "Поселение")), PLAYER_TEAM_COLOR)
 
@@ -237,7 +237,7 @@ func _draw() -> void:
 			var center := _hex_center(cell)
 			if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
 				var remembered_color := faction_color if CampaignState.is_cell_visible(cell) else faction_color.darkened(0.34)
-				_draw_city_marker(center, remembered_color, city_index == 0, false)
+				_draw_city_marker(center, remembered_color, city_index == 0, false, kingdom_index + 2)
 				if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 					_draw_city_label(center, str(city_data.get("name", "Поселение")), remembered_color)
 		var ai_outposts: Array = kingdom.get("outposts", [])
@@ -398,7 +398,8 @@ func _draw_city_marker(
 		center: Vector2,
 		banner_color: Color = Palette.MAP_CITY_FLAG,
 		is_capital: bool = false,
-		is_player_city: bool = false
+		is_player_city: bool = false,
+		faction_index: int = -1
 ) -> void:
 	if _map_zoom < 0.28:
 		var dot_radius := maxf(3.0, (9.0 if is_capital else 7.0) * _map_zoom)
@@ -409,13 +410,9 @@ func _draw_city_marker(
 		return
 
 	var marker_scale := _map_zoom * (1.0 if is_capital else 0.84)
-	# Pixel Fantasy settlement sprites replace the former generic city stamp.
-	# Capitals get castle silhouettes; founded towns stay visually lighter.
-	var sprite_id := "castle_blue" if is_capital else "town"
-	if not is_player_city:
-		sprite_id = "castle_red" if is_capital else "village"
-	var settlement_texture := GameIconCatalogScript.settlement_icon(sprite_id, true)
-	var sprite_base_size := 94.0 if is_capital else 78.0
+	# Medieval Pixel Castle props distinguish capitals from ordinary towns.
+	var settlement_texture := GameIconCatalogScript.medieval_prop_icon("castle_tower" if is_capital else "cottage")
+	var sprite_base_size := 88.0 if is_capital else 72.0
 	var sprite_size := Vector2.ONE * sprite_base_size * marker_scale
 	var sprite_position := center - Vector2(sprite_size.x * 0.5, sprite_size.y * 0.70)
 	draw_circle(center + Vector2(0.0, 8.0) * marker_scale, 19.0 * marker_scale, Palette.MAP_OBJECT_SHADOW)
@@ -431,11 +428,16 @@ func _draw_city_marker(
 		var flag_pole := center + Vector2(22.0, -26.0) * marker_scale
 		var flag_tip := flag_pole + Vector2(0.0, -19.0) * marker_scale
 		draw_line(flag_pole, flag_tip, Palette.MAP_CITY_FLAG_POLE, maxf(1.0, 1.4 * marker_scale))
-		draw_colored_polygon(PackedVector2Array([
-			flag_tip,
-			flag_tip + Vector2(12.0, 3.0) * marker_scale,
-			flag_tip + Vector2(0.0, 7.0) * marker_scale,
-		]), banner_color)
+		var faction_banner := GameIconCatalogScript.faction_banner_icon(maxi(0, faction_index))
+		if is_instance_valid(faction_banner):
+			var flag_size := Vector2(12.0, 18.0) * marker_scale
+			draw_texture_rect(faction_banner, Rect2(flag_tip + Vector2(1.0, 0.0) * marker_scale, flag_size), false, banner_color)
+		else:
+			draw_colored_polygon(PackedVector2Array([
+				flag_tip,
+				flag_tip + Vector2(12.0, 3.0) * marker_scale,
+				flag_tip + Vector2(0.0, 7.0) * marker_scale,
+			]), banner_color)
 	if is_capital:
 		draw_circle(center + Vector2(0.0, 17.0) * marker_scale, maxf(1.0, 2.0 * marker_scale), Palette.GOLD_LIGHT)
 	if is_player_city:
@@ -657,10 +659,15 @@ func _draw_neutral_locations() -> void:
 		])
 		draw_colored_polygon(diamond, Color("#171b20"))
 		draw_polyline(_closed_polygon(diamond), marker_color, maxf(1.0, 1.4 * _map_zoom), true)
-		draw_circle(center, maxf(1.6, 2.2 * _map_zoom), marker_color)
-		if _map_zoom >= 0.56:
-			var marker := WorldLocationCatalogScript.get_marker(type_id)
-			draw_string(ThemeDB.fallback_font, center + Vector2(-3.5, 4.0) * _map_zoom, marker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(8, roundi(10.0 * _map_zoom)), Palette.UI_TEXT_PURE)
+		var poi_icon := GameIconCatalogScript.medieval_prop_icon(WorldLocationCatalogScript.get_map_icon(type_id))
+		if is_instance_valid(poi_icon):
+			var icon_size := Vector2.ONE * 30.0 * _map_zoom
+			draw_texture_rect(poi_icon, Rect2(center - icon_size * 0.5, icon_size), false, marker_color)
+		else:
+			draw_circle(center, maxf(1.6, 2.2 * _map_zoom), marker_color)
+			if _map_zoom >= 0.56:
+				var marker := WorldLocationCatalogScript.get_marker(type_id)
+				draw_string(ThemeDB.fallback_font, center + Vector2(-3.5, 4.0) * _map_zoom, marker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(8, roundi(10.0 * _map_zoom)), Palette.UI_TEXT_PURE)
 
 
 func _draw_city_label(center: Vector2, city_name: String, faction_color: Color) -> void:
