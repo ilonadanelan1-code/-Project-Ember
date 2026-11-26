@@ -949,7 +949,7 @@ static func get_active_casus_belli(
 		if not value is Dictionary:
 			continue
 		var claim: Dictionary = value
-		if int(claim.get("expires_turn", 0)) < turn_number:
+		if not bool(claim.get("permanent", false)) and int(claim.get("expires_turn", 0)) < turn_number:
 			continue
 		if claimant_id != -99 and int(claim.get("claimant_id", -99)) != claimant_id:
 			continue
