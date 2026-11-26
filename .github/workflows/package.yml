@@ -74,6 +74,12 @@ jobs:
                   (target / name).write_bytes(data)
                   print(f"Restored {name} in CI workspace only; sha256={actual}")
           PY
+      - name: Run static QA validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 project_ember/tools/qa/static_validate.py
+
       - name: Import and parse all Godot scripts (fail on engine errors)
         shell: bash
         run: |
@@ -144,12 +150,6 @@ jobs:
             echo "Hero progression tests reported an unexpected error." >&2
             exit 1
           fi
-      - name: Run static QA validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 project_ember/tools/qa/static_validate.py
-
       - name: Run the complete GDScript parser and smoke-test suite
         shell: bash
         env:
