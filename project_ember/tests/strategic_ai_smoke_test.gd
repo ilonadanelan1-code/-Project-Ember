@@ -104,6 +104,16 @@ func _run() -> void:
 	var claim_plan := Planner.evaluate_kingdom(defender, threat_kingdoms, claim_relations, 12, Vector2i(28, 28), [])
 	_check(bool(claim_plan.get("threatened", false)), "nearby incoming casus belli raises a defensive alert even before relations collapse")
 
+	var allied_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
+	var allied_record: Dictionary = Diplomacy.get_record(allied_relations, 0, 1)
+	allied_record["relation"] = -90
+	allied_record["treaty"] = "alliance"
+	Diplomacy.set_record(allied_relations, 0, 1, allied_record)
+	Diplomacy.create_casus_belli(allied_relations, 1, 0, "border_encroachment", 12, 2)
+	var allied_plan := Planner.evaluate_kingdom(defender, threat_kingdoms, allied_relations, 12, Vector2i(28, 28), [])
+	_check(not bool(allied_plan.get("threatened", false)), "an allied neighbor is excluded from peace-time threat warnings")
+	_check(int(allied_plan.get("threat_score", 0)) == 0, "an alliance suppresses hostile-neighbor scoring even with an old claim record")
+
 	var neutral_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
 	var neutral_record: Dictionary = Diplomacy.get_record(neutral_relations, 0, 1)
 	neutral_record["relation"] = 0
