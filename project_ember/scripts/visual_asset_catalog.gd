@@ -4,7 +4,7 @@ class_name VisualAssetCatalog
 ## Runtime atlas catalog for the additional licensed Project Ember visual packs.
 ## A single lossless WebP is embedded in a compact JSON resource to avoid hundreds
 ## of loose mobile asset files. Decoded textures and frame resources are cached.
-const DATA_PATH := "res://assets/visuals/visual_assets_runtime.json"
+const VisualAssetDataScript = preload("res://scripts/visual_asset_data.gd")
 
 static var _loaded: bool = false
 static var _data: Dictionary = {}
@@ -17,14 +17,7 @@ static func _get_data() -> Dictionary:
 	if _loaded:
 		return _data
 	_loaded = true
-	if not FileAccess.file_exists(DATA_PATH):
-		push_warning("VisualAssetCatalog: runtime visual atlas data is missing.")
-		return _data
-	var file := FileAccess.open(DATA_PATH, FileAccess.READ)
-	if file == null:
-		push_warning("VisualAssetCatalog: unable to read runtime visual atlas data.")
-		return _data
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var parsed: Variant = JSON.parse_string(VisualAssetDataScript.META_JSON)
 	if parsed is Dictionary:
 		_data = parsed
 	else:
@@ -33,7 +26,7 @@ static func _get_data() -> Dictionary:
 
 
 static func has_assets() -> bool:
-	return not str(_get_data().get("image_webp_base64", "")).is_empty()
+	return not VisualAssetDataScript.IMAGE_WEBP_BASE64.is_empty()
 
 
 static func _get_meta() -> Dictionary:
@@ -44,7 +37,7 @@ static func _get_meta() -> Dictionary:
 static func _get_texture() -> Texture2D:
 	if is_instance_valid(_atlas_texture):
 		return _atlas_texture
-	var encoded := str(_get_data().get("image_webp_base64", ""))
+	var encoded := VisualAssetDataScript.IMAGE_WEBP_BASE64
 	if encoded.is_empty():
 		return null
 	var bytes := Marshalls.base64_to_raw(encoded)
