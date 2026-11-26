@@ -80,6 +80,7 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 			"id": index,
 			"name": KINGDOM_NAMES[index],
 			"faction": kingdom_faction,
+			"diplomacy_profile": DiplomacyCatalog.create_leader_profile(index, kingdom_faction, index % 4, _seed),
 			"ruler": RULER_NAMES[index],
 			"capital_name": CAPITAL_NAMES[index],
 			"capital_cell": World.cell_to_array(capital),
@@ -100,7 +101,7 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 	return result
 
 
-static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictionary:
+static func normalize_kingdom(raw: Dictionary, fallback: Dictionary, world_seed: int = World.DEFAULT_SEED) -> Dictionary:
 	var result: Dictionary = fallback.duplicate(true)
 	var index := int(fallback.get("id", 0))
 	result["name"] = str(raw.get("name", result.get("name", KINGDOM_NAMES[index % KINGDOM_NAMES.size()])))
@@ -214,6 +215,13 @@ static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictiona
 	result["next_expansion_turn"] = clampi(int(raw.get("next_expansion_turn", result.get("next_expansion_turn", 8))), 1, 100000000)
 	result["target_kingdom_id"] = clampi(int(raw.get("target_kingdom_id", result.get("target_kingdom_id", (index + 1) % World.KINGDOM_COUNT))), 0, World.KINGDOM_COUNT - 1)
 	result["military_doctrine"] = clampi(int(raw.get("military_doctrine", index % 4)), 0, 3)
+	result["diplomacy_profile"] = DiplomacyCatalog.normalize_leader_profile(
+		raw.get("diplomacy_profile", {}),
+		index,
+		result["faction"],
+		int(result["military_doctrine"]),
+		world_seed
+	)
 	result["neutral_target_id"] = str(raw.get("neutral_target_id", result.get("neutral_target_id", "")))
 	return result
 
