@@ -10,7 +10,7 @@ Godot 4 fantasy 4X strategy with real-time tactical combat.
 - **Current source branch:** [`release/v0.38.2-godot-audited`](https://github.com/ilonadanelan1-code/-Project-Ember/tree/release/v0.38.2-godot-audited)
 - **Current source commit at import:** `23c0d5c4580b4d5058579e8a0fb71e090ee2032a`
 - **Playable archive:** [GitHub Release v0.38.2](https://github.com/ilonadanelan1-code/-Project-Ember/releases/tag/v0.38.2)
-- Dedicated GitHub Godot 4.7.2 QA is running on the imported source branch; see the [workflow run](https://github.com/ilonadanelan1-code/-Project-Ember/actions/runs/45845972194).
+- Dedicated GitHub Godot 4.7.2 QA passed on the imported source branch: [91/91 parser, 37/37 smoke suites, 233/233 static checks, 4/4 visual captures](https://github.com/ilonadanelan1-code/-Project-Ember/actions/runs/45845972194).
 
 ### Current handoff and audit
 
