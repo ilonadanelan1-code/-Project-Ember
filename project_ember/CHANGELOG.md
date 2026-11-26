@@ -1,3 +1,11 @@
+## v0.36.1 — Map Motion Performance Hotfix
+
+- Adds a temporary low-cost map rendering mode while the camera is panning or zooming.
+- Keeps terrain, fog-of-war visibility, city markers, army markers and the selected-army movement indicators responsive during movement.
+- Defers territory ownership lookup, borders, roads, coastlines, province improvements, neutral-site details and city labels until 160 ms after the last camera input.
+- Restores full map detail automatically after the camera settles; no game rules, campaign data or save schema are changed.
+- Adds static QA guards for the motion rendering policy. Physical Android FPS validation remains pending.
+
 ## v0.34.0 — Hero Roster & Recruitable Lords
 
 - Adds a stable player hero roster containing the ruler and up to three recruitable lords.
