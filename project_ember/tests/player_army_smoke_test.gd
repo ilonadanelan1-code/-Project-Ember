@@ -80,6 +80,34 @@ func _run() -> void:
 	_check(second_index >= 0 and int(state.player_armies[second_index].get("moves_left", -1)) == 0, "movement allowance is stored per army")
 	var moved_cell: Vector2i = state.player_cell
 
+	var target_kingdom_id := -1
+	for kingdom_index in range(state.kingdoms.size()):
+		var enemy_army_value: Variant = state.kingdoms[kingdom_index].get("army", [])
+		if enemy_army_value is Array and not enemy_army_value.is_empty():
+			target_kingdom_id = kingdom_index
+			break
+	_check(target_kingdom_id >= 0, "campaign provides a target for battle handoff testing")
+	if target_kingdom_id >= 0:
+		_check(state.begin_battle("", target_kingdom_id), "selected player army can enter a tactical battle")
+		if state.battle_in_progress:
+			_check(state.battle_origin_cell == moved_cell, "battle handoff uses the selected army's map position")
+			_check(state.active_hero_id == second_hero_id, "battle handoff uses the selected army's assigned hero")
+			var player_survivors: Array[Dictionary] = state._copy_unit_records(state.player_units)
+			var enemy_survivors: Array[Dictionary] = state._copy_unit_records(state.enemy_units)
+			state.complete_battle(
+				player_survivors,
+				enemy_survivors,
+				false,
+				{"player_kills": 0, "player_damage": 0.0}
+			)
+			_check(not state.battle_in_progress, "battle completion returns control to the campaign")
+			_check(state.player_cell == moved_cell, "defeated army returns to its own battle origin")
+			var battle_army_index: int = state._get_player_army_index(second_id)
+			if battle_army_index >= 0:
+				var battle_army: Dictionary = state.player_armies[battle_army_index]
+				var battle_army_cell := WorldGeneratorScript.array_to_cell(battle_army.get("cell", []))
+				_check(battle_army_cell == moved_cell, "battle result is written back to the selected army record")
+
 	var legacy_fallback := {
 		"id": "army_primary",
 		"name": "Первая армия",
