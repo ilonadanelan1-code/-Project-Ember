@@ -2717,7 +2717,9 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			if accept:
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, "war", turn_number)
 				var joined_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id)
-				joined_record["war_reason"] = "ally_call"
+				var original_cause := str(offer.get("war_cause", enemy_record.get("war_reason", "ally_attacked")))
+				joined_record["war_reason"] = original_cause if DiplomacyCatalogScript.CASUS_BELLI_CAUSES.has(original_cause) else "ally_attacked"
+				joined_record["war_join_reason"] = "ally_call"
 				var original_initiator := int(enemy_record.get("war_initiator_id", kingdom_id))
 				joined_record["war_initiator_id"] = original_initiator
 				joined_record["war_target_id"] = int(enemy_record.get("war_target_id", enemy_id))
