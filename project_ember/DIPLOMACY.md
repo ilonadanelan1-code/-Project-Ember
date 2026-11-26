@@ -289,3 +289,16 @@ The v0.39 extension keeps the existing 45-pair diplomacy matrix and `SAVE_VERSIO
 - AI rulers that commit are stored as coalition members in the existing diplomatic pair records. When at least two members have enough combined power, qualifying members declare real wars with reason `victory_race` and join reason `containment_coalition`. The existing war-target selection then moves their armies against the magical leader.
 - Player and legacy save data remain on `SAVE_VERSION = 1`. New claim source fields and coalition membership are optional pair-record fields with bounded normalization.
 - Arcane Conduit counting is deduplicated by occupied hex across cities and outposts so a duplicated record cannot stack arcane power.
+
+
+## v0.39 — Block 9: peace-time border threat assessment
+
+The strategic planner now evaluates a nearby rival before the relationship becomes an active war. This is a warning and force-readiness calculation only; it does not change diplomatic treaties.
+
+- A peace-time neighbor is considered only when the pair is still under `peace` and either relation is `-45` or lower or the neighbor holds an active incoming casus belli against the realm.
+- The threat score combines relationship hostility, distance from the rival field army to the realm's cities/outposts, relative army strength and a bonus for an active incoming claim. The alert threshold is 55/100 and the maximum warning distance is eight hexes.
+- Alliances, trade, tribute and vassal agreements are excluded from this warning path.
+- A threatened kingdom may recruit when it has at least 25 gold in reserve, even before a formal war starts. Its army target is increased and an exposed weaker realm pauses new settlement expansion.
+- Defensive warning does not change the treaty, consume a claim, declare war or create a movement destination. `select_war_target` still accepts only actual `war` treaties.
+- The score and defensive posture are transient planner output. No campaign save fields, resource IDs or `SAVE_VERSION` changes are required.
+- Regression coverage includes hostile and neutral neighbors, incoming claims, alliance exclusion, pre-war recruitment, expansion holds and the guarantee that a peace-time alert does not create an attack target.
