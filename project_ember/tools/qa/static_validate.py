@@ -168,7 +168,7 @@ city_development_test_path = ROOT / "tests/city_development_smoke_test.gd"
 check(city_development_path.is_file(), "city development data catalog exists")
 check(all(token in city_development_text for token in ["population_min", "population_max", "province_slots", "get_city_level", "get_province_slots"]), "three city levels define population thresholds and province capacity")
 check(all(token in city_development_text for token in ['"agriculture"', '"commerce"', '"industry"', '"military"']), "four city specializations are data-driven")
-check(all(token in city_development_text for token in ['"farm_plot"', '"trade_post"', '"woodland_camp"', '"stone_quarry"', '"watchtower"']), "five terrain-bound province improvements are catalogued")
+check(all(token in city_development_text for token in ['"farm_plot"', '"trade_post"', '"woodland_camp"', '"stone_quarry"', '"watchtower"', '"arcane_conduit"']), "six terrain-bound province improvements include the magical arcane conduit")
 check(all(token in city_development_text for token in ['"farm"', '"market"', '"workshop"', '"barracks"', '"archery_range"', '"stable"']) and "2: {" in city_development_text and "3: {" in city_development_text, "all six existing buildings have level-two and level-three upgrades")
 check("get_city_income" in city_development_text and "food_multiplier" in city_development_text and "gold_multiplier" in city_development_text and "production_multiplier" in city_development_text, "city specialization and province improvements modify only the three existing incomes")
 check("static func get_army_upkeep" in unit_catalog_text and "ceili(total)" in unit_catalog_text, "army upkeep is calculated in the unit catalog and rounded up to whole gold")
@@ -180,6 +180,7 @@ ai_order_block = kingdom_ai_text.split("static func _queue_next_order", 1)[1].sp
 check("strategic_plan" in ai_order_block and "desired_army_size" in ai_order_block and "recruit_unlock" in ai_order_block and ai_order_block.find('city_index == 0 and not buildings.has("market")') < ai_order_block.find('elif should_recruit and buildings.has(recruit_unlock)'), "AI city orders use strategic priorities and protect the capital market before recruitment")
 check(all(token in strategy_map_text_for_upgrades for token in ["РАЗВИТИЕ ГОРОДА И СПЕЦИАЛИЗАЦИЯ", "_city_specialization_buttons", "_city_province_buttons", "_city_building_upgrade_buttons", "_city_upkeep_label"]), "mobile city panel exposes specialization, provinces, building upgrades and upkeep")
 check(city_development_test_path.is_file(), "city development smoke test is included")
+check('"arcane_conduit"' in city_development_text and "arcane_victory" not in city_development_text, "arcane province infrastructure remains separate from food, gold and production income")
 check("CityDevelopmentCatalogScript.normalize_building_levels" in campaign_state_text and "CityDevelopmentCatalogScript.normalize_province_improvements" in campaign_state_text, "old city records receive safe level-one and empty-province defaults")
 
 # The owner-supplied Mythryl 2D Pixel Terrain pack is integrated only as part of
@@ -332,7 +333,7 @@ world_event_path = ROOT / "scripts/world_event_catalog.gd"
 world_event_text = world_event_path.read_text(encoding="utf-8") if world_event_path.is_file() else ""
 world_ai_text = (ROOT / "scripts/kingdom_ai.gd").read_text(encoding="utf-8")
 check(world_location_path.is_file(), "deterministic neutral location catalog exists")
-check(all(token in world_location_text for token in ["ancient_ruins", "monster_lair", "abandoned_mine", "forgotten_shrine", "mercenary_camp"]), "five neutral location types are catalogued")
+check(all(token in world_location_text for token in ["ancient_ruins", "monster_lair", "abandoned_mine", "forgotten_shrine", "mercenary_camp", "leyline_nexus"]), "neutral locations include the magical leyline nexus objective")
 check("MAX_LOCATIONS := 72" in world_location_text and "MIN_LOCATION_DISTANCE := 5" in world_location_text, "neutral location count and spacing are bounded")
 check("_cell_hash" in world_location_text and "generate_locations" in world_location_text and "normalize_locations" in world_location_text, "location generation is deterministic and save-normalized")
 check('"preferred": is_local_candidate' in world_location_text and "local_candidates.sort_custom" in world_location_text, "starting exploration targets have a deterministic fallback to preserve minimum local density")
@@ -347,6 +348,18 @@ check(all(token in world_ai_text for token in ["neutral_location_cells", "_try_f
 check(all(token in world_ai_text for token in ["neutral_target_id", "_choose_neutral_expedition_target", "_resolve_ai_neutral_battle", "_grant_ai_location_reward", "_apply_ai_mine_income"]), "AI kingdoms reserve neutral-site expeditions, resolve strategic battles and collect persistent rewards")
 check(all(token in world_ai_text for token in ["_estimate_force_strength", "_estimate_location_strength", "_damage_weakest_unit", "neutral_locations: Array[Dictionary] = []"]), "AI neutral expeditions use bounded force estimates and deterministic damage resolution")
 check(all(token in world_location_text for token in ['"cleared_by"', '"cleared_turn"', 'saved.get("cleared_by"']), "neutral site ownership and capture turn persist with legacy-player defaults")
+check("posmod(score, 23) == 0" in world_location_text and "nexus_count < 2" in world_location_text, "leyline nexus placement is deterministic and guarantees at least two race objectives")
+arcane_catalog_path = ROOT / "scripts/arcane_victory_catalog.gd"
+arcane_catalog_text = arcane_catalog_path.read_text(encoding="utf-8") if arcane_catalog_path.is_file() else ""
+arcane_test_path = ROOT / "tests/arcane_victory_smoke_test.gd"
+arcane_test_text = arcane_test_path.read_text(encoding="utf-8") if arcane_test_path.is_file() else ""
+check(arcane_catalog_path.is_file(), "magical ascension victory catalog exists")
+check(all(token in arcane_catalog_text for token in ["VICTORY_THRESHOLD := 120", "CONTAINMENT_THRESHOLD := 72", "NEXUS_POWER_PER_TURN := 4", "CONDUIT_POWER_PER_TURN := 2", "calculate_turn_power", "advance_progress", "needs_containment"]), "magical race defines bounded output, victory threshold and containment rules")
+check(all(token in campaign_state_text for token in ["arcane_victory_progress", "campaign_winner_id", "_advance_arcane_victory_race", "_apply_arcane_containment_pressure", '"campaign_winner_id": campaign_winner_id']), "campaign state advances and persists magical progress, winner and containment claims")
+check(all(token in kingdom_ai_text for token in ["arcane_victory_progress", "_get_ai_arcane_conduit_order", "ArcaneVictory.count_arcane_conduits"]), "AI kingdoms pursue magical progress and can construct arcane conduits")
+check(all(token in strategy_map_text for token in ["_arcane_status_label", "МАГИЧЕСКАЯ ПОБЕДА", "get_arcane_victory_summary"]), "strategic HUD displays magical progress, leader and victory state")
+check(arcane_test_path.is_file() and all(token in arcane_test_text for token in ["magical leader", "player can complete the magical ascension race", "AI kingdoms can win the magical race", "at least two magical nexus objectives"]), "arcane victory tests cover site generation, containment, player victory, AI victory and migration")
+
 check(all(token in strategy_map_text for token in ["_draw_neutral_locations", "get_neutral_location_index_at", "begin_location_battle", "is_cell_explored", "cleared_by", "уже захвачено"]), "strategic map identifies AI-captured sites and opens only uncleared neutral battles")
 check(all(token in strategy_map_text for token in ["_create_world_event_panel", "_refresh_world_event_panel", "_resolve_world_event_choice", "touch_target(52.0)"]), "mobile map includes two large event choice buttons")
 check((ROOT / "tests/world_location_smoke_test.gd").is_file(), "neutral location smoke test is included")
