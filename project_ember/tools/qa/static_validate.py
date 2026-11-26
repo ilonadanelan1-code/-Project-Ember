@@ -272,7 +272,7 @@ icon_catalog_text = icon_catalog_path.read_text(encoding="utf-8") if icon_catalo
 check(icon_catalog_path.is_file(), "central GameIconCatalog script exists")
 check(all(token in icon_catalog_text for token in ["_RESOURCE_GOLD", "_RESOURCE_FOOD", "_UNIT_INFANTRY", "_UNIT_ARCHER", "_UNIT_CAVALRY", "_MAP_CASTLE_BLUE", "_MAP_CASTLE_RED", "_MAP_CROSSED_SWORDS"]), "icon catalog covers current resource, unit and strategic marker roles")
 strategy_map_text = (ROOT / "scripts/strategy_map.gd").read_text(encoding="utf-8")
-check("GameIconCatalogScript.settlement_icon(sprite_id, true)" in strategy_map_text and "GameIconCatalogScript.map_marker_icon(\"crossed_swords\")" in strategy_map_text, "strategic city and army markers use the supplied map icon pack")
+check(("GameIconCatalogScript.medieval_prop_icon(\"castle_tower\")" in strategy_map_text or "GameIconCatalogScript.settlement_icon(sprite_id, true)" in strategy_map_text) and "GameIconCatalogScript.map_marker_icon(\"crossed_swords\")" in strategy_map_text, "strategic city and army markers use the supplied map icon pack")
 check("_add_icon_value(hud_resources" in strategy_map_text and "_add_icon_value(city_resources" in strategy_map_text, "HUD and city panel use iconized live resource values")
 check("button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST" in strategy_map_text, "pixel UI button icons explicitly use nearest-neighbour filtering")
 check((ROOT / "tests/icon_integration_smoke_test.gd").is_file(), "icon integration smoke test exists")
