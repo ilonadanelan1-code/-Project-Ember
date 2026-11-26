@@ -7,8 +7,10 @@ Godot 4 fantasy 4X strategy with real-time tactical combat.
 - **Latest audited playable build:** Project Ember v0.38.2
 - **Engine:** Godot 4.7.2
 - **Next development target:** v0.39 — Strategic AI and diplomacy
-- **Current source branch in this repository:** `release/v0.36.1`
-- **Important:** the v0.38.2 playable ZIP has been audited in the development environment, but its complete source snapshot has not yet been imported into this repository. Do not treat `release/v0.36.1` as v0.38.2.
+- **Current source branch:** [`release/v0.38.2-godot-audited`](https://github.com/ilonadanelan1-code/-Project-Ember/tree/release/v0.38.2-godot-audited)
+- **Current source commit at import:** `23c0d5c4580b4d5058579e8a0fb71e090ee2032a`
+- **Playable archive:** [GitHub Release v0.38.2](https://github.com/ilonadanelan1-code/-Project-Ember/releases/tag/v0.38.2)
+- Dedicated GitHub Godot 4.7.2 QA is running on the imported source branch; see the [workflow run](https://github.com/ilonadanelan1-code/-Project-Ember/actions/runs/45845170388).
 
 ### Current handoff and audit
 
