@@ -52,6 +52,14 @@ const LOCATION_TYPES := {
 		"base_reward": {"gold": 30, "food": 4, "production": 6},
 		"description": "Брошенный лагерь с обозом и запасами наёмного отряда.",
 	},
+	"leyline_nexus": {
+		"name": "Узел лей-линии",
+		"marker": "М",
+		"color": "#82d7e8",
+		"terrain": ["plain", "forest", "hills", "farmland", "marsh"],
+		"base_reward": {"gold": 30, "food": 6, "production": 10},
+		"description": "Древний узел потоков маны. Держава, закрепившая его за собой, накапливает силу для магического восхождения.",
+	},
 }
 
 
@@ -128,6 +136,10 @@ static func generate_locations(world_seed: int, generation_version: int) -> Arra
 		var score := int(candidate.get("score", 0))
 		var terrain := str(candidate.get("terrain", "plain"))
 		var type_id := _choose_type(terrain, score)
+		# Leyline nexuses are rare, deterministic strategic objectives rather than
+		# ordinary loot sites. Their ownership drives the magical victory race.
+		if posmod(score, 23) == 0:
+			type_id = "leyline_nexus"
 		var start_distance := World.hex_distance(cell, Vector2i(-2, 0))
 		var guard_tier := 1 if start_distance <= 13 else (2 if start_distance <= 34 else 3)
 		var encoded := World.encode_cell(cell)
