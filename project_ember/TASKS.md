@@ -1,3 +1,16 @@
+## v0.39 — Block 10: Integrated visual asset packs
+
+- [x] Pack the five licensed owner-supplied visual resources into one lossless mobile runtime atlas with cached texture regions.
+- [x] Use castle, cottage and heraldic faction-banner sprites for player and AI settlements.
+- [x] Add Pixel Castle props and unit portraits to map points of interest, city building buttons and recruitment controls.
+- [x] Add animated idle/attack visuals for 30 monsters and idle/run/attack visuals for the medieval red knight.
+- [x] Give neutral encounter guard rosters and guardians type-specific sprite appearances.
+- [x] Add runtime smoke coverage for sprite frames, building props, banners, neutral guards and guardians.
+- [x] Add QA validation for packed image data, atlas regions, source references and asset credits.
+- [x] Keep campaign unit IDs, game rules and SAVE_VERSION = 1 unchanged.
+- [x] Exclude the two heraldry archives that do not include a licence granting use in this game.
+- [ ] Verify all new sprites and animation scales in the Android build and tune mobile readability.
+
 ## v0.39 — Block 9: Strategic AI defensive readiness
 
 - [x] Score nearby peace-time threats using relationship hostility, incoming formal claims, distance and relative army strength.
