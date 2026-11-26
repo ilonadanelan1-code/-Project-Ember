@@ -1524,7 +1524,34 @@ func _refresh_diplomacy_panel() -> void:
 	var record := CampaignState.get_diplomacy_record(kingdom_id)
 	var relation_value := int(record.get("relation", 0))
 	var treaty_value := str(record.get("treaty", "peace"))
-	var personality := DiplomacyCatalogScript.get_personality(kingdom_id)
+	var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+	var profile: Dictionary = profile_value if profile_value is Dictionary else {}
+	var personality := DiplomacyCatalogScript.get_personality_for_profile(profile)
+	if personality.is_empty():
+		personality = DiplomacyCatalogScript.get_personality(kingdom_id)
+	var alignment_names := {"good": "Добро", "neutral": "Нейтралитет", "evil": "Зло"}
+	var affinity_names := {
+		"order": "Порядок", "chaos": "Хаос", "nature": "Природа",
+		"astral": "Астрал", "shadow": "Тень", "materium": "Материя",
+	}
+	var affinities_value: Variant = profile.get("affinities", {})
+	var affinities: Dictionary = affinities_value if affinities_value is Dictionary else {}
+	var affinity_parts: Array[String] = []
+	for affinity_id in DiplomacyCatalogScript.AFFINITY_IDS:
+		affinity_parts.append("%s %d" % [str(affinity_names.get(affinity_id, affinity_id)), int(affinities.get(affinity_id, 0))])
+	var likes_text := _format_diplomacy_profile_tags(profile.get("likes", []))
+	var dislikes_text := _format_diplomacy_profile_tags(profile.get("dislikes", []))
+	var modifiers_value: Variant = record.get("opinion_modifiers", {})
+	var modifiers: Dictionary = modifiers_value if modifiers_value is Dictionary else {}
+	var compatibility_text := "Совместимость: взгляды %+d · аффинити %+d · характер %+d · симпатии %+d · союзники %+d · общие враги %+d" % [
+		int(modifiers.get("alignment", 0)),
+		int(modifiers.get("affinity", 0)),
+		int(modifiers.get("personality", 0)),
+		int(modifiers.get("preferences", 0)),
+		int(modifiers.get("shared_allies", 0)),
+		int(modifiers.get("shared_enemies", 0)),
+	]
+	var alignment_text := str(alignment_names.get(str(profile.get("alignment", "neutral")), "Нейтральность"))
 	var army_count := int(kingdom.get("army", []).size())
 	var until_turn := int(record.get("treaty_until", 0))
 	var duration_text := ""
@@ -1541,11 +1568,16 @@ func _refresh_diplomacy_panel() -> void:
 	var overlord_text := ""
 	if treaty_value == "tribute" or treaty_value == "vassal":
 		overlord_text = "\nПолучатель выплат: %s." % ("твоё королевство" if int(record.get("overlord_id", -99)) == -1 else "другая держава")
-	_diplomacy_summary_label.text = "%s · %s\nХарактер: %s\n%s\nОтношение: %d — %s\nДоговор: %s%s%s%s%s\nАрмия по последним сведениям: %d бойцов" % [
+	_diplomacy_summary_label.text = "%s · %s\nХарактер: %s\n%s\nМировоззрение: %s\nАффинити: %s\nПредпочитает: %s\nНе любит: %s\n%s\nОтношение: %d — %s\nДоговор: %s%s%s%s%s\nАрмия по последним сведениям: %d бойцов" % [
 		str(kingdom.get("name", "Королевство")),
 		str(kingdom.get("ruler", "Правитель")),
 		str(personality.get("name", "Неизвестен")),
 		str(personality.get("description", "")),
+		alignment_text,
+		" · ".join(affinity_parts),
+		likes_text,
+		dislikes_text,
+		compatibility_text,
 		relation_value,
 		DiplomacyCatalogScript.relation_label(relation_value),
 		DiplomacyCatalogScript.treaty_label(treaty_value),
@@ -1581,6 +1613,29 @@ func _refresh_diplomacy_panel() -> void:
 		reason_label.text = str(preview.get("reason", ""))
 		_diplomacy_actions_list.add_child(action_button)
 		_diplomacy_actions_list.add_child(reason_label)
+
+
+
+func _format_diplomacy_profile_tags(value: Variant) -> String:
+	var labels := {
+		"good": "добрых", "neutral": "нейтральных", "evil": "злых",
+		"order": "порядок", "chaos": "хаос", "nature": "природу",
+		"astral": "астрал", "shadow": "тень", "materium": "материю",
+		"aggressor": "завоевателей", "merchant": "торговцев",
+		"isolationist": "изолированных", "honorable": "хранителей клятв",
+		"expansionist": "экспансионистов", "strong": "силу",
+		"war_focused": "воинственность", "trade_focused": "торговлю",
+		"expansion_focused": "расширение", "keeps_treaties": "верность договорам",
+		"breaks_treaties": "нарушение договоров", "blocks_expansion": "сдерживание экспансии",
+	}
+	var source: Array = value if value is Array else []
+	var result: Array[String] = []
+	for tag_value in source:
+		var tag := str(tag_value)
+		var label := str(labels.get(tag, tag))
+		if not result.has(label):
+			result.append(label)
+	return ", ".join(result) if not result.is_empty() else "—"
 
 
 func _perform_diplomacy_action(action_id: String, kingdom_id: int) -> void:
