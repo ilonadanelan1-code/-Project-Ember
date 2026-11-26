@@ -19,6 +19,7 @@ const HexTerrainTileMapRendererScript = preload("res://scripts/hex_terrain_tilem
 const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const GameIconCatalogScript = preload("res://scripts/game_icon_catalog.gd")
 const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
+const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
 const CITY_MARKER_ATLAS: Texture2D = preload("res://assets/map/city_marker_atlas.png")
 
 ## Explored-world strategic map: fog of war, viewport streaming and AI kingdom markers.
@@ -76,7 +77,14 @@ var _hero_overview_label: Label
 var _hero_roster_label: Label
 var _hero_selector: OptionButton
 var _hero_switch_button: Button
+var _equipment_summary_label: Label
+var _equipment_slot_selector: OptionButton
+var _equipment_inventory_selector: OptionButton
+var _equipment_comparison_label: Label
+var _equipment_equip_button: Button
+var _equipment_unequip_button: Button
 var _hero_skill_buttons: Dictionary = {}
+var _equipment_selected_slot: String = "weapon"
 var _lord_recruit_buttons: Dictionary = {}
 var _city_building_buttons: Dictionary = {}
 var _city_recruit_buttons: Dictionary = {}
@@ -1642,6 +1650,45 @@ func _create_city_panel(root: Control) -> void:
 	_hero_switch_button = _add_button(details, "НАЗНАЧИТЬ КОМАНДИРОМ АРМИИ", _activate_selected_hero)
 	_hero_switch_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(52.0))
 
+	var equipment_title := Label.new()
+	equipment_title.text = "ЭКИПИРОВКА И ИНВЕНТАРЬ"
+	equipment_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
+	equipment_title.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(equipment_title)
+	_equipment_summary_label = Label.new()
+	_equipment_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_equipment_summary_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_equipment_summary_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	details.add_child(_equipment_summary_label)
+	_equipment_slot_selector = OptionButton.new()
+	_equipment_slot_selector.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	_equipment_slot_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for slot_id in ItemCatalogScript.SLOT_IDS:
+		var slot_index := _equipment_slot_selector.item_count
+		_equipment_slot_selector.add_item(ItemCatalogScript.get_slot_name(slot_id))
+		_equipment_slot_selector.set_item_metadata(slot_index, slot_id)
+	_equipment_slot_selector.item_selected.connect(_on_equipment_slot_selected)
+	details.add_child(_equipment_slot_selector)
+	_equipment_inventory_selector = OptionButton.new()
+	_equipment_inventory_selector.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	_equipment_inventory_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_equipment_inventory_selector.item_selected.connect(_on_equipment_inventory_selected)
+	details.add_child(_equipment_inventory_selector)
+	_equipment_comparison_label = Label.new()
+	_equipment_comparison_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_equipment_comparison_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
+	_equipment_comparison_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	details.add_child(_equipment_comparison_label)
+	var equipment_actions := HBoxContainer.new()
+	equipment_actions.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
+	details.add_child(equipment_actions)
+	_equipment_equip_button = _add_button(equipment_actions, "НАДЕТЬ", _equip_selected_item)
+	_equipment_equip_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_equipment_equip_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	_equipment_unequip_button = _add_button(equipment_actions, "СНЯТЬ", _unequip_selected_slot)
+	_equipment_unequip_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_equipment_unequip_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+
 	var lord_title := Label.new()
 	lord_title.text = "НАЙМ ЛОРДОВ · 100 ЗОЛОТА"
 	lord_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
@@ -1898,6 +1945,117 @@ func _recruit_lord(candidate_id: String) -> void:
 	_refresh_ui()
 
 
+
+
+func _on_equipment_slot_selected(index: int) -> void:
+	if not is_instance_valid(_equipment_slot_selector) or index < 0 or index >= _equipment_slot_selector.item_count:
+		return
+	_equipment_selected_slot = str(_equipment_slot_selector.get_item_metadata(index))
+	_refresh_equipment_panel()
+
+
+func _on_equipment_inventory_selected(_index: int) -> void:
+	_refresh_equipment_comparison()
+
+
+func _refresh_equipment_panel() -> void:
+	if not is_instance_valid(_equipment_slot_selector) or not is_instance_valid(_equipment_inventory_selector):
+		return
+	if CampaignState.player_hero.is_empty() or _equipment_slot_selector.item_count <= 0:
+		return
+	var slot_index := maxi(0, _equipment_slot_selector.selected)
+	_equipment_selected_slot = str(_equipment_slot_selector.get_item_metadata(slot_index))
+	var equipment_value: Variant = CampaignState.player_hero.get("equipment", {})
+	var equipment: Dictionary = equipment_value if equipment_value is Dictionary else {}
+	var equipped_item_id := str(equipment.get(_equipment_selected_slot, ""))
+	var equipped_item := ItemCatalogScript.get_item(equipped_item_id)
+	var equipped_name := str(equipped_item.get("name", "Пусто")) if not equipped_item.is_empty() else "Пусто"
+	var inventory := CampaignState.get_hero_inventory_item_ids(CampaignState.active_hero_id)
+	_equipment_summary_label.text = "Командир: %s\nОружие: %s\nБроня: %s\nРеликвия: %s\nПредметов в запасе: %d/%d" % [
+		str(CampaignState.player_hero.get("name", "Командир")),
+		str(ItemCatalogScript.get_item(str(equipment.get("weapon", ""))).get("name", "—")),
+		str(ItemCatalogScript.get_item(str(equipment.get("armor", ""))).get("name", "—")),
+		str(ItemCatalogScript.get_item(str(equipment.get("relic", ""))).get("name", "—")),
+		inventory.size(),
+		ItemCatalogScript.MAX_HERO_INVENTORY,
+	]
+	_equipment_inventory_selector.clear()
+	for item_id in inventory:
+		var item := ItemCatalogScript.get_item(item_id)
+		if str(item.get("slot", "")) != _equipment_selected_slot:
+			continue
+		var item_index := _equipment_inventory_selector.item_count
+		_equipment_inventory_selector.add_item("%s · %s" % [str(item.get("name", item_id)), str(item.get("rarity", "Обычный"))])
+		_equipment_inventory_selector.set_item_metadata(item_index, item_id)
+	if _equipment_inventory_selector.item_count == 0:
+		_equipment_inventory_selector.add_item("Нет предметов для этого слота")
+		_equipment_inventory_selector.set_item_metadata(0, "")
+	_equipment_inventory_selector.select(0)
+	_equipment_equip_button.disabled = _equipment_inventory_selector.item_count <= 0 or str(_equipment_inventory_selector.get_item_metadata(0)).is_empty()
+	_equipment_unequip_button.disabled = equipped_item_id.is_empty() or inventory.size() >= ItemCatalogScript.MAX_HERO_INVENTORY
+	_refresh_equipment_comparison()
+
+
+func _refresh_equipment_comparison() -> void:
+	if not is_instance_valid(_equipment_inventory_selector) or not is_instance_valid(_equipment_comparison_label):
+		return
+	if CampaignState.player_hero.is_empty() or _equipment_inventory_selector.item_count <= 0:
+		_equipment_comparison_label.text = "Предметы пока не найдены."
+		return
+	var selected_index := _equipment_inventory_selector.selected
+	var item_id := str(_equipment_inventory_selector.get_item_metadata(selected_index)) if selected_index >= 0 else ""
+	if item_id.is_empty():
+		_equipment_comparison_label.text = "Для выбранного слота предметов нет."
+		_equipment_equip_button.disabled = true
+		return
+	var item := ItemCatalogScript.get_item(item_id)
+	var current_stats := CampaignState.get_hero_combat_stats(CampaignState.player_hero)
+	var next_stats := CampaignState.get_hero_stats_with_item(CampaignState.player_hero, _equipment_selected_slot, item_id)
+	if next_stats.is_empty():
+		_equipment_comparison_label.text = str(item.get("description", ""))
+		return
+	var damage_delta := float(next_stats.get("attack_damage", 0.0)) - float(current_stats.get("attack_damage", 0.0))
+	var armor_delta := float(next_stats.get("armor", 0.0)) - float(current_stats.get("armor", 0.0))
+	var health_delta := float(next_stats.get("max_health", 0.0)) - float(current_stats.get("max_health", 0.0))
+	var speed_delta := float(next_stats.get("move_speed", 0.0)) - float(current_stats.get("move_speed", 0.0))
+	_equipment_comparison_label.text = "%s\nУрон: %+.1f · Броня: %+.1f\nМакс. здоровье: %+.0f · Скорость: %+.2f\nТекущий слот: %s" % [
+		str(item.get("description", "")),
+		damage_delta,
+		armor_delta,
+		health_delta,
+		speed_delta,
+		"Занят" if not str(CampaignState.player_hero.get("equipment", {}).get(_equipment_selected_slot, "")).is_empty() else "Свободен",
+	]
+	_equipment_equip_button.disabled = CampaignState.battle_in_progress
+
+
+func _equip_selected_item() -> void:
+	if not is_instance_valid(_equipment_inventory_selector) or _equipment_inventory_selector.selected < 0:
+		return
+	var item_id := str(_equipment_inventory_selector.get_item_metadata(_equipment_inventory_selector.selected))
+	if item_id.is_empty():
+		return
+	if CampaignState.equip_item_to_hero(CampaignState.active_hero_id, item_id):
+		var item := ItemCatalogScript.get_item(item_id)
+		_message_text = "%s экипирован." % str(item.get("name", item_id))
+		Haptics.confirm(18)
+	else:
+		_message_text = "Не удалось экипировать предмет."
+		Haptics.warn()
+	_refresh_city_panel()
+	_refresh_ui()
+
+
+func _unequip_selected_slot() -> void:
+	if CampaignState.unequip_hero_slot(CampaignState.active_hero_id, _equipment_selected_slot):
+		_message_text = "%s снято в инвентарь." % ItemCatalogScript.get_slot_name(_equipment_selected_slot)
+		Haptics.confirm(18)
+	else:
+		_message_text = "Слот пуст или в инвентаре нет места."
+		Haptics.warn()
+	_refresh_city_panel()
+	_refresh_ui()
+
 func _activate_selected_hero() -> void:
 	if not is_instance_valid(_hero_selector) or _hero_selector.item_count <= 0 or _hero_selector.selected < 0:
 		return
@@ -2056,6 +2214,8 @@ func _refresh_city_panel() -> void:
 			_hero_selector.select(maxi(0, active_hero_index))
 		if is_instance_valid(_hero_switch_button):
 			_hero_switch_button.disabled = _hero_selector.item_count <= 1 or active_hero_index < 0
+	if is_instance_valid(_equipment_slot_selector):
+		_refresh_equipment_panel()
 	for candidate in LordCatalogScript.get_candidates():
 		var candidate_id := str(candidate.get("id", ""))
 		if not _lord_recruit_buttons.has(candidate_id):
@@ -2565,6 +2725,9 @@ func _show_last_battle_report() -> void:
 			_message_text = "Охрана удержала %s. Выживших: %d. Потери: %d. Можно перегруппироваться и вернуться." % [str(result.get("kingdom_name", "локацию")), survivors, losses]
 		else:
 			_message_text = "Поражение. Выживших: %d. Потери: %d. Армия отступила к исходной позиции." % [survivors, losses]
+	var equipment_reward_name := str(result.get("equipment_reward_name", ""))
+	if not equipment_reward_name.is_empty():
+		_message_text += " Добыча: %s. Экипировку можно изменить в панели города." % equipment_reward_name
 	if float(result.get("territory_armor_bonus", 0.0)) > 0.0:
 		_message_text += " Сторожевая башня дала отрядам +1 брони."
 	CampaignState.last_battle_report_pending = false
