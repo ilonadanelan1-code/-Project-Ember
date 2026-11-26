@@ -1,3 +1,35 @@
+## v0.38.2 — Godot Audit Hotfix
+
+- Fixes an actual GDScript parse error in `kingdom_ai.gd` caused by a missing comment marker.
+- Adds an explicit type to the campaign's fallback kingdom array to prevent type-inference failure.
+- Repairs three smoke-test fixtures: campaign foundation reserve, save-enabled economy round-trip and AI kingdom ownership index.
+- Replaces stale v0.31.0 package/import metadata with current release details.
+- Godot 4.7.2 audit: 91/91 parser checks, 37/37 smoke suites, 1,452 passing assertions, 4/4 visual map captures and 233/233 static checks.
+- `SAVE_VERSION` remains 1. Android device performance and touch validation remain pending.
+
+## v0.38.1 — AI Expansion Stability Fix
+
+- Fixes an early-game strategic deadlock where AI realms grew their armies toward ten units before founding another settlement; the resulting upkeep consumed the income needed to save for expansion.
+- Lowers the early army target to the existing starting force, then scales army growth with additional cities and population. War and nearby threats still increase desired force size.
+- Reserves the foundation budget and processes a due city/outpost foundation before city upgrades, building orders or recruitment can spend the treasury.
+- Allows a controlled temporary net-gold deficit when the total treasury can cover the foundation and several turns of upkeep.
+- Centralizes AI city foundation cost, population requirement and the four-city cap; removes the previous undocumented five-hex spacing restriction in favor of the configured three-hex city spacing.
+- Adds a 180-turn peaceful multi-kingdom regression simulation to verify that AI actually expands across several realms instead of merely retaining its starting capitals.
+- Retains cities, outposts, annexation, collection, territorial influence, economy and SAVE_VERSION 1.
+- Static QA: 233/233 checks passed. Godot 4.7.2 parser and runtime smoke tests still require execution in Godot.
+
+## v0.38.0 — Settlement Economy & Frontier Outposts
+
+- Adds outposts as a separate low-development settlement type with their own treasury, passive income and upkeep; cities retain population growth, specializations and production queues.
+- Adds a city/outpost foundation chooser, cheaper outpost foundation, dynamic settler cost scaling and a configurable soft city-upkeep threshold.
+- Adds the city → outpost → field-army territorial influence hierarchy for player and AI kingdoms. Ownership remains calculated on demand without a saved owner grid.
+- Adds outpost resource collection, nearby-city annexation and conversion into a full city; stored gold, food, production and valid province improvements are transferred.
+- Adds a realm economy summary covering combined treasuries, resource income, army upkeep, settlement upkeep and net gold flow.
+- AI kingdoms can found frontier outposts subject to gold reserves, production, nearby threat and cell scoring, and can merge nearby outposts when reserve conditions allow.
+- Adds settlement-aware diplomacy sources, neutral-site occupancy checks, map markers and a mobile outpost detail panel.
+- Adds regression sources for player and AI outpost economy, annexation, save/load and legacy records. `SAVE_VERSION` remains 1; old saves receive safe defaults.
+- Static QA: 230/230 checks passed locally. Godot parser and runtime smoke execution for this integrated build still require Godot 4.7.2.
+
 ## v0.36.1 — Map Motion Performance Hotfix
 
 - Adds a temporary low-cost map rendering mode while the camera is panning or zooming.

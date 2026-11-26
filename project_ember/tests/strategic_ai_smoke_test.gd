@@ -70,7 +70,46 @@ func _run() -> void:
 	var score_a := Planner.score_expansion_cell(candidate, test_capital, first_cities, kingdoms, 0, Vector2i(-2, 0), [], seed, World.WORLD_GENERATION_VERSION, [])
 	var score_b := Planner.score_expansion_cell(candidate, test_capital, first_cities, kingdoms, 0, Vector2i(-2, 0), [], seed, World.WORLD_GENERATION_VERSION, [])
 	_check(is_finite(score_a) and score_a == score_b, "expansion scoring is deterministic and returns a finite value")
+	var outpost_kingdom: Dictionary = first.duplicate(true)
+	outpost_kingdom["outposts"] = [{"cell": [test_capital.x + 2, test_capital.y], "gold": 30, "food": 0, "production_bank": 0, "province_improvements": []}]
+	var outpost_kingdoms: Array[Dictionary] = [outpost_kingdom]
+	var outpost_plan := Planner.evaluate_kingdom(outpost_kingdom, outpost_kingdoms, peaceful_relations, 9, Vector2i(28, 28), [])
+	_check(int(outpost_plan.get("outpost_count", 0)) == 1 and int(outpost_plan.get("settlement_upkeep", 0)) == 1, "strategic planner counts outpost upkeep as part of the realm economy")
+	_check(int(outpost_plan.get("gold_reserve", 0)) >= 30, "strategic planner includes outpost stores in the kingdom reserve")
+	var outpost_blocked_score := Planner.score_expansion_cell(
+		candidate, test_capital, [], [], -1, Vector2i(28, 28), [], seed,
+		World.WORLD_GENERATION_VERSION, [], [candidate + Vector2i(1, 0)], []
+	)
+	_check(outpost_blocked_score <= -999999.0, "strategic expansion avoids founding cities beside player outposts")
 	_check(CampaignStateScript.SAVE_VERSION == 1, "the strategic planner keeps legacy campaign save schema version one")
+
+	# Regression: a peaceful AI realm must actually found cities over a long campaign.
+	# Previously the desired army size rose to 10 before the first expansion, so
+	# maintenance consumed almost all market income and expansion funds never grew.
+	var growth_seed := 842173
+	var growth_kingdoms := KingdomAI.create_initial_kingdoms(growth_seed)
+	var growth_relations: Dictionary = {}
+	var initial_city_count := 0
+	for growth_kingdom in growth_kingdoms:
+		initial_city_count += (growth_kingdom.get("cities", []) as Array).size()
+	for growth_turn in range(1, 181):
+		KingdomAI.process_turns(
+			growth_kingdoms, growth_turn, Vector2i(-2, 0), [], growth_seed,
+			World.WORLD_GENERATION_VERSION, [], growth_relations, [], []
+		)
+	var grown_city_count := 0
+	var grown_outpost_count := 0
+	var expanded_kingdom_count := 0
+	for growth_kingdom in growth_kingdoms:
+		var kingdom_cities: Array = growth_kingdom.get("cities", [])
+		var kingdom_outposts: Array = growth_kingdom.get("outposts", [])
+		grown_city_count += kingdom_cities.size()
+		grown_outpost_count += kingdom_outposts.size()
+		if kingdom_cities.size() > 1 or not kingdom_outposts.is_empty():
+			expanded_kingdom_count += 1
+	_check(grown_city_count > initial_city_count, "AI kingdoms found additional cities within 180 peaceful turns")
+	_check(expanded_kingdom_count >= 3, "AI expansion is distributed across several kingdoms, not just one")
+	_check(grown_outpost_count > 0 or grown_city_count >= initial_city_count + 4, "AI uses outposts or additional cities to extend its frontier")
 
 	if _failures == 0:
 		print("All %d strategic AI checks passed." % _checks)

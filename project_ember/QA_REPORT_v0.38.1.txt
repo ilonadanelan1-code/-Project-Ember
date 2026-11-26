@@ -1,0 +1,29 @@
+PROJECT EMBER v0.38.1 — AI EXPANSION STABILITY FIX
+
+Source basis: Project Ember v0.38.0 (full playable project from upstream game branch release/v0.36.1).
+
+Problem addressed:
+- AI army target previously grew toward 10 units with only one capital. With a market and army upkeep, net income could settle around zero before the treasury reached the settlement expansion reserve. The AI then retained its starting city for very long campaigns.
+- City/building/recruitment orders were queued before a due settlement foundation, so the AI could spend the same gold that its expansion planner had reserved.
+
+Changes:
+- Early desired army size now starts from 5 units and scales with additional cities/population; war and threats retain their defensive bonuses.
+- Expansion reserve permits net gold down to -1 when the total treasury can afford the foundation and multiple upkeep turns.
+- Due foundations are resolved before the AI queues purchases and recruitment.
+- AI city cost, minimum population and city cap are centralized in SettlementCatalog. City spacing now uses the shared configured value.
+- Added a 180-turn, peaceful multi-kingdom regression simulation to strategic_ai_smoke_test.gd.
+- Player settlements, outposts, annexation, resource collection, territory hierarchy, UI, and SAVE_VERSION 1 are retained.
+
+Local validation:
+- Python static QA: 233/233 checks passed.
+- Python syntax compilation: tools/qa/static_validate.py passed.
+- Playable release package script validates the Tiny Swords 1152x2304 RGBA atlas, animation manifest, required project files and ZIP integrity.
+
+Not executed locally:
+- Godot 4.7.2 GDScript parser.
+- Godot runtime smoke tests, including the new 180-turn AI expansion regression test.
+- Android device visual/performance checks.
+
+Reason: no Godot executable is installed and the environment cannot resolve external download hosts. Run tools/qa/run_smoke_tests.sh with Godot 4.7.2. Do not treat the upstream v0.36.1 run as validation of this integration.
+
+Package type: full Godot source project, not APK.

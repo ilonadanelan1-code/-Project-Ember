@@ -1,15 +1,23 @@
-Project Ember v0.31.0 — AI Neutral Site Expeditions
-Godot 4.7.2 stable / GL Compatibility source project for Android landscape. This is not an APK.
+Project Ember v0.38.2 — Godot Audit Hotfix
 
-Feature summary:
-- All nine AI kingdoms can dispatch deterministic expeditions to nearby neutral sites when not pursuing an active war target.
-- A living AI kingdom reserves one target at a time; other living kingdoms avoid that reservation.
-- AI armies approach a location to an adjacent hex and resolve a bounded strategic battle using their current troop health, veterancy, role damage and armor.
-- Defeated guards and guardian health persist. AI victories record the conquering kingdom and capture turn, deposit the location reward into the nearest AI city and apply the site's troop or economic effect.
-- Abandoned-mine production is paid only to the owner of the mine. Player and AI mine income are separated.
-- The strategic map reports which AI kingdom cleared a site; cleared sites cannot be attacked again by the player.
-- War targets retain priority over neutral expeditions.
+Godot 4.7.2 stable / GL Compatibility source project for Android landscape. This is a full playable source archive, not an APK.
+
+Included gameplay:
+- Nine AI kingdoms with strategic economy, diplomacy, neutral-site expeditions and long-term settlement expansion.
+- Player and AI cities and frontier outposts.
+- Outpost stock, income, upkeep, annexation into a nearby city and upgrade into a full city.
+- Dynamic territorial influence: city > outpost > field army, with ownership resolved on demand.
+- Existing army progression, recruitable lords, equipment, tactical combat, neutral locations and world events.
+
+Audit fixes in v0.38.2:
+- GDScript syntax fix in kingdom_ai.gd.
+- Explicit typed campaign kingdom fallback.
+- Three smoke-test fixture corrections (campaign foundation reserve, save-enabled settlement test, AI kingdom index in territory test).
+- Current build and import metadata replace stale v0.31.0 descriptions.
 
 Compatibility:
-- SAVE_VERSION remains 1. Older cleared sites without an owner are treated as player-cleared; new ownership and target fields are optional and normalized.
-- No new resource, unit role, building ID, kingdom ID or location ID is introduced.
+- SAVE_VERSION remains 1. Older campaign saves keep additive defaults for optional settlement and AI fields.
+- No new campaign resource or save version introduced.
+- Required Tiny Swords combat atlas and manifest are included in this playable ZIP. Their binaries remain excluded from the public Git source repository under the project's asset policy.
+
+Verification: Godot 4.7.2 import passed; GDScript parser 91/91; smoke suites 37/37; 1,452 passing assertions; static QA 233/233; visual QA 4/4 zoom levels; package ZIP integrity passed. Android device performance remains to be checked on the target phone.

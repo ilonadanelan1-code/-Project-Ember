@@ -3,6 +3,7 @@ extends SceneTree
 const Territory = preload("res://scripts/territory_catalog.gd")
 const CityDevelopment = preload("res://scripts/city_development_catalog.gd")
 const CampaignStateScript = preload("res://scripts/campaign_state.gd")
+const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
 
 var _checks := 0
 var _failures := 0
@@ -75,6 +76,27 @@ func _run() -> void:
 	)
 	_check(int(army_lookup.get(Vector2i(23, 0), -1)) == Territory.OWNER_PLAYER, "field army projects temporary control around its position")
 	_check(int(army_lookup.get(Vector2i(25, 0), -1)) == Territory.OWNER_UNCLAIMED, "army influence fades beyond its bounded radius")
+
+	var player_outposts: Array[Dictionary] = [{
+		"id": 0, "name": "Западный дозор", "cell": [20, 0], "food": 0, "gold": 0,
+		"production_bank": 0, "province_improvements": [],
+	}]
+	var outpost_lookup := Territory.build_owner_lookup(
+		[Vector2i(20, 0), Vector2i(25, 0), Vector2i(26, 0)],
+		[], no_army_cell, no_army, no_kingdoms, [], player_outposts
+	)
+	_check(int(outpost_lookup.get(Vector2i(20, 0), Territory.OWNER_UNCLAIMED)) == Territory.OWNER_PLAYER, "player outpost owns its foundation hex")
+	_check(int(outpost_lookup.get(Vector2i(25, 0), Territory.OWNER_UNCLAIMED)) == Territory.OWNER_PLAYER, "outpost influence reaches exactly its configured outer ring")
+	_check(int(outpost_lookup.get(Vector2i(26, 0), Territory.OWNER_UNCLAIMED)) == Territory.OWNER_UNCLAIMED, "outpost control is bounded by its configured radius")
+	var ai_outpost_kingdoms: Array[Dictionary] = [
+		{"id": 0, "alive": false, "cities": [], "outposts": [], "army": [], "army_cell": [9999, 9999]},
+		{"id": 1, "alive": false, "cities": [], "outposts": [], "army": [], "army_cell": [9999, 9999]},
+		{"id": 2, "alive": true, "cities": [], "outposts": [{"cell": [30, 0]}], "army": [], "army_cell": [9999, 9999]},
+	]
+	var ai_outpost_owner := Territory.get_owner_at(Vector2i(30, 0), [], no_army_cell, no_army, ai_outpost_kingdoms)
+	_check(ai_outpost_owner == 2, "AI outposts project ownership for their kingdom index")
+	_check(SettlementCatalogScript.OUTPOST_INFLUENCE_POWER > SettlementCatalogScript.get_army_influence_power(24), "outpost influence is stronger than a full field army")
+	_check(SettlementCatalogScript.get_city_influence_power(1, 0, "") > SettlementCatalogScript.OUTPOST_INFLUENCE_POWER, "even a level-one city is stronger than an outpost")
 
 	var normalized_towers := CityDevelopment.normalize_province_improvements([{"id": "watchtower", "cell": [1, 0]}])
 	_check(normalized_towers.size() == 1 and str(normalized_towers[0].get("id", "")) == "watchtower", "watchtower survives improvement normalization")

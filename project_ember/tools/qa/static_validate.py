@@ -140,7 +140,7 @@ check(load_campaign_block.count("var loaded_buildings") == 1 and "var city_build
 make_city_record_block = campaign_state_text.split("func _make_city_record(", 1)[1].split("\nfunc _save_active_city", 1)[0] if "func _make_city_record(" in campaign_state_text and "\nfunc _save_active_city" in campaign_state_text else ""
 check("city_display_name: String" in make_city_record_block and '"name": city_display_name' in make_city_record_block and not re.search(r"(?<![A-Za-z0-9_])name\s*:\s*String", make_city_record_block), "city record parameter no longer shadows Node.name")
 world_owner_block = campaign_state_text.split("func get_world_owner_at(", 1)[1].split("\nfunc _sync_primary_kingdom", 1)[0] if "func get_world_owner_at(" in campaign_state_text and "\nfunc _sync_primary_kingdom" in campaign_state_text else ""
-check("TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms, player_armies)" in world_owner_block and "_sync_selected_player_army_from_legacy()" in world_owner_block, "world ownership lookup delegates to the deterministic territory catalog for every player army")
+check("TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms, player_armies, outposts)" in world_owner_block and "_sync_selected_player_army_from_legacy()" in world_owner_block, "world ownership lookup delegates to the deterministic territory catalog for every player army and outpost")
 check("WorldGeneratorScript.hex_distance(cell, c)" in campaign_state_text and "WorldGeneratorScript.hex_distance(cell, other)" in campaign_state_text, "city distance checks reuse the typed hex-distance helper instead of integer-division expressions")
 city_queue_reader = campaign_state_text.split("func _read_city_queue(", 1)[1].split("\nfunc _read_unit_records", 1)[0] if "func _read_city_queue(" in campaign_state_text and "\nfunc _read_unit_records" in campaign_state_text else ""
 check("var province_cell_value: Variant" in city_queue_reader and "var province_cell_array: Array" in city_queue_reader and "var valid_province: bool" in city_queue_reader, "province queue validation uses explicit Variant, Array and bool types")
@@ -430,6 +430,9 @@ check(all(token in strategic_ai_text for token in ["evaluate_kingdom", "select_r
 check(all(token in strategic_ai_text for token in ['str(player_record.get("treaty", "peace")) == "war"', 'str(relation.get("treaty", "peace")) != "war"']), "strategic war targets require an active player or AI war treaty")
 check(all(token in strategic_ai_text for token in ["net_gold_per_turn", "desired_army_size", "economy_focus", "expansion_allowed"]), "strategic planner evaluates treasury, upkeep and expansion reserves")
 check(all(token in kingdom_ai_text for token in ["StrategicAI.evaluate_kingdom", "StrategicAI.select_war_target", "StrategicAI.score_expansion_cell", "strategic_plan.get(\"expansion_allowed\""]), "AI turn loop consumes strategic plans for city orders, movement and settlement placement")
+check(all(token in strategic_ai_text for token in ["5 + maxi(0, cities.size() - 1) * 2", "expansion_reserve_required", "net_gold_per_turn >= -1"]), "early AI army targets preserve enough income for settlement expansion")
+check(all(token in kingdom_ai_text for token in ["Resolve a due settlement foundation before purchasing upgrades or recruits", "cities.size() >= SettlementCatalog.MAX_AI_CITIES", "SettlementCatalog.AI_CITY_FOUND_GOLD_COST"]), "AI resolves city foundations before spending reserved gold and uses a shared city cap")
+check((ROOT / "tests" / "strategic_ai_smoke_test.gd").is_file() and all(token in strategic_ai_test_text for token in ["within 180 peaceful turns", "distributed across several kingdoms"]), "AI regression test simulates long-term peaceful expansion across multiple kingdoms")
 check(strategic_ai_test_path.is_file() and all(token in strategic_ai_test_text for token in ["low treasury", "active war", "expansion scoring", "save schema version one"]), "strategic AI smoke test covers economy, war, expansion and save compatibility")
 check("const SAVE_VERSION := 1" in campaign_state_text and "const ARMY_CAPACITY := 24" in campaign_state_text, "strategic AI preserves campaign schema and army capacity")
 
@@ -514,6 +517,29 @@ check("const SAVE_VERSION := 1" in campaign_state_text, "hero equipment remains 
 # Map motion: fog stays live while expensive cartographic overlays wait until the drag settles.
 strategy_map_path = ROOT / "scripts/strategy_map.gd"
 strategy_map_perf_text = strategy_map_path.read_text(encoding="utf-8") if strategy_map_path.is_file() else ""
+
+settlement_catalog_path = ROOT / "scripts" / "settlement_catalog.gd"
+settlement_catalog_text = settlement_catalog_path.read_text(encoding="utf-8") if settlement_catalog_path.exists() else ""
+territory_catalog_text = (ROOT / "scripts" / "territory_catalog.gd").read_text(encoding="utf-8")
+kingdom_ai_text = (ROOT / "scripts" / "kingdom_ai.gd").read_text(encoding="utf-8")
+strategic_ai_text = (ROOT / "scripts" / "strategic_ai_planner.gd").read_text(encoding="utf-8")
+strategy_map_text = (ROOT / "scripts" / "strategy_map.gd").read_text(encoding="utf-8")
+check("OUTPOST_FOUND_GOLD_COST" in settlement_catalog_text and "OUTPOST_UPKEEP_PER_TURN" in settlement_catalog_text and "OUTPOST_INFLUENCE_POWER" in settlement_catalog_text and "OUTPOST_BASE_GOLD_INCOME := 2" in settlement_catalog_text, "settlement balance catalog centralizes outpost costs, net income, upkeep and influence")
+check("_append_outpost_sources(sources, player_outposts, OWNER_PLAYER)" in territory_catalog_text and 'kingdom.get("outposts", [])' in territory_catalog_text, "territory catalog applies outpost influence for player and AI kingdoms")
+check('"kind": "outpost"' in territory_catalog_text and "func get_owner_at(" in territory_catalog_text and "var result: Dictionary = {}" in territory_catalog_text, "settlement influence is calculated on demand without a saved owner grid")
+check('raw.get("outposts", result.get("outposts", []))' in kingdom_ai_text and 'result["outposts"] = outposts' in kingdom_ai_text, "AI kingdom normalization preserves optional outposts for old saves")
+check("_try_found_ai_outpost" in kingdom_ai_text and "_try_annex_ai_outpost" in kingdom_ai_text and "SettlementCatalog" in strategic_ai_text, "AI reserves, expansion and annexation account for outposts")
+check("_on_foundation_choice" in strategy_map_text and "ОСНОВАТЬ ПОСЕЛЕНИЕ" in strategy_map_text and "ЗАСТАВА" in strategy_map_text, "settler foundation UI offers city and outpost choices")
+check("_collect_outpost_income" in strategy_map_text and "_annex_outpost_merge" in strategy_map_text and "_annex_outpost_upgrade" in strategy_map_text, "outpost UI exposes stock collection and annexation controls")
+check("func get_economy_snapshot()" in campaign_state_text and "func collect_outpost_income" in campaign_state_text, "campaign economy aggregates city and outpost reserves and upkeep")
+check("const SAVE_VERSION := 1" in campaign_state_text and 'data.get("outposts", [])' in campaign_state_text, "settlement feature keeps existing save schema version one")
+check((ROOT / "tests" / "settlement_economy_smoke_test.gd").is_file(), "settlement economy test source exists")
+check("player_outpost_cells: Array[Vector2i] = []" in strategic_ai_text and "own_outpost_cells" in strategic_ai_text, "strategic expansion scores spacing against player and AI frontier posts")
+check('"settlement_upkeep"' in strategic_ai_text and '"outpost_count"' in strategic_ai_text and '"gold_reserve"' in strategic_ai_text, "AI economic plan includes outpost treasury and upkeep")
+check(all(token in (ROOT / "tests" / "settlement_economy_smoke_test.gd").read_text(encoding="utf-8") for token in ["state.found_outpost(found_cell)", "state.collect_outpost_income(0)", "state.annex_outpost(0, \"merge\")", "state._read_outposts([])"]), "settlement economy regression test covers founding, collection, annexation and legacy defaults")
+check(all(token in (ROOT / "tests" / "settlement_economy_smoke_test.gd").read_text(encoding="utf-8") for token in ["state.save_campaign()", "restored_state.load_campaign()", "v1 save round-trip"]), "settlement smoke test verifies outpost persistence across a save/load round-trip")
+check(all(token in (ROOT / "tests" / "settlement_economy_smoke_test.gd").read_text(encoding="utf-8") for token in ["KingdomAI._try_annex_ai_outpost", "KingdomAI._try_found_ai_outpost", "break its gold reserve"]), "settlement smoke test covers AI annexation and reserve protection")
+
 check("MAP_MOTION_DETAIL_COOLDOWN_MS := 160" in strategy_map_perf_text, "map motion detail cooldown is explicitly bounded")
 check(all(token in strategy_map_perf_text for token in [
     "func _mark_map_motion()",

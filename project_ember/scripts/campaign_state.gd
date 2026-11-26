@@ -17,6 +17,7 @@ const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
 const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
 const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
 const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
+const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -128,10 +129,14 @@ var city_province_improvements: Array[Dictionary] = []
 var army_upkeep_last_due: int = 0
 var army_upkeep_last_paid: int = 0
 var cities: Array[Dictionary] = []
+var outposts: Array[Dictionary] = []
 var active_city_id: int = 0
 var settler_active: bool = false
 var settler_cell: Vector2i = Vector2i.ZERO
 var settler_moves_left: int = 1
+var settler_origin_city_id: int = -1
+var settlement_upkeep_last_due: int = 0
+var settlement_upkeep_last_paid: int = 0
 
 var battle_in_progress: bool = false
 var battle_origin_cell: Vector2i = Vector2i.ZERO
@@ -259,11 +264,15 @@ func new_campaign(persist: bool = true) -> void:
 	army_upkeep_last_due = 0
 	army_upkeep_last_paid = 0
 	cities.clear()
+	outposts.clear()
 	active_city_id = 0
 	cities.append(_make_city_record(0, city_name, city_cell, city_population, city_food, city_gold, city_production_bank, city_buildings, city_build_queue))
 	settler_active = false
 	settler_cell = Vector2i.ZERO
 	settler_moves_left = 1
+	settler_origin_city_id = -1
+	settlement_upkeep_last_due = 0
+	settlement_upkeep_last_paid = 0
 	battle_in_progress = false
 	last_battle_result.clear()
 	last_battle_report_pending = false
@@ -1075,7 +1084,7 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 	kingdoms[kingdom_id] = target_kingdom
 	battle_origin_cell = player_cell
 	battle_enemy_cell = enemy_cell
-	battle_territory_armor_bonus = TerritoryCatalogScript.get_defensive_armor_bonus(battle_origin_cell, cities, kingdoms)
+	battle_territory_armor_bonus = TerritoryCatalogScript.get_defensive_armor_bonus(battle_origin_cell, cities, kingdoms, outposts)
 	var battle_terrain_map: Dictionary = {}
 	for offset in WorldGeneratorScript.neighbors():
 		var neighbor := battle_origin_cell + offset
@@ -1156,6 +1165,10 @@ func begin_location_battle(location_id: String) -> bool:
 	return true
 
 
+func get_nearest_player_city_index(cell: Vector2i) -> int:
+	return _find_nearest_player_city_index(cell)
+
+
 func _find_nearest_player_city_index(cell: Vector2i) -> int:
 	if cities.is_empty():
 		return -1
@@ -1207,7 +1220,7 @@ func _apply_neutral_location_special_reward(location: Dictionary) -> String:
 				unit["experience"] = clampi(int(unit.get("experience", 0)) + 12, 0, 999999)
 			return "Войска получили по 12 опыта за победу над чудовищами."
 		"abandoned_mine":
-			return "Шахта работает: ближайший город получает +2 производства каждый ход."
+			return "Шахта работает: ближайшее поселение получает +2 производства каждый ход."
 		"forgotten_shrine":
 			player_hero["health"] = get_hero_max_health(player_hero)
 			player_hero["wounded_turns"] = 0
@@ -1369,6 +1382,141 @@ func _make_city_record(id: int, city_display_name: String, cell: Vector2i, popul
 		"last_event": "",
 	}
 
+
+func _make_outpost_record(id: int, outpost_name: String, cell: Vector2i, food: int = 0, gold: int = 0, production: int = 0, province_improvements: Array = []) -> Dictionary:
+	var normalized_improvements := CityDevelopmentCatalogScript.normalize_province_improvements(province_improvements)
+	var limited_improvements: Array[Dictionary] = []
+	for improvement in normalized_improvements:
+		if limited_improvements.size() >= SettlementCatalogScript.OUTPOST_MAX_PROVINCE_IMPROVEMENTS:
+			break
+		limited_improvements.append(improvement.duplicate(true))
+	return {
+		"id": id,
+		"name": outpost_name,
+		"cell": [cell.x, cell.y],
+		"food": maxi(0, food),
+		"gold": maxi(0, gold),
+		"production_bank": maxi(0, production),
+		"province_improvements": limited_improvements,
+		"last_event": "",
+	}
+
+
+func _read_outposts(value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not value is Array:
+		return result
+	var occupied: Dictionary = {}
+	for city in cities:
+		var city_cell_value := WorldGeneratorScript.array_to_cell(city.get("cell", []), Vector2i(9999, 9999))
+		occupied["%d:%d" % [city_cell_value.x, city_cell_value.y]] = true
+	for raw in value:
+		if not raw is Dictionary or cities.size() + result.size() >= SettlementCatalogScript.MAX_PLAYER_SETTLEMENTS:
+			continue
+		var cell := WorldGeneratorScript.array_to_cell(raw.get("cell", []), Vector2i(9999, 9999))
+		if not WorldGeneratorScript.is_inside_world(cell):
+			continue
+		var key := "%d:%d" % [cell.x, cell.y]
+		if occupied.has(key):
+			continue
+		var improvements_value: Variant = raw.get("province_improvements", [])
+		var improvements: Array = improvements_value if improvements_value is Array else []
+		var record := _make_outpost_record(
+			result.size(),
+			str(raw.get("name", "Застава %d" % (result.size() + 1))),
+			cell,
+			maxi(0, int(raw.get("food", 0))),
+			maxi(0, int(raw.get("gold", 0))),
+			maxi(0, int(raw.get("production_bank", 0))),
+			improvements
+		)
+		record["last_event"] = str(raw.get("last_event", ""))
+		result.append(record)
+		occupied[key] = true
+	return result
+
+
+func get_settlement_counts() -> Dictionary:
+	return {"cities": cities.size(), "outposts": outposts.size(), "total": cities.size() + outposts.size()}
+
+
+func get_settler_cost_preview() -> Dictionary:
+	return SettlementCatalogScript.get_settler_cost(cities.size(), outposts.size())
+
+
+func get_outpost_income(outpost_index: int) -> Dictionary:
+	if outpost_index < 0 or outpost_index >= outposts.size():
+		return {"food": 0, "gold": 0, "production": 0}
+	var improvements_value: Variant = outposts[outpost_index].get("province_improvements", [])
+	var improvements: Array = improvements_value if improvements_value is Array else []
+	return SettlementCatalogScript.get_outpost_income(improvements)
+
+
+func get_outpost_income_summary(outpost_index: int) -> String:
+	var income := get_outpost_income(outpost_index)
+	return "+%d еды · +%d золота · +%d производства за ход" % [
+		int(income.get("food", 0)), int(income.get("gold", 0)), int(income.get("production", 0))
+	]
+
+
+func _get_settler_origin_city_index() -> int:
+	if settler_origin_city_id >= 0 and settler_origin_city_id < cities.size():
+		return settler_origin_city_id
+	if active_city_id >= 0 and active_city_id < cities.size():
+		return active_city_id
+	return 0 if not cities.is_empty() else -1
+
+
+func _get_city_resource_balance(city_index: int) -> Dictionary:
+	if city_index < 0 or city_index >= cities.size():
+		return {}
+	if city_index == active_city_id:
+		return {"gold": city_gold, "production": city_production_bank, "food": city_food}
+	var record: Dictionary = cities[city_index]
+	return {
+		"gold": maxi(0, int(record.get("gold", 0))),
+		"production": maxi(0, int(record.get("production_bank", 0))),
+		"food": maxi(0, int(record.get("food", 0))),
+	}
+
+
+func _can_spend_city_resources(city_index: int, gold_cost: int, production_cost: int) -> bool:
+	var balance := _get_city_resource_balance(city_index)
+	return not balance.is_empty() and int(balance.get("gold", 0)) >= gold_cost and int(balance.get("production", 0)) >= production_cost
+
+
+func _spend_city_resources(city_index: int, gold_cost: int, production_cost: int) -> bool:
+	if not _can_spend_city_resources(city_index, gold_cost, production_cost):
+		return false
+	_save_active_city()
+	var record: Dictionary = cities[city_index].duplicate(true)
+	record["gold"] = maxi(0, int(record.get("gold", 0)) - gold_cost)
+	record["production_bank"] = maxi(0, int(record.get("production_bank", 0)) - production_cost)
+	cities[city_index] = record
+	if city_index == active_city_id:
+		_load_active_city()
+	return true
+
+
+func get_outpost_index_at(cell: Vector2i) -> int:
+	for index in range(outposts.size()):
+		var outpost_cell := WorldGeneratorScript.array_to_cell(outposts[index].get("cell", []), Vector2i(9999, 9999))
+		if outpost_cell == cell:
+			return index
+	return -1
+
+
+func get_nearest_outpost_index(cell: Vector2i, max_distance: int = 999999) -> int:
+	var best_index := -1
+	var best_distance := max_distance + 1
+	for index in range(outposts.size()):
+		var outpost_cell := WorldGeneratorScript.array_to_cell(outposts[index].get("cell", []), Vector2i(9999, 9999))
+		var distance := WorldGeneratorScript.hex_distance(cell, outpost_cell)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = index
+	return best_index
+
 func _save_active_city() -> void:
 	if cities.is_empty() or active_city_id < 0 or active_city_id >= cities.size():
 		return
@@ -1439,63 +1587,418 @@ func _has_settler_order() -> bool:
 	return false
 
 func can_queue_settler() -> bool:
-	return not campaign_lost and city_population >= 3 and city_gold >= 45 and not settler_active and not _has_settler_order()
+	var cost := get_settler_cost_preview()
+	return (
+		not campaign_lost
+		and city_population >= int(cost.get("minimum_population", SettlementCatalogScript.SETTLER_MIN_POPULATION))
+		and city_gold >= int(cost.get("gold", SettlementCatalogScript.SETTLER_BASE_GOLD_COST))
+		and not settler_active
+		and not _has_settler_order()
+	)
+
 
 func queue_settler() -> bool:
 	if not can_queue_settler():
 		return false
-	city_gold -= 45
-	city_population -= 1
-	city_build_queue.append({"kind": "settler", "id": "settler", "name": "Поселенец", "production_cost": 10})
-	city_last_event = "Поселенец добавлен в очередь."
+	var cost := get_settler_cost_preview()
+	var gold_cost := int(cost.get("gold", SettlementCatalogScript.SETTLER_BASE_GOLD_COST))
+	var production_cost := int(cost.get("production", SettlementCatalogScript.SETTLER_BASE_PRODUCTION_COST))
+	city_gold -= gold_cost
+	city_population = maxi(1, city_population - int(cost.get("population", SettlementCatalogScript.SETTLER_POPULATION_COST)))
+	city_build_queue.append({
+		"kind": "settler", "id": "settler", "name": "Поселенец",
+		"production_cost": production_cost, "origin_city_id": active_city_id,
+	})
+	city_last_event = "Поселенец добавлен в очередь. Стоимость: %d золота и %d производства." % [gold_cost, production_cost]
 	save_campaign()
 	return true
 
-func can_found_city(cell: Vector2i) -> bool:
-	if not settler_active or not WorldGeneratorScript.is_inside_world(cell) or WorldGeneratorScript.terrain_at(cell, world_seed, world_generation_version) == "water":
+
+func _is_settlement_cell_valid(cell: Vector2i) -> bool:
+	if not WorldGeneratorScript.is_inside_world(cell):
 		return false
-	if get_city_index_at(cell) >= 0 or cities.size() >= 5 or not get_player_army_at(cell).is_empty() or cell == enemy_cell:
+	if WorldGeneratorScript.terrain_at(cell, world_seed, world_generation_version) == "water":
+		return false
+	if get_city_index_at(cell) >= 0 or get_outpost_index_at(cell) >= 0:
+		return false
+	if not get_player_army_at(cell).is_empty() or cell == enemy_cell:
 		return false
 	if WorldLocationCatalogScript.has_location_at(neutral_locations, cell):
 		return false
-	var territory_owner := get_world_owner_at(cell)
-	if territory_owner >= 0 or territory_owner == TerritoryCatalogScript.OWNER_DISPUTED:
-		return false
 	for kingdom in kingdoms:
+		if WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []), Vector2i(9999, 9999)) == cell:
+			return false
 		for ai_city in kingdom.get("cities", []):
-			if WorldGeneratorScript.array_to_cell(ai_city.get("cell", [])) == cell:
+			if WorldGeneratorScript.array_to_cell(ai_city.get("cell", []), Vector2i(9999, 9999)) == cell:
 				return false
-		if WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", [])) == cell:
-			return false
-	for c in cities:
-		var xy: Array = c.get("cell", [])
-		if xy.size() < 2:
-			continue
-		var other := Vector2i(int(xy[0]), int(xy[1]))
-		var d: int = WorldGeneratorScript.hex_distance(cell, other)
-		if d < 3:
-			return false
-	for kingdom in kingdoms:
-		for ai_city in kingdom.get("cities", []):
-			var other_cell := WorldGeneratorScript.array_to_cell(ai_city.get("cell", []))
-			if WorldGeneratorScript.hex_distance(cell, other_cell) < 3:
+		for ai_outpost in kingdom.get("outposts", []):
+			if WorldGeneratorScript.array_to_cell(ai_outpost.get("cell", []), Vector2i(9999, 9999)) == cell:
 				return false
 	return true
 
-func found_city(cell: Vector2i) -> bool:
-	if not can_found_city(cell):
+
+func _is_settlement_spacing_valid(cell: Vector2i, settlement_type: String) -> bool:
+	for city_record in cities:
+		var c := WorldGeneratorScript.array_to_cell(city_record.get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.hex_distance(cell, c) < SettlementCatalogScript.get_minimum_spacing(settlement_type, SettlementCatalogScript.TYPE_CITY):
+			return false
+	for outpost_record in outposts:
+		var other := WorldGeneratorScript.array_to_cell(outpost_record.get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.hex_distance(cell, other) < SettlementCatalogScript.get_minimum_spacing(settlement_type, SettlementCatalogScript.TYPE_OUTPOST):
+			return false
+	for kingdom in kingdoms:
+		for ai_city in kingdom.get("cities", []):
+			var ai_city_cell := WorldGeneratorScript.array_to_cell(ai_city.get("cell", []), Vector2i(9999, 9999))
+			if WorldGeneratorScript.hex_distance(cell, ai_city_cell) < SettlementCatalogScript.get_minimum_spacing(settlement_type, SettlementCatalogScript.TYPE_CITY):
+				return false
+		for ai_outpost in kingdom.get("outposts", []):
+			var ai_outpost_cell := WorldGeneratorScript.array_to_cell(ai_outpost.get("cell", []), Vector2i(9999, 9999))
+			if WorldGeneratorScript.hex_distance(cell, ai_outpost_cell) < SettlementCatalogScript.get_minimum_spacing(settlement_type, SettlementCatalogScript.TYPE_OUTPOST):
+				return false
+	return true
+
+
+func can_found_settlement(cell: Vector2i, settlement_type: String) -> bool:
+	if not settler_active or campaign_lost or battle_in_progress or not SettlementCatalogScript.is_valid_settlement_type(settlement_type):
+		return false
+	if cities.size() + outposts.size() >= SettlementCatalogScript.MAX_PLAYER_SETTLEMENTS:
+		return false
+	if not _is_settlement_cell_valid(cell) or not _is_settlement_spacing_valid(cell, settlement_type):
+		return false
+	var territory_owner := get_world_owner_at(cell)
+	if settlement_type == SettlementCatalogScript.TYPE_CITY:
+		if territory_owner == TerritoryCatalogScript.OWNER_DISPUTED or territory_owner >= 0:
+			return false
+	else:
+		if territory_owner == TerritoryCatalogScript.OWNER_DISPUTED and not SettlementCatalogScript.OUTPOST_ALLOWED_ON_DISPUTED_TERRITORY:
+			return false
+		if territory_owner >= 0 and not SettlementCatalogScript.OUTPOST_ALLOWED_ON_ENEMY_TERRITORY:
+			return false
+		if territory_owner == TerritoryCatalogScript.OWNER_PLAYER and not SettlementCatalogScript.OUTPOST_ALLOWED_ON_PLAYER_TERRITORY:
+			return false
+		if territory_owner == TerritoryCatalogScript.OWNER_UNCLAIMED and not SettlementCatalogScript.OUTPOST_ALLOWED_ON_UNCLAIMED_TERRITORY:
+			return false
+		if territory_owner != TerritoryCatalogScript.OWNER_PLAYER and territory_owner != TerritoryCatalogScript.OWNER_UNCLAIMED and territory_owner != TerritoryCatalogScript.OWNER_DISPUTED and territory_owner < 0:
+			return false
+	var origin_index := _get_settler_origin_city_index()
+	var cost := SettlementCatalogScript.get_foundation_cost(settlement_type)
+	return _can_spend_city_resources(origin_index, int(cost.get("gold", 0)), int(cost.get("production", 0)))
+
+
+func can_found_city(cell: Vector2i) -> bool:
+	return can_found_settlement(cell, SettlementCatalogScript.TYPE_CITY)
+
+
+func can_found_outpost(cell: Vector2i) -> bool:
+	return can_found_settlement(cell, SettlementCatalogScript.TYPE_OUTPOST)
+
+
+func found_settlement(cell: Vector2i, settlement_type: String) -> bool:
+	if not can_found_settlement(cell, settlement_type):
+		return false
+	var origin_index := _get_settler_origin_city_index()
+	var cost := SettlementCatalogScript.get_foundation_cost(settlement_type)
+	if not _spend_city_resources(origin_index, int(cost.get("gold", 0)), int(cost.get("production", 0))):
 		return false
 	_save_active_city()
-	var new_id := cities.size()
-	var names := ["Сосновый Дол", "Серебряный Ручей", "Солнечный Холм", "Тихая Гавань"]
-	cities.append(_make_city_record(new_id, names[(new_id - 1) % names.size()], cell, 2, 0, 35, 0, [], [], "", {}, []))
+	if settlement_type == SettlementCatalogScript.TYPE_CITY:
+		var names := ["Сосновый Дол", "Серебряный Ручей", "Солнечный Холм", "Тихая Гавань"]
+		var new_id := cities.size()
+		var city_name_new: String = str(names[(new_id - 1) % names.size()])
+		cities.append(_make_city_record(new_id, city_name_new, cell, 2, 0, 35, 0, [], [], "", {}, []))
+		active_city_id = new_id
+		_load_active_city()
+		city_last_event = "Основан новый город: " + city_name_new
+	else:
+		var outpost_names := ["Пограничный Дозор", "Старая Переправа", "Лесной Пост", "Каменный Форт", "Тихая Застава"]
+		var new_outpost_id := outposts.size()
+		var outpost_name: String = str(outpost_names[new_outpost_id % outpost_names.size()])
+		outposts.append(_make_outpost_record(new_outpost_id, outpost_name, cell))
+		_load_active_city()
+		city_last_event = "Основана застава: %s." % outpost_name
 	settler_active = false
+	settler_cell = Vector2i.ZERO
 	settler_moves_left = 1
-	active_city_id = new_id
-	_load_active_city()
-	city_last_event = "Основан новый город: " + city_name
+	settler_origin_city_id = -1
 	save_campaign()
 	return true
+
+
+func found_city(cell: Vector2i) -> bool:
+	return found_settlement(cell, SettlementCatalogScript.TYPE_CITY)
+
+
+func found_outpost(cell: Vector2i) -> bool:
+	return found_settlement(cell, SettlementCatalogScript.TYPE_OUTPOST)
+
+
+func _find_outpost_merge_target(outpost_index: int) -> int:
+	if outpost_index < 0 or outpost_index >= outposts.size():
+		return -1
+	var outpost_cell := WorldGeneratorScript.array_to_cell(outposts[outpost_index].get("cell", []), Vector2i(9999, 9999))
+	var best_index := -1
+	var best_distance := SettlementCatalogScript.OUTPOST_MERGE_MAX_DISTANCE + 1
+	for city_index in range(cities.size()):
+		var city_cell_value := WorldGeneratorScript.array_to_cell(cities[city_index].get("cell", []), Vector2i(9999, 9999))
+		var distance := WorldGeneratorScript.hex_distance(outpost_cell, city_cell_value)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = city_index
+	return best_index if best_distance <= SettlementCatalogScript.OUTPOST_MERGE_MAX_DISTANCE else -1
+
+
+func _get_outpost_transfer_improvements(outpost: Dictionary, target_city: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var existing_cells: Dictionary = {}
+	for improvement in target_city.get("province_improvements", []):
+		var cell := WorldGeneratorScript.array_to_cell(improvement.get("cell", []), Vector2i(9999, 9999))
+		existing_cells["%d:%d" % [cell.x, cell.y]] = true
+	for improvement in outpost.get("province_improvements", []):
+		if not improvement is Dictionary:
+			continue
+		var cell := WorldGeneratorScript.array_to_cell(improvement.get("cell", []), Vector2i(9999, 9999))
+		var key := "%d:%d" % [cell.x, cell.y]
+		if existing_cells.has(key):
+			continue
+		result.append(improvement.duplicate(true))
+		existing_cells[key] = true
+	return result
+
+
+func _city_province_slot_capacity(city: Dictionary) -> int:
+	var level := CityDevelopmentCatalogScript.get_city_level(clampi(int(city.get("population", 2)), 1, 20))
+	var faction_effects := FactionCatalogScript.get_effects(player_faction)
+	return mini(SettlementCatalogScript.MAX_CITY_PROVINCE_SLOTS, CityDevelopmentCatalogScript.get_province_slots(level) + int(faction_effects.get("province_slot_bonus", 0)))
+
+
+func can_annex_outpost(outpost_index: int, mode: String = "merge") -> bool:
+	if campaign_lost or battle_in_progress or outpost_index < 0 or outpost_index >= outposts.size():
+		return false
+	if mode != "merge" and mode != "upgrade":
+		return false
+	var outpost: Dictionary = outposts[outpost_index]
+	var payer_index := _find_nearest_player_city_index(WorldGeneratorScript.array_to_cell(outpost.get("cell", [])))
+	if payer_index < 0:
+		return false
+	var payer := _get_city_resource_balance(payer_index)
+	var gold_cost := SettlementCatalogScript.ANNEX_MERGE_GOLD_COST if mode == "merge" else SettlementCatalogScript.ANNEX_UPGRADE_GOLD_COST
+	var production_cost := SettlementCatalogScript.ANNEX_MERGE_PRODUCTION_COST if mode == "merge" else SettlementCatalogScript.ANNEX_UPGRADE_PRODUCTION_COST
+	if int(payer.get("gold", 0)) < gold_cost or int(payer.get("production", 0)) < production_cost:
+		return false
+	if mode == "merge":
+		var target_index := _find_outpost_merge_target(outpost_index)
+		if target_index < 0:
+			return false
+		var target_city: Dictionary = cities[target_index]
+		var improvements := _get_outpost_transfer_improvements(outpost, target_city)
+		var queued_slots := 0
+		for order in target_city.get("build_queue", []):
+			if str(order.get("kind", "")) == "province_improvement":
+				queued_slots += 1
+		return target_city.get("province_improvements", []).size() + queued_slots + improvements.size() <= _city_province_slot_capacity(target_city)
+	# Преобразование заставы в город требует соблюдения городской дистанции.
+	var outpost_cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []), Vector2i(9999, 9999))
+	if cities.size() >= SettlementCatalogScript.MAX_PLAYER_SETTLEMENTS:
+		return false
+	var territory_owner := get_world_owner_at(outpost_cell)
+	if territory_owner == TerritoryCatalogScript.OWNER_DISPUTED or territory_owner >= 0:
+		return false
+	for city in cities:
+		var other_city_cell := WorldGeneratorScript.array_to_cell(city.get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.hex_distance(outpost_cell, other_city_cell) < SettlementCatalogScript.CITY_MIN_CITY_DISTANCE:
+			return false
+	for other_index in range(outposts.size()):
+		if other_index == outpost_index:
+			continue
+		var other_outpost_cell := WorldGeneratorScript.array_to_cell(outposts[other_index].get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.hex_distance(outpost_cell, other_outpost_cell) < SettlementCatalogScript.CITY_MIN_OUTPOST_DISTANCE:
+			return false
+	var outpost_improvements_value: Variant = outpost.get("province_improvements", [])
+	var outpost_improvements: Array = outpost_improvements_value if outpost_improvements_value is Array else []
+	var new_city_record := _make_city_record(cities.size(), str(outpost.get("name", "Новый город")), outpost_cell, 2, 0, 0, 0, [], [], "", {}, outpost_improvements)
+	if outpost_improvements.size() > _city_province_slot_capacity(new_city_record):
+		return false
+	for kingdom in kingdoms:
+		for ai_city in kingdom.get("cities", []):
+			var ai_city_cell := WorldGeneratorScript.array_to_cell(ai_city.get("cell", []), Vector2i(9999, 9999))
+			if WorldGeneratorScript.hex_distance(outpost_cell, ai_city_cell) < SettlementCatalogScript.CITY_MIN_CITY_DISTANCE:
+				return false
+		for ai_outpost in kingdom.get("outposts", []):
+			var ai_outpost_cell := WorldGeneratorScript.array_to_cell(ai_outpost.get("cell", []), Vector2i(9999, 9999))
+			if WorldGeneratorScript.hex_distance(outpost_cell, ai_outpost_cell) < SettlementCatalogScript.CITY_MIN_OUTPOST_DISTANCE:
+				return false
+	return true
+
+
+func annex_outpost(outpost_index: int, mode: String = "merge") -> bool:
+	if not can_annex_outpost(outpost_index, mode):
+		return false
+	_save_active_city()
+	var outpost: Dictionary = outposts[outpost_index].duplicate(true)
+	var outpost_cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []), Vector2i(9999, 9999))
+	var payer_index := _find_nearest_player_city_index(outpost_cell)
+	var gold_cost := SettlementCatalogScript.ANNEX_MERGE_GOLD_COST if mode == "merge" else SettlementCatalogScript.ANNEX_UPGRADE_GOLD_COST
+	var production_cost := SettlementCatalogScript.ANNEX_MERGE_PRODUCTION_COST if mode == "merge" else SettlementCatalogScript.ANNEX_UPGRADE_PRODUCTION_COST
+	if not _spend_city_resources(payer_index, gold_cost, production_cost):
+		return false
+	if mode == "merge":
+		var target_index := _find_outpost_merge_target(outpost_index)
+		var target_city: Dictionary = cities[target_index].duplicate(true)
+		var improvements := _get_outpost_transfer_improvements(outpost, target_city)
+		var city_improvements: Array = target_city.get("province_improvements", []).duplicate(true)
+		for improvement in improvements:
+			city_improvements.append(improvement.duplicate(true))
+		target_city["province_improvements"] = CityDevelopmentCatalogScript.normalize_province_improvements(city_improvements)
+		target_city["food"] = maxi(0, int(target_city.get("food", 0)) + int(outpost.get("food", 0)))
+		target_city["gold"] = maxi(0, int(target_city.get("gold", 0)) + int(outpost.get("gold", 0)))
+		target_city["production_bank"] = maxi(0, int(target_city.get("production_bank", 0)) + int(outpost.get("production_bank", 0)))
+		target_city["last_event"] = "Застава «%s» присоединена. Ресурсы и улучшения переданы городу." % str(outpost.get("name", "Застава"))
+		cities[target_index] = target_city
+		outposts.remove_at(outpost_index)
+		for index in range(outposts.size()):
+			outposts[index]["id"] = index
+		if target_index == active_city_id:
+			_load_active_city()
+			city_last_event = str(target_city.get("last_event", "Застава присоединена."))
+	else:
+		var upgraded_city := _make_city_record(
+			cities.size(), str(outpost.get("name", "Новый город")), outpost_cell, 2,
+			int(outpost.get("food", 0)), maxi(0, int(outpost.get("gold", 0))),
+			maxi(0, int(outpost.get("production_bank", 0))), [], [], "", {}, outpost.get("province_improvements", [])
+		)
+		upgraded_city["last_event"] = "Застава преобразована в полноценный город."
+		cities.append(upgraded_city)
+		outposts.remove_at(outpost_index)
+		for index in range(outposts.size()):
+			outposts[index]["id"] = index
+		active_city_id = cities.size() - 1
+		_load_active_city()
+		city_last_event = "Застава преобразована в город: %s." % str(upgraded_city.get("name", "Город"))
+	save_campaign()
+	return true
+
+
+func can_collect_outpost_income(outpost_index: int) -> bool:
+	if outpost_index < 0 or outpost_index >= outposts.size() or cities.is_empty():
+		return false
+	var outpost: Dictionary = outposts[outpost_index]
+	return int(outpost.get("food", 0)) > 0 or int(outpost.get("gold", 0)) > 0 or int(outpost.get("production_bank", 0)) > 0
+
+
+func collect_outpost_income(outpost_index: int) -> bool:
+	if not can_collect_outpost_income(outpost_index):
+		return false
+	_save_active_city()
+	var outpost: Dictionary = outposts[outpost_index].duplicate(true)
+	var outpost_cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []), Vector2i(9999, 9999))
+	var target_index := _find_nearest_player_city_index(outpost_cell)
+	if target_index < 0 or target_index >= cities.size():
+		return false
+	var target_city: Dictionary = cities[target_index].duplicate(true)
+	var food_amount := maxi(0, int(outpost.get("food", 0)))
+	var gold_amount := maxi(0, int(outpost.get("gold", 0)))
+	var production_amount := maxi(0, int(outpost.get("production_bank", 0)))
+	if food_amount + gold_amount + production_amount <= 0:
+		return false
+	target_city["food"] = maxi(0, int(target_city.get("food", 0))) + food_amount
+	target_city["gold"] = maxi(0, int(target_city.get("gold", 0))) + gold_amount
+	target_city["production_bank"] = maxi(0, int(target_city.get("production_bank", 0))) + production_amount
+	target_city["last_event"] = "Собраны запасы заставы «%s»: +%d еды, +%d золота, +%d производства." % [str(outpost.get("name", "Застава")), food_amount, gold_amount, production_amount]
+	cities[target_index] = target_city
+	outpost["food"] = 0
+	outpost["gold"] = 0
+	outpost["production_bank"] = 0
+	outpost["last_event"] = "Запасы переданы ближайшему городу."
+	outposts[outpost_index] = outpost
+	if target_index == active_city_id:
+		_load_active_city()
+		city_last_event = str(target_city.get("last_event", "Запасы заставы собраны."))
+	save_campaign()
+	return true
+
+
+func _pay_gold_from_city_treasuries(amount: int, preferred_city_index: int = -1) -> int:
+	var remaining := maxi(0, amount)
+	if remaining <= 0 or cities.is_empty():
+		return 0
+	var order: Array[int] = []
+	if preferred_city_index >= 0 and preferred_city_index < cities.size():
+		order.append(preferred_city_index)
+	for index in range(cities.size()):
+		if index != preferred_city_index:
+			order.append(index)
+	for city_index in order:
+		if remaining <= 0:
+			break
+		var city: Dictionary = cities[city_index]
+		var available := maxi(0, int(city.get("gold", 0)))
+		var payment := mini(available, remaining)
+		city["gold"] = available - payment
+		remaining -= payment
+		cities[city_index] = city
+	return amount - remaining
+
+
+func get_settlement_upkeep_per_turn() -> int:
+	return int(SettlementCatalogScript.get_upkeep(cities.size(), outposts.size()).get("total", 0))
+
+
+func get_settlement_upkeep_summary() -> String:
+	var due := get_settlement_upkeep_per_turn()
+	return "Содержание поселений: −%d зол./ход" % due
+
+
+func _advance_one_outpost_turn() -> void:
+	for index in range(outposts.size()):
+		var outpost: Dictionary = outposts[index]
+		var improvements_value: Variant = outpost.get("province_improvements", [])
+		var improvements: Array = improvements_value if improvements_value is Array else []
+		var income := SettlementCatalogScript.get_outpost_income(improvements)
+		outpost["food"] = maxi(0, int(outpost.get("food", 0)) + int(income.get("food", 0)))
+		outpost["gold"] = maxi(0, int(outpost.get("gold", 0)) + int(income.get("gold", 0)))
+		outpost["production_bank"] = maxi(0, int(outpost.get("production_bank", 0)) + int(income.get("production", 0)))
+		outposts[index] = outpost
+
+
+func _charge_settlement_upkeep() -> void:
+	var upkeep := SettlementCatalogScript.get_upkeep(cities.size(), outposts.size())
+	settlement_upkeep_last_due = int(upkeep.get("total", 0))
+	settlement_upkeep_last_paid = 0
+
+	var city_upkeep_left := int(upkeep.get("cities", 0))
+	for city_index in range(SettlementCatalogScript.SOFT_CITY_LIMIT, cities.size()):
+		if city_upkeep_left <= 0:
+			break
+		var city: Dictionary = cities[city_index]
+		var available := maxi(0, int(city.get("gold", 0)))
+		var payment := mini(available, SettlementCatalogScript.CITY_UPKEEP_PER_TURN_ABOVE_SOFT_LIMIT)
+		city["gold"] = available - payment
+		city_upkeep_left -= payment
+		settlement_upkeep_last_paid += payment
+		cities[city_index] = city
+	if city_upkeep_left > 0:
+		settlement_upkeep_last_paid += _pay_gold_from_city_treasuries(city_upkeep_left, 0)
+
+	var outpost_upkeep_left := int(upkeep.get("outposts", 0))
+	for outpost_index in range(outposts.size()):
+		if outpost_upkeep_left <= 0:
+			break
+		var outpost: Dictionary = outposts[outpost_index]
+		var available_gold := maxi(0, int(outpost.get("gold", 0)))
+		var payment := mini(available_gold, SettlementCatalogScript.OUTPOST_UPKEEP_PER_TURN)
+		outpost["gold"] = available_gold - payment
+		settlement_upkeep_last_paid += payment
+		outpost_upkeep_left -= payment
+		outposts[outpost_index] = outpost
+		if payment < SettlementCatalogScript.OUTPOST_UPKEEP_PER_TURN:
+			var shortfall := SettlementCatalogScript.OUTPOST_UPKEEP_PER_TURN - payment
+			var outpost_cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []), Vector2i(9999, 9999))
+			var sponsor_index := _find_nearest_player_city_index(outpost_cell)
+			var sponsored_payment := _pay_gold_from_city_treasuries(shortfall, sponsor_index)
+			settlement_upkeep_last_paid += sponsored_payment
+	if active_city_id >= 0 and active_city_id < cities.size():
+		_load_active_city()
+
 
 func _charge_army_upkeep() -> void:
 	var remaining := get_army_upkeep_per_turn()
@@ -1708,6 +2211,79 @@ func get_army_upkeep_summary() -> String:
 	return "Содержание армии: −%d зол./ход · оплачено %d/%d" % [due, army_upkeep_last_paid, army_upkeep_last_due]
 
 
+func get_economy_snapshot() -> Dictionary:
+	var treasury_gold := 0
+	var treasury_food := 0
+	var treasury_production := 0
+	var income_food := 0
+	var income_gold := 0
+	var income_production := 0
+	var low_treasury_cities := 0
+	var poor_outposts := 0
+	for city_value in cities:
+		if not city_value is Dictionary:
+			continue
+		var city: Dictionary = city_value
+		var buildings_value: Variant = city.get("buildings", [])
+		var buildings: Array = buildings_value if buildings_value is Array else []
+		var levels_value: Variant = city.get("building_levels", {})
+		var levels: Dictionary = levels_value if levels_value is Dictionary else {}
+		var improvements_value: Variant = city.get("province_improvements", [])
+		var improvements: Array = improvements_value if improvements_value is Array else []
+		var base_income := CityDevelopmentCatalogScript.get_city_income(buildings, levels, improvements, str(city.get("specialization", "")))
+		var city_income := FactionCatalogScript.apply_income_modifiers(base_income, buildings, player_faction)
+		treasury_gold += maxi(0, int(city.get("gold", 0)))
+		treasury_food += maxi(0, int(city.get("food", 0)))
+		treasury_production += maxi(0, int(city.get("production_bank", 0)))
+		income_food += int(city_income.get("food", 0))
+		income_gold += int(city_income.get("gold", 0))
+		income_production += int(city_income.get("production", 0))
+		if int(city.get("gold", 0)) < 5:
+			low_treasury_cities += 1
+	for outpost_value in outposts:
+		if not outpost_value is Dictionary:
+			continue
+		var outpost: Dictionary = outpost_value
+		var outpost_improvements_value: Variant = outpost.get("province_improvements", [])
+		var outpost_improvements: Array = outpost_improvements_value if outpost_improvements_value is Array else []
+		var outpost_income := SettlementCatalogScript.get_outpost_income(outpost_improvements)
+		treasury_gold += maxi(0, int(outpost.get("gold", 0)))
+		treasury_food += maxi(0, int(outpost.get("food", 0)))
+		treasury_production += maxi(0, int(outpost.get("production_bank", 0)))
+		income_food += int(outpost_income.get("food", 0))
+		income_gold += int(outpost_income.get("gold", 0))
+		income_production += int(outpost_income.get("production", 0))
+		if int(outpost.get("gold", 0)) < SettlementCatalogScript.OUTPOST_UPKEEP_PER_TURN:
+			poor_outposts += 1
+	var army_upkeep := get_army_upkeep_per_turn()
+	var settlement_upkeep := get_settlement_upkeep_per_turn()
+	var net_gold := income_gold - army_upkeep - settlement_upkeep
+	return {
+		"city_count": cities.size(),
+		"outpost_count": outposts.size(),
+		"settlement_count": cities.size() + outposts.size(),
+		"gold": treasury_gold,
+		"food": treasury_food,
+		"production": treasury_production,
+		"income_gold": income_gold,
+		"income_food": income_food,
+		"income_production": income_production,
+		"army_upkeep": army_upkeep,
+		"settlement_upkeep": settlement_upkeep,
+		"net_gold_per_turn": net_gold,
+		"low_treasury_cities": low_treasury_cities,
+		"poor_outposts": poor_outposts,
+		"cash_pressure": net_gold < 0 or low_treasury_cities > 0 or poor_outposts > 0,
+	}
+
+
+func get_economy_summary() -> String:
+	var economy := get_economy_snapshot()
+	var net_gold := int(economy.get("net_gold_per_turn", 0))
+	var net_label := "+%d" % net_gold if net_gold >= 0 else "−%d" % absi(net_gold)
+	return "Чистый баланс: %s зол./ход · поселений: %d · застав: %d" % [net_label, int(economy.get("settlement_count", 0)), int(economy.get("outpost_count", 0))]
+
+
 func get_city_income() -> Dictionary:
 	var base_income := CityDevelopmentCatalogScript.get_city_income(
 		city_buildings, city_building_levels, city_province_improvements, city_specialization
@@ -1883,13 +2459,18 @@ func advance_campaign_turn() -> void:
 		city_last_event = ""
 		_advance_one_city_turn()
 		_save_active_city()
+	_advance_one_outpost_turn()
 	_apply_neutral_mine_income()
+	_charge_settlement_upkeep()
 	_charge_army_upkeep()
 	active_city_id = previous_city_id
 	_load_active_city()
 	var player_city_cells: Array[Vector2i] = []
 	for city_record in cities:
 		player_city_cells.append(WorldGeneratorScript.array_to_cell(city_record.get("cell", [])))
+	var player_outpost_cells: Array[Vector2i] = []
+	for outpost_record in outposts:
+		player_outpost_cells.append(WorldGeneratorScript.array_to_cell(outpost_record.get("cell", [])))
 	var neutral_location_cells: Array[Vector2i] = []
 	for location in neutral_locations:
 		neutral_location_cells.append(WorldGeneratorScript.array_to_cell(location.get("cell", [])))
@@ -1914,7 +2495,8 @@ func advance_campaign_turn() -> void:
 		world_generation_version,
 		neutral_location_cells,
 		diplomacy_relations,
-		neutral_locations
+		neutral_locations,
+		player_outpost_cells
 	)
 	_apply_diplomacy_economy()
 	_sync_primary_kingdom()
@@ -1933,8 +2515,12 @@ func _get_player_diplomacy_sources() -> Array[Vector2i]:
 		sources.append(player_cell)
 	for city_record in cities:
 		var city_cell_value := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
-		if not sources.has(city_cell_value):
+		if WorldGeneratorScript.is_inside_world(city_cell_value) and not sources.has(city_cell_value):
 			sources.append(city_cell_value)
+	for outpost_record in outposts:
+		var outpost_cell_value := WorldGeneratorScript.array_to_cell(outpost_record.get("cell", []))
+		if WorldGeneratorScript.is_inside_world(outpost_cell_value) and not sources.has(outpost_cell_value):
+			sources.append(outpost_cell_value)
 	return sources
 
 
@@ -2176,18 +2762,36 @@ func _apply_diplomacy_economy() -> void:
 
 
 func _apply_neutral_mine_income() -> void:
-	if cities.is_empty():
+	if cities.is_empty() and outposts.is_empty():
 		return
 	for location in neutral_locations:
 		if not bool(location.get("cleared", false)) or int(location.get("cleared_by", -1)) != -1 or str(location.get("type", "")) != "abandoned_mine":
 			continue
 		var location_cell := WorldGeneratorScript.array_to_cell(location.get("cell", []))
-		var city_index := _find_nearest_player_city_index(location_cell)
-		if city_index < 0:
-			continue
-		var target_city: Dictionary = cities[city_index]
-		target_city["production_bank"] = maxi(0, int(target_city.get("production_bank", 0))) + 2
-		cities[city_index] = target_city
+		var nearest_city_index := -1
+		var nearest_distance := 999999
+		for city_index in range(cities.size()):
+			var city_cell := WorldGeneratorScript.array_to_cell(cities[city_index].get("cell", []))
+			var city_distance := WorldGeneratorScript.hex_distance(location_cell, city_cell)
+			if city_distance < nearest_distance:
+				nearest_distance = city_distance
+				nearest_city_index = city_index
+		var nearest_outpost_index := -1
+		for outpost_index in range(outposts.size()):
+			var outpost_cell := WorldGeneratorScript.array_to_cell(outposts[outpost_index].get("cell", []))
+			var outpost_distance := WorldGeneratorScript.hex_distance(location_cell, outpost_cell)
+			if outpost_distance < nearest_distance:
+				nearest_distance = outpost_distance
+				nearest_outpost_index = outpost_index
+				nearest_city_index = -1
+		if nearest_outpost_index >= 0:
+			var target_outpost: Dictionary = outposts[nearest_outpost_index]
+			target_outpost["production_bank"] = maxi(0, int(target_outpost.get("production_bank", 0))) + 2
+			outposts[nearest_outpost_index] = target_outpost
+		elif nearest_city_index >= 0:
+			var target_city: Dictionary = cities[nearest_city_index]
+			target_city["production_bank"] = maxi(0, int(target_city.get("production_bank", 0))) + 2
+			cities[nearest_city_index] = target_city
 
 
 func _queue_world_event_if_due() -> void:
@@ -2258,6 +2862,9 @@ func refresh_fog_of_war() -> void:
 	for city_record in cities:
 		var cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
 		_reveal_fog_area(cell, CITY_VISION_RADIUS)
+	for outpost in outposts:
+		var cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []), Vector2i(9999, 9999))
+		_reveal_fog_area(cell, SettlementCatalogScript.OUTPOST_VISION_RADIUS)
 	if settler_active:
 		_reveal_fog_area(settler_cell, SETTLER_VISION_RADIUS)
 
@@ -2370,7 +2977,7 @@ func get_total_enemy_units() -> int:
 
 func get_world_owner_at(cell: Vector2i) -> int:
 	_sync_selected_player_army_from_legacy()
-	return TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms, player_armies)
+	return TerritoryCatalogScript.get_owner_at(cell, cities, player_cell, player_units, kingdoms, player_armies, outposts)
 
 
 func _sync_primary_kingdom() -> void:
@@ -2398,7 +3005,7 @@ func _find_settler_spawn_cell(origin: Vector2i) -> Vector2i:
 	]
 	for offset in offsets:
 		var candidate: Vector2i = origin + offset
-		if not WorldGeneratorScript.is_inside_world(candidate) or WorldGeneratorScript.terrain_at(candidate, world_seed, world_generation_version) == "water" or get_city_index_at(candidate) >= 0:
+		if not WorldGeneratorScript.is_inside_world(candidate) or WorldGeneratorScript.terrain_at(candidate, world_seed, world_generation_version) == "water" or get_city_index_at(candidate) >= 0 or get_outpost_index_at(candidate) >= 0:
 			continue
 		if WorldLocationCatalogScript.has_location_at(neutral_locations, candidate):
 			continue
@@ -2467,7 +3074,8 @@ func _process_city_queue() -> void:
 		elif order_kind == "settler" and not settler_active:
 			settler_active = true
 			settler_cell = _find_settler_spawn_cell(city_cell)
-			city_last_event += "Поселенец готов к основанию нового города. "
+			settler_origin_city_id = clampi(int(order.get("origin_city_id", active_city_id)), 0, maxi(0, cities.size() - 1))
+			city_last_event += "Поселенец готов к основанию города или заставы. "
 
 	if city_last_event.is_empty():
 		city_last_event = "Город получил ресурсы за ход."
@@ -2498,12 +3106,18 @@ func _remove_conflicting_neutral_locations() -> void:
 	for city in cities:
 		var city_cell_value := WorldGeneratorScript.array_to_cell(city.get("cell", []))
 		occupied["%d:%d" % [city_cell_value.x, city_cell_value.y]] = true
+	for outpost in outposts:
+		var outpost_cell_value := WorldGeneratorScript.array_to_cell(outpost.get("cell", []))
+		occupied["%d:%d" % [outpost_cell_value.x, outpost_cell_value.y]] = true
 	for kingdom in kingdoms:
 		var army_cell_value := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
 		occupied["%d:%d" % [army_cell_value.x, army_cell_value.y]] = true
 		for city in kingdom.get("cities", []):
 			var city_cell_value := WorldGeneratorScript.array_to_cell(city.get("cell", []))
 			occupied["%d:%d" % [city_cell_value.x, city_cell_value.y]] = true
+		for outpost in kingdom.get("outposts", []):
+			var ai_outpost_cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []))
+			occupied["%d:%d" % [ai_outpost_cell.x, ai_outpost_cell.y]] = true
 	if settler_active:
 		occupied["%d:%d" % [settler_cell.x, settler_cell.y]] = true
 	var filtered: Array[Dictionary] = []
@@ -2574,10 +3188,14 @@ func save_campaign() -> bool:
 		"city_buildings": city_buildings,
 		"city_build_queue": city_build_queue,
 		"cities": cities,
+		"outposts": outposts,
 		"active_city_id": active_city_id,
 		"settler_active": settler_active,
 		"settler_cell": [settler_cell.x, settler_cell.y],
 		"settler_moves_left": settler_moves_left,
+		"settler_origin_city_id": settler_origin_city_id,
+		"settlement_upkeep_last_due": settlement_upkeep_last_due,
+		"settlement_upkeep_last_paid": settlement_upkeep_last_paid,
 	}
 	var file := FileAccess.open(SAVE_TEMP_PATH, FileAccess.WRITE)
 	if file == null:
@@ -2747,7 +3365,7 @@ func load_campaign() -> bool:
 	pending_world_event = WorldEventCatalogScript.normalize_event(data.get("pending_world_event", {}))
 	last_world_event_text = str(data.get("last_world_event_text", ""))
 	world_events_resolved = maxi(0, int(data.get("world_events_resolved", 0)))
-	var default_kingdoms := KingdomAIScript.create_initial_kingdoms(world_seed)
+	var default_kingdoms: Array[Dictionary] = KingdomAIScript.create_initial_kingdoms(world_seed)
 	kingdoms.clear()
 	var saved_kingdoms: Variant = data.get("kingdoms", [])
 	if saved_kingdoms is Array and saved_kingdoms.size() >= KINGDOM_COUNT:
@@ -2828,12 +3446,16 @@ func load_campaign() -> bool:
 			cities.append(record)
 	if cities.is_empty():
 		cities.append(_make_city_record(0, city_name, city_cell, city_population, city_food, city_gold, city_production_bank, city_buildings, city_build_queue))
+	outposts = _read_outposts(data.get("outposts", []))
 	active_city_id = clampi(int(data.get("active_city_id", 0)), 0, cities.size() - 1)
 	settler_active = bool(data.get("settler_active", false))
 	var settler_xy: Variant = data.get("settler_cell", [city_cell.x, city_cell.y + 1])
 	if settler_xy is Array and settler_xy.size() >= 2:
 		settler_cell = Vector2i(int(settler_xy[0]), int(settler_xy[1]))
 	settler_moves_left = clampi(int(data.get("settler_moves_left", 1)), 0, 1)
+	settler_origin_city_id = clampi(int(data.get("settler_origin_city_id", active_city_id)), 0, maxi(0, cities.size() - 1)) if settler_active else -1
+	settlement_upkeep_last_due = maxi(0, int(data.get("settlement_upkeep_last_due", 0)))
+	settlement_upkeep_last_paid = clampi(int(data.get("settlement_upkeep_last_paid", 0)), 0, settlement_upkeep_last_due)
 	_load_active_city()
 	# Generated neutral points must not overlap locations already occupied in older campaigns.
 	_remove_conflicting_neutral_locations()
@@ -2875,6 +3497,8 @@ func _read_city_queue(value: Variant) -> Array[Dictionary]:
 		}
 		if valid_building_upgrade:
 			record["target_level"] = clampi(int(item.get("target_level", 2)), 2, 3)
+		if valid_settler:
+			record["origin_city_id"] = maxi(0, int(item.get("origin_city_id", active_city_id)))
 		if valid_province:
 			record["cell"] = [int(province_cell_array[0]), int(province_cell_array[1])]
 		result.append(record)

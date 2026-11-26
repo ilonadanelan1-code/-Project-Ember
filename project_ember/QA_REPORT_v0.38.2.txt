@@ -1,0 +1,38 @@
+PROJECT EMBER v0.38.2 — GODOT AUDIT HOTFIX
+
+Source basis
+- Exact source provided in this conversation: Project-Ember-v0.38.1-AI-Expansion-Fix.zip.
+- Upstream lineage recorded by the supplied build metadata: release/v0.36.1 @ 5ddd271c3ccda799e9db681680f59bd8bdb9e2da.
+- Engine tested: Godot 4.7.2.stable.official.ed1daf0bf, Linux x86_64.
+
+Findings and fixes
+1. GDScript compile issue in scripts/kingdom_ai.gd: a prose continuation line was missing its comment marker and was parsed as code. Restored the comment marker.
+2. scripts/campaign_state.gd: explicitly typed the fallback initial-kingdom array as Array[Dictionary] to avoid inference depending on an unresolved script preload.
+3. tests/campaign_smoke_test.gd: replenishes the city's gold and production foundation reserve after earlier test actions, so the placement/founding test actually reaches its intended case.
+4. tests/settlement_economy_smoke_test.gd: creates a save-enabled test campaign before checking the save/load round trip.
+5. tests/territory_control_smoke_test.gd: stores the AI kingdom test fixture at the index used by the territory ownership algorithm.
+6. Replaced stale v0.31.0 PACKAGE_INFO and IMPORT_INFO text with accurate v0.38.2 metadata.
+
+Validation results
+- Godot editor import: completed; no SCRIPT ERROR, Parse Error, Failed loading resource or Cannot open file messages found in the import log.
+- Project-context GDScript parser: 91 scripts checked, 0 failed.
+- Runtime smoke suites: 37 / 37 passed.
+- Runtime assertions: 1,452 PASS lines across smoke-test logs.
+- Strategic AI regression includes a 180-turn peaceful multi-kingdom simulation; it reports additional cities across several kingdoms and frontier growth.
+- Visual QA: all four strategy-map zoom captures passed (0.075, 0.76, 0.90, 1.25), 1280x720, Xvfb + Mesa llvmpipe software rendering.
+- Static QA: 233 / 233 checks passed.
+- Python syntax compilation of tools/qa/static_validate.py: passed.
+- Playable packager validates the 1152x2304 RGBA Tiny Swords atlas and the animation manifest.
+- Final ZIP integrity test: passed.
+
+Visual QA notes
+- Software-rendered capture results are for scene/render integrity only, not an Android performance measurement.
+- Android touch input, device FPS, memory pressure and long-session stability have not been independently measured in this audit.
+
+Compatibility
+- SAVE_VERSION remains 1.
+- No new save-schema version, resource type or campaign resource was introduced by this audit hotfix.
+
+Known publishing limitation
+- The public repository intentionally excludes the licensed Tiny Swords atlas and animation manifest binaries. This full playable ZIP includes them.
+- The current GitHub connector can commit text/source files but does not expose a binary archive/release-asset upload operation. Therefore this report does not claim that the full v0.38.2 project archive has been pushed to GitHub. A current handoff note can be committed; publishing the full project source snapshot still requires a repository-side archive import/upload step.

@@ -1,0 +1,39 @@
+PROJECT EMBER v0.38.0 — SETTLEMENT ECONOMY & FRONTIER OUTPOSTS
+
+Source basis:
+- GitHub repository: ilonadanelan1-code/-Project-Ember
+- Active game branch: release/v0.36.1
+- Upstream commit: 5ddd271c3ccda799e9db681680f59bd8bdb9e2da
+- Upstream commit date: 2026-11-26 11:52:55 UTC
+- The repository main branch currently contains service/import automation changes; it is not the current game release branch.
+
+Integrated features:
+- SettlementCatalog centralizes city/outpost rules, costs, upkeep, influence and AI reserves.
+- CampaignState stores outposts separately, supports founding, collection, annexation and conversion to cities, and includes optional persistence fields.
+- TerritoryCatalog calculates city > outpost > field-army influence for player and AI without persisting an owner grid.
+- KingdomAI and StrategicAIPlanner account for outpost income, upkeep, threat and frontier expansion; AI can annex nearby outposts.
+- StrategyMap provides city/outpost foundation selection, map markers, an outpost panel, resource collection and annexation/upgrade controls.
+- A new settlement_economy_smoke_test.gd covers costs, territory, founding, save/load, collection, player and AI annexation, AI reserve protection and legacy defaults.
+- SAVE_VERSION remains 1; existing game systems and the Tiny Swords pixel-art atlas are retained.
+
+Local validation performed on this integration:
+- Python static QA: 230/230 checks passed.
+- Python syntax compilation: tools/qa/static_validate.py passed.
+- Test suite inventory: 37 GDScript smoke-test source files included.
+- Playable package script validates the 1152x2304 RGBA Tiny Swords atlas, 96px cells, 12 rows per team, required animation manifest entries and the absence of a low-poly combat-unit fallback.
+- ZIP integrity and required project/atlas/manifest members are checked by tools/assets/package_playable_release.sh.
+
+Upstream reference QA (not a test of this new integration):
+- GitHub Actions on the upstream v0.36.1 commit completed successfully.
+- GDScript parser: 88 checked / 0 failed.
+- Runtime smoke tests: 36 passed / 0 failed.
+- Those results apply to the original upstream commit, before the v0.38.0 settlement integration.
+
+Not executed for this v0.38.0 integration in the local packaging environment:
+- Godot 4.7.2 GDScript parser.
+- Godot runtime smoke tests, including the new settlement test.
+- Android device visual/performance validation.
+
+Reason: no Godot executable is installed in the local environment. Run tools/qa/run_smoke_tests.sh using Godot 4.7.2. Do not treat the upstream parser/smoke results as validation of the new integration.
+
+Package type: complete Godot source project, not an APK.

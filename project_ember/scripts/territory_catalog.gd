@@ -2,15 +2,16 @@ extends RefCounted
 class_name EmberTerritoryCatalog
 
 const World = preload("res://scripts/world_generator.gd")
+const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
 
 const OWNER_UNCLAIMED := -1
 const OWNER_PLAYER := -2
 const OWNER_DISPUTED := -3
-const CONTEST_MARGIN := 6.0
-const CITY_FALLOFF := 9.25
-const ARMY_FALLOFF := 10.0
-const WATCHTOWER_FALLOFF := 10.5
-const WATCHTOWER_RADIUS := 8
+const CONTEST_MARGIN := SettlementCatalogScript.TERRITORY_CONTEST_MARGIN
+const CITY_FALLOFF := SettlementCatalogScript.CITY_INFLUENCE_FALLOFF
+const ARMY_FALLOFF := SettlementCatalogScript.ARMY_INFLUENCE_FALLOFF
+const WATCHTOWER_FALLOFF := SettlementCatalogScript.WATCHTOWER_INFLUENCE_FALLOFF
+const WATCHTOWER_RADIUS := SettlementCatalogScript.WATCHTOWER_INFLUENCE_RADIUS
 
 
 static func build_owner_lookup(
@@ -19,10 +20,12 @@ static func build_owner_lookup(
 		player_army_cell: Vector2i,
 		player_army: Array[Dictionary],
 		kingdoms: Array[Dictionary],
-		player_armies: Array[Dictionary] = []
+		player_armies: Array[Dictionary] = [],
+		player_outposts: Array[Dictionary] = []
 ) -> Dictionary:
 	var sources: Array[Dictionary] = []
 	_append_city_sources(sources, player_cities, OWNER_PLAYER)
+	_append_outpost_sources(sources, player_outposts, OWNER_PLAYER)
 	if player_armies.is_empty():
 		_append_army_source(sources, player_army_cell, player_army, OWNER_PLAYER)
 	else:
@@ -41,6 +44,8 @@ static func build_owner_lookup(
 			continue
 		var city_values: Variant = kingdom.get("cities", [])
 		_append_city_sources(sources, city_values, kingdom_index)
+		var outpost_values: Variant = kingdom.get("outposts", [])
+		_append_outpost_sources(sources, outpost_values, kingdom_index)
 		var army_values: Variant = kingdom.get("army", [])
 		var army: Array[Dictionary] = []
 		if army_values is Array:
@@ -96,10 +101,11 @@ static func get_owner_at(
 		player_army_cell: Vector2i,
 		player_army: Array[Dictionary],
 		kingdoms: Array[Dictionary],
-		player_armies: Array[Dictionary] = []
+		player_armies: Array[Dictionary] = [],
+		player_outposts: Array[Dictionary] = []
 ) -> int:
 	var probe: Array[Vector2i] = [cell]
-	var lookup := build_owner_lookup(probe, player_cities, player_army_cell, player_army, kingdoms, player_armies)
+	var lookup := build_owner_lookup(probe, player_cities, player_army_cell, player_army, kingdoms, player_armies, player_outposts)
 	return int(lookup.get(cell, OWNER_UNCLAIMED))
 
 
@@ -118,12 +124,8 @@ static func _append_city_sources(sources: Array[Dictionary], city_value: Variant
 			continue
 		var population := clampi(int(city.get("population", 1)), 1, 20)
 		var specialization := str(city.get("specialization", ""))
-		var power := 46.0 + float(population) * 1.8
-		if city_index == 0:
-			power += 12.0
-		if specialization == "military":
-			power += 5.0
-		var radius := clampi(floori(power / CITY_FALLOFF), 3, 8)
+		var power := SettlementCatalogScript.get_city_influence_power(population, city_index, specialization)
+		var radius := SettlementCatalogScript.get_city_influence_radius(population, city_index, specialization)
 		sources.append({
 			"cell": center,
 			"owner": owner_id,
@@ -149,6 +151,26 @@ static func _append_city_sources(sources: Array[Dictionary], city_value: Variant
 		city_index += 1
 
 
+static func _append_outpost_sources(sources: Array[Dictionary], outpost_value: Variant, owner_id: int) -> void:
+	if not outpost_value is Array:
+		return
+	for raw_outpost in outpost_value:
+		if not raw_outpost is Dictionary:
+			continue
+		var outpost: Dictionary = raw_outpost
+		var center := World.array_to_cell(outpost.get("cell", []), Vector2i(9999, 9999))
+		if not World.is_inside_world(center):
+			continue
+		sources.append({
+			"cell": center,
+			"owner": owner_id,
+			"power": SettlementCatalogScript.OUTPOST_INFLUENCE_POWER,
+			"falloff": SettlementCatalogScript.OUTPOST_INFLUENCE_FALLOFF,
+			"radius": SettlementCatalogScript.OUTPOST_INFLUENCE_RADIUS,
+			"kind": "outpost",
+		})
+
+
 static func _append_army_source(
 		sources: Array[Dictionary],
 		army_cell: Vector2i,
@@ -157,8 +179,8 @@ static func _append_army_source(
 ) -> void:
 	if army.is_empty() or not World.is_inside_world(army_cell):
 		return
-	var power := 24.0 + minf(36.0, float(army.size()) * 2.0)
-	var radius := clampi(floori(power / ARMY_FALLOFF), 2, 5)
+	var power := SettlementCatalogScript.get_army_influence_power(army.size())
+	var radius := SettlementCatalogScript.get_army_influence_radius(army.size())
 	sources.append({
 		"cell": army_cell,
 		"owner": owner_id,
@@ -170,12 +192,7 @@ static func _append_army_source(
 
 
 static func get_city_influence_radius(population: int, city_index: int, specialization: String) -> int:
-	var power := 46.0 + float(clampi(population, 1, 20)) * 1.8
-	if city_index == 0:
-		power += 12.0
-	if specialization == "military":
-		power += 5.0
-	return clampi(floori(power / CITY_FALLOFF), 3, 8)
+	return SettlementCatalogScript.get_city_influence_radius(population, city_index, specialization)
 
 
 static func get_watchtower_count(improvements: Array) -> int:
@@ -189,11 +206,12 @@ static func get_watchtower_count(improvements: Array) -> int:
 static func get_defensive_armor_bonus(
 		battle_cell: Vector2i,
 		player_cities: Array[Dictionary],
-		kingdoms: Array[Dictionary]
+		kingdoms: Array[Dictionary],
+		player_outposts: Array[Dictionary] = []
 ) -> float:
 	var no_field_army := Vector2i(9999, 9999)
 	var no_units: Array[Dictionary] = []
-	if get_owner_at(battle_cell, player_cities, no_field_army, no_units, kingdoms) != OWNER_PLAYER:
+	if get_owner_at(battle_cell, player_cities, no_field_army, no_units, kingdoms, [], player_outposts) != OWNER_PLAYER:
 		return 0.0
 	for city_value in player_cities:
 		var center := World.array_to_cell(city_value.get("cell", []), Vector2i(9999, 9999))

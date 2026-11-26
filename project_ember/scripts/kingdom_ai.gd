@@ -9,6 +9,7 @@ const FactionCatalog = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
 const WorldLocationCatalog = preload("res://scripts/world_location_catalog.gd")
 const StrategicAI = preload("res://scripts/strategic_ai_planner.gd")
+const SettlementCatalog = preload("res://scripts/settlement_catalog.gd")
 
 const KINGDOM_NAMES := [
 	"Королевство Алых Парусов",
@@ -85,6 +86,7 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 			"army_cell": World.cell_to_array(army_cell),
 			"army": starting_army,
 			"cities": [city],
+			"outposts": [],
 			"hero": _make_hero_record(RULER_NAMES[index], "Правитель " + KINGDOM_NAMES[index]),
 			"alive": true,
 			"last_action": "Развивает столицу и собирает войска",
@@ -135,7 +137,7 @@ static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictiona
 			if not city_value is Dictionary:
 				continue
 			var cell := World.array_to_cell(city_value.get("cell", []), capital)
-			if not World.is_inside_world(cell) or cities.size() >= 4:
+			if not World.is_inside_world(cell) or cities.size() >= SettlementCatalog.MAX_AI_CITIES:
 				continue
 			var city_index := cities.size()
 			var city_name := str(city_value.get("name", "Поселение %d" % (city_index + 1)))
@@ -177,6 +179,33 @@ static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictiona
 	if cities.is_empty():
 		cities = result.get("cities", [])
 	result["cities"] = cities
+	var raw_outposts: Variant = raw.get("outposts", result.get("outposts", []))
+	var outposts: Array[Dictionary] = []
+	var occupied_outpost_cells: Dictionary = {}
+	for city_value in cities:
+		var city_cell := World.array_to_cell(city_value.get("cell", []))
+		occupied_outpost_cells["%d:%d" % [city_cell.x, city_cell.y]] = true
+	if raw_outposts is Array:
+		for outpost_value in raw_outposts:
+			if not outpost_value is Dictionary or outposts.size() + cities.size() >= SettlementCatalog.MAX_AI_SETTLEMENTS:
+				continue
+			var outpost_cell := World.array_to_cell(outpost_value.get("cell", []), Vector2i(9999, 9999))
+			var outpost_key := "%d:%d" % [outpost_cell.x, outpost_cell.y]
+			if not World.is_inside_world(outpost_cell) or occupied_outpost_cells.has(outpost_key):
+				continue
+			occupied_outpost_cells[outpost_key] = true
+			var raw_improvements: Variant = outpost_value.get("province_improvements", [])
+			var improvements: Array = raw_improvements if raw_improvements is Array else []
+			outposts.append({
+				"id": outposts.size(),
+				"name": str(outpost_value.get("name", "Пограничная застава %d" % (outposts.size() + 1))),
+				"cell": World.cell_to_array(outpost_cell),
+				"food": maxi(0, int(outpost_value.get("food", 0))),
+				"gold": maxi(0, int(outpost_value.get("gold", 0))),
+				"production_bank": maxi(0, int(outpost_value.get("production_bank", 0))),
+				"province_improvements": improvements.slice(0, SettlementCatalog.OUTPOST_MAX_PROVINCE_IMPROVEMENTS),
+			})
+	result["outposts"] = outposts
 	var raw_hero: Variant = raw.get("hero", result.get("hero", {}))
 	if raw_hero is Dictionary:
 		result["hero"] = raw_hero.duplicate(true)
@@ -198,7 +227,8 @@ static func process_turns(
 		world_generation_version: int = World.WORLD_GENERATION_VERSION,
 		neutral_location_cells: Array[Vector2i] = [],
 		diplomacy_relations: Dictionary = {},
-		neutral_locations: Array[Dictionary] = []
+		neutral_locations: Array[Dictionary] = [],
+		player_outpost_cells: Array[Vector2i] = []
 ) -> Array[String]:
 	var events: Array[String] = []
 	for index in range(kingdoms.size()):
@@ -207,8 +237,27 @@ static func process_turns(
 			continue
 		var action_parts: Array[String] = []
 		var cities: Array = kingdom.get("cities", [])
+		var outposts: Array = kingdom.get("outposts", [])
 		var army: Array = kingdom.get("army", [])
 		_apply_ai_mine_income(kingdom, neutral_locations)
+		for outpost_index in range(outposts.size()):
+			var outpost: Dictionary = outposts[outpost_index]
+			var outpost_improvements_value: Variant = outpost.get("province_improvements", [])
+			var outpost_improvements: Array = outpost_improvements_value if outpost_improvements_value is Array else []
+			var outpost_income := SettlementCatalog.get_outpost_income(outpost_improvements)
+			outpost["food"] = maxi(0, int(outpost.get("food", 0))) + int(outpost_income.get("food", 0))
+			outpost["gold"] = maxi(0, int(outpost.get("gold", 0))) + int(outpost_income.get("gold", 0))
+			outpost["production_bank"] = maxi(0, int(outpost.get("production_bank", 0))) + int(outpost_income.get("production", 0))
+			var outpost_upkeep := SettlementCatalog.OUTPOST_UPKEEP_PER_TURN
+			var upkeep_payment := mini(outpost_upkeep, int(outpost.get("gold", 0)))
+			outpost["gold"] = int(outpost.get("gold", 0)) - upkeep_payment
+			if upkeep_payment < outpost_upkeep and not cities.is_empty():
+				var sponsor: Dictionary = cities[0]
+				var sponsor_gold := maxi(0, int(sponsor.get("gold", 0)))
+				var sponsor_payment := mini(sponsor_gold, outpost_upkeep - upkeep_payment)
+				sponsor["gold"] = sponsor_gold - sponsor_payment
+				cities[0] = sponsor
+			outposts[outpost_index] = outpost
 		var faction_value: Variant = kingdom.get("faction", {})
 		var kingdom_faction: Dictionary = faction_value if faction_value is Dictionary else {}
 		for city_index in range(cities.size()):
@@ -275,8 +324,27 @@ static func process_turns(
 			cities[city_index] = city
 
 		kingdom["cities"] = cities
+		kingdom["outposts"] = outposts
 		kingdom["army"] = army
 		var strategic_plan := StrategicAI.evaluate_kingdom(kingdom, kingdoms, diplomacy_relations, turn_number, player_cell, player_city_cells)
+		# Resolve a due settlement foundation before purchasing upgrades or recruits.
+		# Otherwise _queue_next_order could spend the very gold the planner reserved
+		# for a city, making expansion permanently unreachable in a stable economy.
+		var next_expansion := int(kingdom.get("next_expansion_turn", 8))
+		if turn_number >= next_expansion and bool(strategic_plan.get("expansion_allowed", false)):
+			var expansion := _try_found_ai_city(kingdom, kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, player_outpost_cells)
+			if expansion.is_empty():
+				expansion = _try_found_ai_outpost(kingdom, kingdoms, player_cell, player_city_cells, player_outpost_cells, world_seed, world_generation_version, neutral_location_cells, bool(strategic_plan.get("threatened", false)), int(strategic_plan.get("nearest_threat_distance", 999999)))
+			if not expansion.is_empty():
+				action_parts.append(expansion)
+			if expansion.is_empty():
+				var annex_event := _try_annex_ai_outpost(kingdom)
+				if not annex_event.is_empty():
+					action_parts.append(annex_event)
+			kingdom["next_expansion_turn"] = turn_number + 8 + (index % 4)
+			cities = kingdom.get("cities", [])
+			outposts = kingdom.get("outposts", [])
+			army = kingdom.get("army", [])
 		for city_index in range(cities.size()):
 			var city: Dictionary = cities[city_index]
 			var order_event := _queue_next_order(city, kingdom, army, turn_number, city_index, world_seed, world_generation_version, strategic_plan)
@@ -302,14 +370,6 @@ static func process_turns(
 			cities[city_index] = upkeep_city
 		kingdom["cities"] = cities
 		kingdom["army"] = army
-		var next_expansion := int(kingdom.get("next_expansion_turn", 8))
-		if turn_number >= next_expansion and bool(strategic_plan.get("expansion_allowed", false)):
-			var expansion := _try_found_ai_city(kingdom, kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells)
-			if not expansion.is_empty():
-				cities = kingdom.get("cities", [])
-				action_parts.append(expansion)
-			kingdom["next_expansion_turn"] = turn_number + 8 + (index % 4)
-
 		var next_move := int(kingdom.get("next_move_turn", 2))
 		if turn_number >= next_move:
 			var movement := _move_army(kingdom, kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, diplomacy_relations, neutral_locations, turn_number)
@@ -518,25 +578,191 @@ static func _try_found_ai_city(
 		player_city_cells: Array[Vector2i],
 		world_seed: int,
 		world_generation_version: int,
-		neutral_location_cells: Array[Vector2i] = []
+		neutral_location_cells: Array[Vector2i] = [],
+		player_outpost_cells: Array[Vector2i] = []
 ) -> String:
 	var cities: Array = kingdom.get("cities", [])
-	if cities.size() >= 3 or cities.is_empty():
+	if cities.size() >= SettlementCatalog.MAX_AI_CITIES or cities.is_empty():
 		return ""
 	var capital: Dictionary = cities[0]
-	if int(capital.get("population", 1)) < 6 or int(capital.get("gold", 0)) < 65:
+	if int(capital.get("population", 1)) < SettlementCatalog.AI_CITY_FOUND_MIN_POPULATION or int(capital.get("gold", 0)) < SettlementCatalog.AI_CITY_FOUND_GOLD_COST:
 		return ""
 	var capital_cell := World.array_to_cell(capital.get("cell", []))
-	var candidate := _find_expansion_cell(capital_cell, all_kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, cities, int(kingdom.get("id", -1)))
+	var own_outposts: Array = kingdom.get("outposts", [])
+	var candidate := _find_expansion_cell(capital_cell, all_kingdoms, player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, cities, int(kingdom.get("id", -1)), player_outpost_cells, own_outposts)
 	if candidate == Vector2i(9999, 9999):
 		return ""
-	capital["gold"] = int(capital.get("gold", 0)) - 65
+	capital["gold"] = int(capital.get("gold", 0)) - SettlementCatalog.AI_CITY_FOUND_GOLD_COST
 	cities[0] = capital
 	var new_city_id := cities.size()
 	var new_name := "Новый посад %d" % new_city_id
 	cities.append(_make_city_record(new_city_id, new_name, candidate, 3, 5, 40))
 	kingdom["cities"] = cities
 	return "%s основал %s" % [str(kingdom.get("name", "Король")), new_name]
+
+
+static func _try_found_ai_outpost(
+		kingdom: Dictionary,
+		all_kingdoms: Array[Dictionary],
+		player_cell: Vector2i,
+		player_city_cells: Array[Vector2i],
+		player_outpost_cells: Array[Vector2i],
+		world_seed: int,
+		world_generation_version: int,
+		neutral_location_cells: Array[Vector2i],
+		threatened: bool,
+		nearest_threat_distance: int
+) -> String:
+	var cities: Array = kingdom.get("cities", [])
+	var outposts: Array = kingdom.get("outposts", [])
+	if cities.is_empty() or cities.size() + outposts.size() >= SettlementCatalog.MAX_AI_SETTLEMENTS:
+		return ""
+	if threatened and nearest_threat_distance <= SettlementCatalog.AI_OUTPOST_THREAT_DISTANCE:
+		return ""
+	var capital: Dictionary = cities[0]
+	var capital_gold := maxi(0, int(capital.get("gold", 0)))
+	var foundation_cost := SettlementCatalog.get_foundation_cost(SettlementCatalog.TYPE_OUTPOST)
+	if capital_gold - int(foundation_cost.get("gold", 0)) < SettlementCatalog.AI_OUTPOST_MIN_GOLD_RESERVE:
+		return ""
+	if int(capital.get("production_bank", 0)) < int(foundation_cost.get("production", 0)):
+		return ""
+	var own_settlement_records: Array = []
+	own_settlement_records.append_array(cities)
+	own_settlement_records.append_array(outposts)
+	var own_outpost_cells: Array[Vector2i] = []
+	for own_outpost in outposts:
+		if own_outpost is Dictionary:
+			own_outpost_cells.append(World.array_to_cell(own_outpost.get("cell", [])))
+	var candidate := Vector2i(9999, 9999)
+	var best_score := -999999.0
+	for city_value in cities:
+		if not city_value is Dictionary:
+			continue
+		var city_cell := World.array_to_cell(city_value.get("cell", []))
+		for q in range(-5, 6):
+			for r in range(-5, 6):
+				var offset := Vector2i(q, r)
+				var distance := World.hex_distance(Vector2i.ZERO, offset)
+				if distance < 2 or distance > 4:
+					continue
+				var cell := city_cell + offset
+				if not World.is_inside_world(cell) or World.terrain_at(cell, world_seed, world_generation_version) == "water":
+					continue
+				if neutral_location_cells.has(cell) or _cell_occupied(cell, all_kingdoms, player_cell, player_city_cells, player_outpost_cells):
+					continue
+				var valid := true
+				for other_kingdom in all_kingdoms:
+					if int(other_kingdom.get("id", -1)) == int(kingdom.get("id", -2)):
+						continue
+					for other_city in other_kingdom.get("cities", []):
+						if not other_city is Dictionary:
+							continue
+						var other_city_cell := World.array_to_cell(other_city.get("cell", []))
+						if World.hex_distance(cell, other_city_cell) < SettlementCatalog.OUTPOST_MIN_CITY_DISTANCE:
+							valid = false
+							break
+					for other_outpost in other_kingdom.get("outposts", []):
+						if not other_outpost is Dictionary:
+							continue
+						var other_outpost_cell := World.array_to_cell(other_outpost.get("cell", []))
+						if World.hex_distance(cell, other_outpost_cell) < SettlementCatalog.OUTPOST_MIN_OUTPOST_DISTANCE:
+							valid = false
+							break
+					if not valid:
+						break
+				if not valid:
+					continue
+				for own_value in own_settlement_records:
+					if not own_value is Dictionary:
+						continue
+					var own_cell := World.array_to_cell(own_value.get("cell", []))
+					if World.hex_distance(cell, own_cell) < SettlementCatalog.OUTPOST_MIN_OUTPOST_DISTANCE:
+						valid = false
+						break
+				if not valid:
+					continue
+				var score := StrategicAI.score_expansion_cell(cell, city_cell, cities, all_kingdoms, int(kingdom.get("id", -1)), player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells, player_outpost_cells, own_outpost_cells)
+				score -= float(distance) * 0.5
+				if score > best_score:
+					best_score = score
+					candidate = cell
+	if candidate == Vector2i(9999, 9999) or best_score < SettlementCatalog.AI_OUTPOST_MIN_SCORE:
+		return ""
+	capital["gold"] = capital_gold - int(foundation_cost.get("gold", 0))
+	capital["production_bank"] = maxi(0, int(capital.get("production_bank", 0))) - int(foundation_cost.get("production", 0))
+	cities[0] = capital
+	var outpost_name := "Пограничный пост %d" % (outposts.size() + 1)
+	outposts.append({
+		"id": outposts.size(),
+		"name": outpost_name,
+		"cell": World.cell_to_array(candidate),
+		"food": 0,
+		"gold": 0,
+		"production_bank": 0,
+		"province_improvements": [],
+	})
+	kingdom["cities"] = cities
+	kingdom["outposts"] = outposts
+	return "%s основал заставу «%s»" % [str(kingdom.get("name", "Король")), outpost_name]
+
+
+static func _try_annex_ai_outpost(kingdom: Dictionary) -> String:
+	var cities: Array = kingdom.get("cities", [])
+	var outposts: Array = kingdom.get("outposts", [])
+	if cities.is_empty() or outposts.is_empty():
+		return ""
+	for outpost_index in range(outposts.size()):
+		var outpost: Dictionary = outposts[outpost_index]
+		var outpost_cell := World.array_to_cell(outpost.get("cell", []))
+		var target_index := -1
+		var nearest_distance := SettlementCatalog.OUTPOST_MERGE_MAX_DISTANCE + 1
+		for city_index in range(cities.size()):
+			var city_cell := World.array_to_cell(cities[city_index].get("cell", []))
+			var distance := World.hex_distance(outpost_cell, city_cell)
+			if distance < nearest_distance:
+				nearest_distance = distance
+				target_index = city_index
+		if target_index < 0 or nearest_distance > SettlementCatalog.OUTPOST_MERGE_MAX_DISTANCE:
+			continue
+		var target_city: Dictionary = cities[target_index]
+		var gold_cost := SettlementCatalog.ANNEX_MERGE_GOLD_COST
+		var production_cost := SettlementCatalog.ANNEX_MERGE_PRODUCTION_COST
+		var current_gold := maxi(0, int(target_city.get("gold", 0)))
+		var current_production := maxi(0, int(target_city.get("production_bank", 0)))
+		if current_gold - gold_cost < SettlementCatalog.AI_ANNEX_MIN_GOLD_RESERVE or current_production < production_cost:
+			continue
+		target_city["gold"] = current_gold - gold_cost + maxi(0, int(outpost.get("gold", 0)))
+		target_city["food"] = maxi(0, int(target_city.get("food", 0))) + maxi(0, int(outpost.get("food", 0)))
+		target_city["production_bank"] = current_production - production_cost + maxi(0, int(outpost.get("production_bank", 0)))
+		var target_improvements: Array = target_city.get("province_improvements", []).duplicate(true)
+		var occupied: Dictionary = {}
+		for item in target_improvements:
+			if item is Dictionary:
+				var item_cell := World.array_to_cell(item.get("cell", []))
+				occupied["%d:%d" % [item_cell.x, item_cell.y]] = true
+		var target_level := CityDevelopment.get_city_level(int(target_city.get("population", 1)))
+		var faction_value: Variant = kingdom.get("faction", {})
+		var faction_record: Dictionary = faction_value if faction_value is Dictionary else {}
+		var faction_effects := FactionCatalog.get_effects(faction_record)
+		var target_capacity := mini(SettlementCatalog.MAX_CITY_PROVINCE_SLOTS, CityDevelopment.get_province_slots(target_level) + int(faction_effects.get("province_slot_bonus", 0)))
+		for item in outpost.get("province_improvements", []):
+			if target_improvements.size() >= target_capacity or not item is Dictionary:
+				continue
+			var item_cell := World.array_to_cell(item.get("cell", []))
+			var key := "%d:%d" % [item_cell.x, item_cell.y]
+			if not occupied.has(key):
+				target_improvements.append(item.duplicate(true))
+				occupied[key] = true
+		target_city["province_improvements"] = CityDevelopment.normalize_province_improvements(target_improvements)
+		cities[target_index] = target_city
+		var outpost_name := str(outpost.get("name", "Застава"))
+		outposts.remove_at(outpost_index)
+		for index in range(outposts.size()):
+			outposts[index]["id"] = index
+		kingdom["cities"] = cities
+		kingdom["outposts"] = outposts
+		return "%s присоединил заставу «%s»" % [str(kingdom.get("name", "Король")), outpost_name]
+	return ""
 
 
 static func _find_expansion_cell(
@@ -548,7 +774,9 @@ static func _find_expansion_cell(
 		world_generation_version: int,
 		neutral_location_cells: Array[Vector2i] = [],
 		own_city_records: Array = [],
-		current_kingdom_id: int = -1
+		current_kingdom_id: int = -1,
+		player_outpost_cells: Array[Vector2i] = [],
+		own_outpost_records: Array = []
 ) -> Vector2i:
 	var best_cell := Vector2i(9999, 9999)
 	var best_score := -999999.0
@@ -561,26 +789,42 @@ static func _find_expansion_cell(
 			var candidate := capital_cell + offset
 			if not World.is_inside_world(candidate) or World.terrain_at(candidate, world_seed, world_generation_version) == "water":
 				continue
-			if neutral_location_cells.has(candidate) or _cell_occupied(candidate, kingdoms, player_cell, player_city_cells):
+			if neutral_location_cells.has(candidate) or _cell_occupied(candidate, kingdoms, player_cell, player_city_cells, player_outpost_cells):
 				continue
 			var valid_spacing := true
 			for own_city_value in own_city_records:
 				if not own_city_value is Dictionary:
 					continue
 				var own_city_cell := World.array_to_cell(own_city_value.get("cell", []))
-				if own_city_cell != capital_cell and World.hex_distance(candidate, own_city_cell) < 5:
+				if own_city_cell != capital_cell and World.hex_distance(candidate, own_city_cell) < SettlementCatalog.CITY_MIN_CITY_DISTANCE:
+					valid_spacing = false
+					break
+			for own_outpost_value in own_outpost_records:
+				if not own_outpost_value is Dictionary:
+					continue
+				var own_outpost_cell := World.array_to_cell(own_outpost_value.get("cell", []))
+				if World.hex_distance(candidate, own_outpost_cell) < SettlementCatalog.CITY_MIN_OUTPOST_DISTANCE:
 					valid_spacing = false
 					break
 			if not valid_spacing:
 				continue
 			var candidate_score := StrategicAI.score_expansion_cell(
 				candidate, capital_cell, own_city_records, kingdoms, current_kingdom_id,
-				player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells
+				player_cell, player_city_cells, world_seed, world_generation_version, neutral_location_cells,
+				player_outpost_cells, _to_outpost_cells(own_outpost_records)
 			)
 			if candidate_score > best_score:
 				best_score = candidate_score
 				best_cell = candidate
 	return best_cell
+
+
+static func _to_outpost_cells(outpost_records: Array) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for outpost_value in outpost_records:
+		if outpost_value is Dictionary:
+			result.append(World.array_to_cell(outpost_value.get("cell", [])))
+	return result
 
 
 static func _move_army(
@@ -911,9 +1155,10 @@ static func _cell_occupied(
 		cell: Vector2i,
 		kingdoms: Array[Dictionary],
 		player_cell: Vector2i,
-		player_city_cells: Array[Vector2i]
+		player_city_cells: Array[Vector2i],
+		player_outpost_cells: Array[Vector2i] = []
 ) -> bool:
-	if cell == player_cell or player_city_cells.has(cell):
+	if cell == player_cell or player_city_cells.has(cell) or player_outpost_cells.has(cell):
 		return true
 	for kingdom in kingdoms:
 		var capital := World.array_to_cell(kingdom.get("capital_cell", []))
@@ -925,6 +1170,10 @@ static func _cell_occupied(
 		for city in kingdom.get("cities", []):
 			var city_cell := World.array_to_cell(city.get("cell", []))
 			if city_cell == cell:
+				return true
+		for outpost in kingdom.get("outposts", []):
+			var outpost_cell := World.array_to_cell(outpost.get("cell", []))
+			if outpost_cell == cell:
 				return true
 	return false
 

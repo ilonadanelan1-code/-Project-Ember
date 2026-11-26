@@ -1,4 +1,4 @@
-Imported from Project-Ember-v0.29.0-Diplomacy-Expansion.zip
-Detected project version: v0.29.0
-Source branch: main
-Import is automated by GitHub Actions. Review CI results before merging.
+Project Ember v0.38.2 — imported from GitHub Release v0.38.2.
+Playable archive: Project-Ember-v0.38.2-Godot-Audited.zip
+Public source branch excludes licensed Tiny Swords combat_units_atlas.png and atlas_manifest.json.
+Keep those licensed binaries in the player's playable ZIP only.

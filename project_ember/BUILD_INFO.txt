@@ -1,12 +1,33 @@
-Build: Project Ember v0.36.1 — Map Motion Performance Hotfix
-Engine target: Godot 4.7.2-stable / GL Compatibility
+Build: Project Ember v0.38.2 — Godot Audit Hotfix
+Engine: Godot 4.7.2-stable.official.ed1daf0bf
+Renderer: GL Compatibility
 Platform target: Android landscape
-Base: v0.36.0 — Hero Roster, Multiple Armies & Equipment
-Performance: map drag temporarily defers territory borders, road/coastline generation, province/neutral details and city labels; fog visibility and main city/army markers remain active. Full detail is restored 160 ms after the last camera input.
-Implementation: ownership lookup is not rebuilt during continuous camera movement; the settled redraw recalculates the complete visible map state.
-Gameplay: no campaign rules, army logic, equipment values or save fields changed.
-Save schema: SAVE_VERSION 1; existing v0.36.0 campaign saves remain compatible.
-Rendering: native TileMap terrain and deterministic feature layers are unchanged.
-Package type: Godot source project, not an APK.
-Validation: static QA includes guards for the motion-detail policy; Godot 4.7.2 parser, smoke tests and visual captures run in GitHub Actions.
-Android validation: physical-device FPS after this change must be measured on the target phone; no performance gain is claimed until a new in-game report is captured.
+Source archive: user-provided Project-Ember-v0.38.1-AI-Expansion-Fix.zip
+Upstream lineage: release/v0.36.1 @ 5ddd271c3ccda799e9db681680f59bd8bdb9e2da (2026-11-26)
+
+Audit hotfixes:
+- Fixed a missing comment marker in kingdom_ai.gd that was parsed as invalid GDScript.
+- Added an explicit Array[Dictionary] type to the campaign kingdom initialization fallback to avoid inference failure.
+- Corrected the campaign smoke-test setup so it replenishes the foundation reserve before testing city founding.
+- Corrected the settlement economy smoke test to create a save-enabled campaign before asserting the save/load round trip.
+- Corrected the territory smoke-test fixture so the test's AI kingdom is stored at its actual kingdom index.
+- Replaced stale v0.31.0 package/import metadata with current v0.38.2 details.
+
+Gameplay retained:
+- City/outpost foundation, outpost income and upkeep, stock collection, annexation and upgrade-to-city.
+- City > outpost > field-army territorial influence; ownership is calculated from live sources.
+- AI expansion reserve, settlement planning and multi-kingdom peaceful expansion.
+- SAVE_VERSION remains 1; no save-schema bump.
+
+Validation with the uploaded Godot 4.7.2 binary:
+- Editor import: completed without script/resource load errors.
+- Project-context GDScript parser: 91 checked / 0 failed.
+- Runtime smoke suites: 37 passed / 0 failed (1,452 PASS assertions).
+- Strategic AI regression: additional AI cities across multiple kingdoms within 180 peaceful turns.
+- Visual map capture: 4/4 zoom levels passed at 1280x720 using Xvfb + Mesa llvmpipe software rendering.
+- Python static QA: 233/233 checks passed.
+- Tiny Swords release atlas: required 1152x2304 RGBA atlas and animation manifest validated by the playable packager.
+- ZIP integrity: checked after packaging.
+
+Android device performance and touch testing remain user-side checks. Software-rendered visual QA is not an Android FPS benchmark.
+Package type: complete Godot source project with restored playable pixel-art assets; not an APK.

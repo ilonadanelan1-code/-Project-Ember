@@ -6,6 +6,7 @@ const UnitCatalog = preload("res://scripts/unit_catalog.gd")
 const CityDevelopment = preload("res://scripts/city_development_catalog.gd")
 const FactionCatalog = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
+const SettlementCatalog = preload("res://scripts/settlement_catalog.gd")
 
 const INVALID_CELL := Vector2i(9999, 9999)
 const ROLE_ORDER := [
@@ -26,6 +27,8 @@ static func evaluate_kingdom(
 ) -> Dictionary:
 	var cities_value: Variant = kingdom.get("cities", [])
 	var cities: Array = cities_value if cities_value is Array else []
+	var outposts_value: Variant = kingdom.get("outposts", [])
+	var outposts: Array = outposts_value if outposts_value is Array else []
 	var army_value: Variant = kingdom.get("army", [])
 	var army: Array = army_value if army_value is Array else []
 	var faction_value: Variant = kingdom.get("faction", {})
@@ -60,6 +63,20 @@ static func evaluate_kingdom(
 		production_income += int(income.get("production", 0))
 		population_total += maxi(1, int(city.get("population", 1)))
 
+	for outpost_value in outposts:
+		if not outpost_value is Dictionary:
+			continue
+		var outpost: Dictionary = outpost_value
+		var improvements_value: Variant = outpost.get("province_improvements", [])
+		var improvements: Array = improvements_value if improvements_value is Array else []
+		var outpost_income := SettlementCatalog.get_outpost_income(improvements)
+		gold_reserve += maxi(0, int(outpost.get("gold", 0)))
+		food_reserve += maxi(0, int(outpost.get("food", 0)))
+		production_reserve += maxi(0, int(outpost.get("production_bank", 0)))
+		gold_income += int(outpost_income.get("gold", 0))
+		food_income += int(outpost_income.get("food", 0))
+		production_income += int(outpost_income.get("production", 0))
+
 	var upkeep := 0.0
 	for unit_value in army:
 		if not unit_value is Dictionary:
@@ -67,7 +84,10 @@ static func evaluate_kingdom(
 		var role_id: String = str(unit_value.get("role", UnitCatalog.ROLE_MELEE))
 		var unit_data := UnitCatalog.get_data(role_id)
 		upkeep += float(unit_data.get("upkeep", 0.8)) * FactionCatalog.get_upkeep_multiplier(role_id, faction)
-	var upkeep_due := ceili(upkeep)
+	var army_upkeep_due := ceili(upkeep)
+	var settlement_upkeep_data := SettlementCatalog.get_upkeep(cities.size(), outposts.size())
+	var settlement_upkeep_due := int(settlement_upkeep_data.get("total", 0))
+	var upkeep_due := army_upkeep_due + settlement_upkeep_due
 	var army_strength := estimate_force_strength(army)
 	var active_war := false
 	var threatened := false
@@ -78,6 +98,9 @@ static func evaluate_kingdom(
 	for city_value in cities:
 		if city_value is Dictionary:
 			own_city_cells.append(World.array_to_cell(city_value.get("cell", [])))
+	for outpost_value in outposts:
+		if outpost_value is Dictionary:
+			own_city_cells.append(World.array_to_cell(outpost_value.get("cell", [])))
 
 	var player_record := DiplomacyCatalog.get_record(diplomacy_relations, DiplomacyCatalog.PLAYER_ID, kingdom_id)
 	if str(player_record.get("treaty", "peace")) == "war":
@@ -116,21 +139,31 @@ static func evaluate_kingdom(
 	elif active_war or threatened:
 		economy_focus = "military"
 
-	var desired_army_size := clampi(8 + cities.size() * 2 + floori(float(population_total) / 10.0), 8, 20)
+	# Early kingdoms must not recruit themselves into a maintenance deadlock.
+	# The initial force already contains 4–5 units; reserve expansion funds first,
+	# then grow the army as the realm gains additional cities and income.
+	var desired_army_size := clampi(5 + maxi(0, cities.size() - 1) * 2 + floori(float(population_total) / 14.0), 5, 18)
 	if active_war:
 		desired_army_size += 3
 	if threatened:
 		desired_army_size += 2
-	desired_army_size = clampi(desired_army_size, 8, 24)
+	desired_army_size = clampi(desired_army_size, 5, 24)
 	var can_recruit := gold_reserve >= reserve_threshold and net_gold_per_turn >= -1
 	if active_war and threatened and gold_reserve >= 25:
 		can_recruit = true
 	if not can_recruit and not threatened:
 		desired_army_size = mini(desired_army_size, army.size())
 
-	var expansion_allowed := cities.size() < 3
-	expansion_allowed = expansion_allowed and gold_reserve >= 65 + upkeep_due * 3
-	expansion_allowed = expansion_allowed and net_gold_per_turn >= 0
+	# Expansion is a strategic priority, not a reward for having a full army.
+	# A small temporary deficit is acceptable when the treasury can pay for a
+	# foundation and several turns of upkeep. Requiring a non-negative net every
+	# turn caused the old AI to maintain a full army and never save for a city.
+	var expansion_reserve_required := SettlementCatalog.AI_CITY_FOUND_GOLD_COST + upkeep_due * 3 + 15
+	var capital_gold := maxi(0, int(cities[0].get("gold", 0))) if not cities.is_empty() and cities[0] is Dictionary else 0
+	var expansion_allowed := cities.size() + outposts.size() < SettlementCatalog.MAX_AI_SETTLEMENTS
+	expansion_allowed = expansion_allowed and gold_reserve >= expansion_reserve_required
+	expansion_allowed = expansion_allowed and capital_gold >= SettlementCatalog.AI_CITY_FOUND_GOLD_COST
+	expansion_allowed = expansion_allowed and net_gold_per_turn >= -1
 	if threatened and army_strength < maxf(1.0, nearest_threat_strength) * 0.90:
 		expansion_allowed = false
 
@@ -145,12 +178,18 @@ static func evaluate_kingdom(
 		"army_strength": army_strength,
 		"threat_strength": nearest_threat_strength,
 		"gold_reserve": gold_reserve,
+		"capital_gold": capital_gold,
+		"expansion_reserve_required": expansion_reserve_required,
 		"food_reserve": food_reserve,
 		"production_reserve": production_reserve,
 		"gold_income": gold_income,
 		"food_income": food_income,
 		"production_income": production_income,
 		"upkeep": upkeep_due,
+		"army_upkeep": army_upkeep_due,
+		"settlement_upkeep": settlement_upkeep_due,
+		"outpost_count": outposts.size(),
+		"settlement_count": cities.size() + outposts.size(),
 		"net_gold_per_turn": net_gold_per_turn,
 		"desired_army_size": desired_army_size,
 		"can_recruit": can_recruit,
@@ -353,7 +392,9 @@ static func score_expansion_cell(
 		player_city_cells: Array[Vector2i],
 		world_seed: int,
 		world_generation_version: int,
-		neutral_location_cells: Array[Vector2i]
+		neutral_location_cells: Array[Vector2i],
+		player_outpost_cells: Array[Vector2i] = [],
+		own_outpost_cells: Array[Vector2i] = []
 ) -> float:
 	if not World.is_inside_world(candidate):
 		return -999999.0
@@ -389,12 +430,18 @@ static func score_expansion_cell(
 		if own_cell == capital_cell:
 			continue
 		var own_distance := World.hex_distance(candidate, own_cell)
-		if own_distance < 5:
+		if own_distance < SettlementCatalog.CITY_MIN_CITY_DISTANCE:
 			return -999999.0
 		score += minf(4.0, float(own_distance) * 0.25)
 	for other in kingdoms:
 		if int(other.get("id", -1)) == current_kingdom_id or not bool(other.get("alive", true)):
 			continue
+		for other_outpost in other.get("outposts", []):
+			if not other_outpost is Dictionary:
+				continue
+			var other_outpost_cell := World.array_to_cell(other_outpost.get("cell", []))
+			if World.hex_distance(candidate, other_outpost_cell) < SettlementCatalog.CITY_MIN_OUTPOST_DISTANCE:
+				return -999999.0
 		var other_cities_value: Variant = other.get("cities", [])
 		if not other_cities_value is Array:
 			continue
@@ -413,6 +460,12 @@ static func score_expansion_cell(
 			return -999999.0
 		if player_distance < 7:
 			score -= float(7 - player_distance) * 3.0
+	for player_outpost in player_outpost_cells:
+		if World.hex_distance(candidate, player_outpost) < SettlementCatalog.CITY_MIN_OUTPOST_DISTANCE:
+			return -999999.0
+	for own_outpost in own_outpost_cells:
+		if World.hex_distance(candidate, own_outpost) < SettlementCatalog.CITY_MIN_OUTPOST_DISTANCE:
+			return -999999.0
 	var player_army_distance := World.hex_distance(candidate, player_cell)
 	if player_army_distance < 3:
 		score -= 18.0

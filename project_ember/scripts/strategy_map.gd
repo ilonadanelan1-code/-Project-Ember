@@ -20,6 +20,7 @@ const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.g
 const GameIconCatalogScript = preload("res://scripts/game_icon_catalog.gd")
 const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
 const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
+const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
 const CITY_MARKER_ATLAS: Texture2D = preload("res://assets/map/city_marker_atlas.png")
 
 ## Explored-world strategic map: fog of war, viewport streaming and AI kingdom markers.
@@ -69,6 +70,13 @@ var _turn_button: Button
 var _selection_button: Button
 var _city_button: Button
 var _city_panel: PanelContainer
+var _outpost_panel: PanelContainer
+var _outpost_overview_label: Label
+var _outpost_title_label: Label
+var _outpost_collect_button: Button
+var _outpost_merge_button: Button
+var _outpost_upgrade_button: Button
+var _selected_outpost_id: int = -1
 var _settings_panel: SettingsPanel
 var _city_overview_label: Label
 var _city_title_label: Label
@@ -200,6 +208,14 @@ func _draw() -> void:
 			if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 				_draw_city_label(center, str(city_data.get("name", "Поселение")), PLAYER_TEAM_COLOR)
 
+	for outpost_data in CampaignState.outposts:
+		var outpost_cell := WorldGeneratorScript.array_to_cell(outpost_data.get("cell", []), Vector2i(9999, 9999))
+		var outpost_center := _hex_center(outpost_cell)
+		if CampaignState.is_cell_explored(outpost_cell) and _point_is_visible(outpost_center, 30.0 * _map_zoom):
+			_draw_outpost_marker(outpost_center, PLAYER_TEAM_COLOR)
+			if not _map_motion_active and _map_zoom >= 0.55:
+				_draw_city_label(outpost_center, str(outpost_data.get("name", "Застава")), Color(0.95, 0.78, 0.36))
+
 	for kingdom_index in range(CampaignState.kingdoms.size()):
 		var kingdom: Dictionary = CampaignState.kingdoms[kingdom_index]
 		var faction_color := _kingdom_color(kingdom_index)
@@ -213,6 +229,17 @@ func _draw() -> void:
 				_draw_city_marker(center, remembered_color, city_index == 0, false)
 				if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 					_draw_city_label(center, str(city_data.get("name", "Поселение")), remembered_color)
+		var ai_outposts: Array = kingdom.get("outposts", [])
+		for outpost_data in ai_outposts:
+			if not outpost_data is Dictionary:
+				continue
+			var outpost_cell := WorldGeneratorScript.array_to_cell(outpost_data.get("cell", []), Vector2i(9999, 9999))
+			var outpost_center := _hex_center(outpost_cell)
+			if CampaignState.is_cell_explored(outpost_cell) and _point_is_visible(outpost_center, 30.0 * _map_zoom):
+				var marker_color := faction_color if CampaignState.is_cell_visible(outpost_cell) else faction_color.darkened(0.34)
+				_draw_outpost_marker(outpost_center, marker_color)
+				if not _map_motion_active and _map_zoom >= 0.55:
+					_draw_city_label(outpost_center, str(outpost_data.get("name", "Застава")), marker_color.lightened(0.25))
 		var army: Array = kingdom.get("army", [])
 		if not army.is_empty():
 			var army_cell := WorldGeneratorScript.array_to_cell(kingdom.get("army_cell", []))
@@ -262,7 +289,8 @@ func _refresh_owner_lookup() -> void:
 		CampaignState.player_cell,
 		CampaignState.player_units,
 		CampaignState.kingdoms,
-		CampaignState.player_armies
+		CampaignState.player_armies,
+		CampaignState.outposts
 	)
 
 
@@ -332,6 +360,27 @@ func _point_is_visible(point: Vector2, margin: float = 0.0) -> bool:
 
 func _kingdom_color(index: int) -> Color:
 	return Color.from_hsv(float(posmod(index, WorldGeneratorScript.KINGDOM_COUNT)) / float(WorldGeneratorScript.KINGDOM_COUNT), 0.68, 0.92, 1.0)
+
+
+func _draw_outpost_marker(center: Vector2, marker_color: Color) -> void:
+	var marker_size := maxf(3.0, 8.0 * _map_zoom)
+	var points := PackedVector2Array([
+		center + Vector2(0.0, -marker_size),
+		center + Vector2(marker_size, 0.0),
+		center + Vector2(0.0, marker_size),
+		center + Vector2(-marker_size, 0.0),
+	])
+	draw_colored_polygon(points, Palette.MAP_OBJECT_SHADOW)
+	var inner_size := marker_size * 0.72
+	var inner := PackedVector2Array([
+		center + Vector2(0.0, -inner_size),
+		center + Vector2(inner_size, 0.0),
+		center + Vector2(0.0, inner_size),
+		center + Vector2(-inner_size, 0.0),
+	])
+	draw_colored_polygon(inner, marker_color)
+	draw_line(center + Vector2(-inner_size * 0.55, 0.0), center + Vector2(inner_size * 0.55, 0.0), Color(0.12, 0.10, 0.08), maxf(1.0, 1.3 * _map_zoom), true)
+	draw_line(center + Vector2(0.0, -inner_size * 0.55), center + Vector2(0.0, inner_size * 0.55), Color(0.12, 0.10, 0.08), maxf(1.0, 1.3 * _map_zoom), true)
 
 
 func _draw_city_marker(
@@ -858,7 +907,7 @@ func _create_ui() -> void:
 	_split_army_button = _add_button(more_grid, "РАЗДЕЛИТЬ АРМИЮ", _create_player_army)
 	_set_button_icon(_split_army_button, GameIconCatalogScript.unit_icon("melee"))
 	_add_button(more_grid, "НОВАЯ КАМПАНИЯ", _restart_campaign)
-	_found_city_button = _add_button(more_grid, "ОСНОВАТЬ ГОРОД", _found_city)
+	_found_city_button = _add_button(more_grid, "ОСНОВАТЬ ПОСЕЛЕНИЕ", _found_city)
 	_set_button_icon(_found_city_button, GameIconCatalogScript.unit_icon("worker"))
 	_add_button(more_grid, "НАСТРОЙКИ", _open_settings)
 	_kingdoms_button = _add_button(more_grid, "КОРОЛЕВСТВА", _open_kingdoms_panel)
@@ -885,6 +934,7 @@ func _create_ui() -> void:
 	_turn_button = _add_button(quick_row, "ХОД", _advance_turn)
 	_map_more_button = _add_button(quick_row, "ЕЩЁ", _toggle_map_commands)
 	_create_city_panel(root)
+	_create_outpost_panel(root)
 	_create_kingdoms_panel(root)
 	_create_world_event_panel(root)
 	_create_faction_setup_panel(root)
@@ -1872,13 +1922,13 @@ func _create_city_panel(root: Control) -> void:
 	training_hint.add_theme_color_override("font_color", Palette.UI_TEXT_HINT)
 	details.add_child(training_hint)
 
-	_settler_button = _add_button(details, "ПОСТРОИТЬ ПОСЕЛЕНЦА · 45 зол. · 10 пр.", _queue_settler)
+	_settler_button = _add_button(details, "ПОСТРОИТЬ ПОСЕЛЕНЦА", _queue_settler)
 	_set_button_icon(_settler_button, GameIconCatalogScript.unit_icon("settler"))
 	_settler_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(56.0))
 	_settler_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
 
 	var hint := Label.new()
-	hint.text = "Золото оплачивает заказы сразу, производство — по завершении. Уровень города растёт при населении 8 и 14; специализация открывается на уровне 2. Провинции улучшаются на подходящих соседних гексах. Содержание армии списывается из казны всех городов."
+	hint.text = "Золото оплачивает заказы сразу, производство — по завершении. Уровень города растёт при населении 8 и 14; специализация открывается на уровне 2. Провинции улучшаются на подходящих соседних гексах. Содержание армии и поселений оплачивается из казны городов и запасов застав."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
 	hint.add_theme_color_override("font_color", Palette.UI_TEXT_HINT)
@@ -1915,9 +1965,130 @@ func _upgrade_city_building(building_id: String) -> void:
 	_refresh_ui()
 
 
+func _create_outpost_panel(root: Control) -> void:
+	_outpost_panel = PanelContainer.new()
+	_outpost_panel.name = "OutpostDetailsPanel"
+	_outpost_panel.anchor_left = 0.16
+	_outpost_panel.anchor_top = 0.24
+	_outpost_panel.anchor_right = 0.84
+	_outpost_panel.anchor_bottom = 0.78
+	_outpost_panel.visible = false
+	root.add_child(_outpost_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(14.0)))
+	margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(12.0)))
+	margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(14.0)))
+	margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(12.0)))
+	_outpost_panel.add_child(margin)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	margin.add_child(content)
+	var header := HBoxContainer.new()
+	content.add_child(header)
+	_outpost_title_label = Label.new()
+	_outpost_title_label.text = "ЗАСТАВА"
+	_outpost_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(20))
+	_outpost_title_label.add_theme_color_override("font_color", Color(0.95, 0.78, 0.36))
+	_outpost_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_outpost_title_label)
+	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_outpost)
+	close_button.custom_minimum_size = Vector2(120.0, UiThemeScript.touch_target(48.0))
+	_outpost_overview_label = Label.new()
+	_outpost_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_outpost_overview_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	_outpost_overview_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	content.add_child(_outpost_overview_label)
+	_outpost_collect_button = _add_button(content, "СОБРАТЬ ЗАПАСЫ", _collect_outpost_income)
+	_outpost_collect_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+	_outpost_merge_button = _add_button(content, "ПРИСОЕДИНИТЬ К ГОРОДУ", _annex_outpost_merge)
+	_outpost_merge_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+	_outpost_upgrade_button = _add_button(content, "ПРЕОБРАЗОВАТЬ В ГОРОД", _annex_outpost_upgrade)
+	_outpost_upgrade_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+
+
+func _open_outpost(outpost_index: int) -> void:
+	if outpost_index < 0 or outpost_index >= CampaignState.outposts.size() or not is_instance_valid(_outpost_panel):
+		return
+	_selected_outpost_id = outpost_index
+	if is_instance_valid(_city_panel):
+		_city_panel.visible = false
+	if is_instance_valid(_kingdoms_panel):
+		_kingdoms_panel.visible = false
+	_outpost_panel.visible = true
+	_refresh_outpost_panel()
+
+
+func _close_outpost() -> void:
+	if is_instance_valid(_outpost_panel):
+		_outpost_panel.visible = false
+	_selected_outpost_id = -1
+
+
+func _refresh_outpost_panel() -> void:
+	if not is_instance_valid(_outpost_panel) or _selected_outpost_id < 0 or _selected_outpost_id >= CampaignState.outposts.size():
+		if is_instance_valid(_outpost_panel):
+			_outpost_panel.visible = false
+		return
+	var outpost: Dictionary = CampaignState.outposts[_selected_outpost_id]
+	var outpost_cell := WorldGeneratorScript.array_to_cell(outpost.get("cell", []))
+	var income := CampaignState.get_outpost_income(_selected_outpost_id)
+	var nearest_city := CampaignState.get_nearest_player_city_index(outpost_cell)
+	var nearest_name := str(CampaignState.cities[nearest_city].get("name", "Город")) if nearest_city >= 0 else "нет города"
+	var can_merge := CampaignState.can_annex_outpost(_selected_outpost_id, "merge")
+	var can_upgrade := CampaignState.can_annex_outpost(_selected_outpost_id, "upgrade")
+	_outpost_title_label.text = "ЗАСТАВА — %s" % str(outpost.get("name", "Пограничный пост"))
+	_outpost_overview_label.text = "Координаты: %d, %d · влияние: радиус %d гексов\nКазна: %d золота · %d еды · %d производства\nДоход за ход: +%d золота · +%d еды · +%d производства\nБлижайший город: %s\nСодержание: %d зол./ход\nЗаставы не растут и не строят здания. Их запасы можно собрать или передать при аннексии." % [
+		outpost_cell.x, outpost_cell.y, SettlementCatalogScript.OUTPOST_INFLUENCE_RADIUS,
+		int(outpost.get("gold", 0)), int(outpost.get("food", 0)), int(outpost.get("production_bank", 0)),
+		int(income.get("gold", 0)), int(income.get("food", 0)), int(income.get("production", 0)),
+		nearest_name, SettlementCatalogScript.OUTPOST_UPKEEP_PER_TURN,
+	]
+	_outpost_collect_button.disabled = not CampaignState.can_collect_outpost_income(_selected_outpost_id)
+	_outpost_merge_button.disabled = not can_merge
+	_outpost_upgrade_button.disabled = not can_upgrade
+	_outpost_merge_button.text = "ПРИСОЕДИНИТЬ · %d зол. · %d пр." % [SettlementCatalogScript.ANNEX_MERGE_GOLD_COST, SettlementCatalogScript.ANNEX_MERGE_PRODUCTION_COST]
+	_outpost_upgrade_button.text = "СДЕЛАТЬ ГОРОДОМ · %d зол. · %d пр." % [SettlementCatalogScript.ANNEX_UPGRADE_GOLD_COST, SettlementCatalogScript.ANNEX_UPGRADE_PRODUCTION_COST]
+
+
+func _collect_outpost_income() -> void:
+	if CampaignState.collect_outpost_income(_selected_outpost_id):
+		_message_text = "Запасы заставы переданы ближайшему городу."
+		Haptics.confirm(14)
+	else:
+		_message_text = "Нет запасов для сбора или отсутствует город-получатель."
+	_refresh_outpost_panel()
+	_refresh_ui()
+
+
+func _annex_outpost_merge() -> void:
+	if CampaignState.annex_outpost(_selected_outpost_id, "merge"):
+		_message_text = "Застава присоединена к ближайшему городу. Запасы и улучшения переданы."
+		_close_outpost()
+		Haptics.confirm(18)
+	else:
+		_message_text = "Для присоединения нужны город в радиусе двух гексов и доступные ресурсы."
+	_refresh_outpost_panel()
+	_refresh_ui()
+	queue_redraw()
+
+
+func _annex_outpost_upgrade() -> void:
+	if CampaignState.annex_outpost(_selected_outpost_id, "upgrade"):
+		_message_text = "Застава преобразована в полноценный город."
+		_close_outpost()
+		Haptics.confirm(18)
+	else:
+		_message_text = "Преобразование пока недоступно: проверь казну, лимит и расстояние."
+	_refresh_outpost_panel()
+	_refresh_ui()
+	queue_redraw()
+
+
 func _open_city() -> void:
 	if CampaignState.cities.is_empty() or not is_instance_valid(_city_panel):
 		return
+	if is_instance_valid(_outpost_panel):
+		_outpost_panel.visible = false
 	_city_panel.visible = true
 	_refresh_city_panel()
 
@@ -2106,21 +2277,48 @@ func _queue_settler() -> void:
 	if CampaignState.queue_settler():
 		_message_text = "Поселенец добавлен в очередь города."
 	else:
-		_message_text = "Нужны 45 золота, 3 жителя и отсутствие другого поселенца."
+		var settler_cost: Dictionary = CampaignState.get_settler_cost_preview()
+		_message_text = "Нужны %d золота, %d производства, %d жителей и отсутствие другого поселенца." % [int(settler_cost.get("gold", 0)), int(settler_cost.get("production", 0)), SettlementCatalogScript.SETTLER_MIN_POPULATION]
 	_refresh_city_panel()
 	_refresh_ui()
 
 func _found_city() -> void:
-	if CampaignState.found_city(CampaignState.settler_cell):
+	if not CampaignState.settler_active:
+		_message_text = "Сначала подготовь поселенца в городе."
+		_refresh_ui()
+		return
+	var menu := PopupMenu.new()
+	menu.name = "SettlementFoundationMenu"
+	var city_cost: Dictionary = SettlementCatalogScript.get_foundation_cost(SettlementCatalogScript.TYPE_CITY)
+	var outpost_cost: Dictionary = SettlementCatalogScript.get_foundation_cost(SettlementCatalogScript.TYPE_OUTPOST)
+	menu.add_item("ГОРОД · %d зол. · %d пр." % [int(city_cost.get("gold", 0)), int(city_cost.get("production", 0))], 0)
+	menu.add_item("ЗАСТАВА · %d зол. · %d пр." % [int(outpost_cost.get("gold", 0)), int(outpost_cost.get("production", 0))], 1)
+	menu.id_pressed.connect(_on_foundation_choice)
+	menu.popup_hide.connect(menu.queue_free)
+	add_child(menu)
+	menu.popup_centered(Vector2i(440, 150))
+
+
+func _on_foundation_choice(choice_id: int) -> void:
+	var founded := false
+	if choice_id == 0:
+		founded = CampaignState.found_city(CampaignState.settler_cell)
+		if founded:
+			_message_text = "Основан новый город: " + CampaignState.city_name
+	else:
+		founded = CampaignState.found_outpost(CampaignState.settler_cell)
+		if founded:
+			_message_text = "Основана новая застава. Она расширяет границы и приносит золото."
+	if founded:
 		_settler_selected = false
-		_message_text = "Основан новый город: " + CampaignState.city_name
 		Haptics.confirm(30)
 		_close_city()
 	else:
-		_message_text = "Нужно свободное место не ближе 3 гексов от других городов."
+		_message_text = "Здесь нельзя основать выбранное поселение или не хватает ресурсов."
 	_refresh_city_panel()
 	_refresh_ui()
 	queue_redraw()
+
 
 func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
@@ -2148,10 +2346,13 @@ func _refresh_city_panel() -> void:
 		_city_resource_labels["gold"].text = str(CampaignState.city_gold)
 		_city_resource_labels["food"].text = str(CampaignState.city_food)
 		_city_resource_labels["production"].text = str(CampaignState.city_production_bank)
-	_city_income_label.text = "Доход за ход: +%d еды · +%d золота · +%d производства" % [
-		int(income["food"]),
-		int(income["gold"]),
-		int(income["production"]),
+	var economy := CampaignState.get_economy_snapshot()
+	var net_gold := int(economy.get("net_gold_per_turn", 0))
+	var net_text := "+%d" % net_gold if net_gold >= 0 else "−%d" % absi(net_gold)
+	_city_income_label.text = "Доход города за ход: +%d еды · +%d золота · +%d производства\nДержава: баланс %s зол./ход · армия −%d · поселения −%d · всего %d" % [
+		int(income["food"]), int(income["gold"]), int(income["production"]), net_text,
+		int(economy.get("army_upkeep", 0)), int(economy.get("settlement_upkeep", 0)),
+		int(economy.get("settlement_count", 0)),
 	]
 	if is_instance_valid(_city_development_label):
 		var spec_name := "Не выбрана"
@@ -2268,6 +2469,8 @@ func _refresh_city_panel() -> void:
 			lord_button.disabled = not CampaignState.can_recruit_lord(candidate_id)
 
 	if is_instance_valid(_settler_button):
+		var settler_cost: Dictionary = CampaignState.get_settler_cost_preview()
+		_settler_button.text = "ПОСТРОИТЬ ПОСЕЛЕНЦА · %d зол. · %d пр." % [int(settler_cost.get("gold", 0)), int(settler_cost.get("production", 0))]
 		_settler_button.disabled = not CampaignState.can_queue_settler()
 	for building_id in _city_building_buttons:
 		var button: Button = _city_building_buttons[building_id]
@@ -2508,21 +2711,29 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		_settler_selected = true
 		_army_selected = false
 		Haptics.tap(10)
-		_message_text = "Поселенец выбран. Перемести его на свободный гекс и нажми ОСНОВАТЬ ГОРОД."
+		_message_text = "Поселенец выбран. Перемести его на свободный гекс и выбери: город или застава."
 		_refresh_ui()
 		queue_redraw()
 		return
 
 	if _settler_selected and CampaignState.settler_active:
-		if _hex_distance(CampaignState.settler_cell, cell) == 1 and _is_traversable(cell) and CampaignState.get_city_index_at(cell) < 0 and cell != CampaignState.player_cell and (not CampaignState.enemy_present or cell != CampaignState.enemy_cell) and CampaignState.settler_moves_left > 0:
+		if _hex_distance(CampaignState.settler_cell, cell) == 1 and _is_traversable(cell) and CampaignState.get_city_index_at(cell) < 0 and CampaignState.get_outpost_index_at(cell) < 0 and cell != CampaignState.player_cell and (not CampaignState.enemy_present or cell != CampaignState.enemy_cell) and CampaignState.settler_moves_left > 0:
 			CampaignState.settler_cell = cell
 			CampaignState.settler_moves_left -= 1
 			CampaignState.save_campaign()
 			Haptics.confirm(15)
-			_message_text = "Поселенец перемещён. Нажми ОСНОВАТЬ ГОРОД."
+			_message_text = "Поселенец перемещён. Нажми ОСНОВАТЬ ПОСЕЛЕНИЕ."
 			_refresh_ui()
 			queue_redraw()
 			return
+
+	var clicked_outpost_index := CampaignState.get_outpost_index_at(cell)
+	if clicked_outpost_index >= 0:
+		_settler_selected = false
+		_army_selected = false
+		_selected_kingdom_id = -1
+		_open_outpost(clicked_outpost_index)
+		return
 
 	if CampaignState.get_city_index_at(cell) >= 0:
 		CampaignState.select_city_at(cell)
@@ -2707,6 +2918,8 @@ func _advance_turn() -> void:
 	if not CampaignState.city_last_event.is_empty():
 		_message_text += " Город: " + CampaignState.city_last_event
 	_refresh_city_panel()
+	if is_instance_valid(_outpost_panel) and _outpost_panel.visible:
+		_refresh_outpost_panel()
 	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:
 		_refresh_kingdoms_panel()
 	if is_instance_valid(_diplomacy_panel) and _diplomacy_panel.visible:
@@ -2793,7 +3006,8 @@ func _refresh_ui() -> void:
 	if is_instance_valid(_city_button):
 		_city_button.disabled = CampaignState.cities.is_empty() or CampaignState.campaign_lost
 	if is_instance_valid(_found_city_button):
-		_found_city_button.disabled = not CampaignState.settler_active or not CampaignState.can_found_city(CampaignState.settler_cell) or not _is_traversable(CampaignState.settler_cell)
+		var can_found_any_settlement := CampaignState.settler_active and (CampaignState.can_found_city(CampaignState.settler_cell) or CampaignState.can_found_outpost(CampaignState.settler_cell))
+		_found_city_button.disabled = not can_found_any_settlement or not _is_traversable(CampaignState.settler_cell)
 	if is_instance_valid(_city_panel) and _city_panel.visible:
 		_refresh_city_panel()
 	if is_instance_valid(_kingdoms_panel) and _kingdoms_panel.visible:

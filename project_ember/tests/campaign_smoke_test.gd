@@ -44,8 +44,14 @@ func _run() -> void:
 	_check(state.player_units.size() == state.ARMY_CAPACITY, "army can grow to the expanded capacity")
 	state.player_units = state._make_starting_army()
 
+	# This test focuses on legal placement and city creation. Replenish the
+	# foundation reserve explicitly after the earlier queue/recruitment checks.
+	state.city_gold = maxi(state.city_gold, 100)
+	state.city_production_bank = maxi(state.city_production_bank, 20)
+	state._save_active_city()
 	state.settler_active = true
 	state.settler_cell = Vector2i(0, 3)
+	state.settler_origin_city_id = state.active_city_id
 	var neutral_founding_cell := Vector2i(9999, 9999)
 	for radius in range(3, 25):
 		for q in range(-radius, radius + 1):

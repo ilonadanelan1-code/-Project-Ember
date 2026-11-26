@@ -1,0 +1,22 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+PASS: new campaign creates the starting army
+PASS: empty production queue has a valid summary
+PASS: city accepts a barracks order
+PASS: queue summary names the active order
+PASS: completed building is added to the city
+PASS: city accepts a melee recruitment order
+PASS: recruitment message uses the selected unit name
+PASS: completed recruitment adds a unit to the army
+PASS: recruitment respects the global army cap
+PASS: army can grow to the expanded capacity
+PASS: campaign contains neutral land legally available for settlement
+PASS: settler can found a city on neutral land
+PASS: new city is added to the campaign
+PASS: new city becomes the active city
+PASS: capital receives its income before paying army upkeep
+PASS: new city receives independent turn income
+PASS: campaign saves successfully
+PASS: saved campaign loads successfully
+PASS: loading restores the saved active-city economy
+All campaign smoke tests passed.
