@@ -18,11 +18,23 @@ static func build_owner_lookup(
 		player_cities: Array[Dictionary],
 		player_army_cell: Vector2i,
 		player_army: Array[Dictionary],
-		kingdoms: Array[Dictionary]
+		kingdoms: Array[Dictionary],
+		player_armies: Array[Dictionary] = []
 ) -> Dictionary:
 	var sources: Array[Dictionary] = []
 	_append_city_sources(sources, player_cities, OWNER_PLAYER)
-	_append_army_source(sources, player_army_cell, player_army, OWNER_PLAYER)
+	if player_armies.is_empty():
+		_append_army_source(sources, player_army_cell, player_army, OWNER_PLAYER)
+	else:
+		for player_army_record in player_armies:
+			var units_value: Variant = player_army_record.get("units", [])
+			var units: Array[Dictionary] = []
+			if units_value is Array:
+				for unit_value in units_value:
+					if unit_value is Dictionary:
+						units.append(unit_value)
+			var army_cell := World.array_to_cell(player_army_record.get("cell", []), Vector2i(9999, 9999))
+			_append_army_source(sources, army_cell, units, OWNER_PLAYER)
 	for kingdom_index in range(kingdoms.size()):
 		var kingdom: Dictionary = kingdoms[kingdom_index]
 		if not bool(kingdom.get("alive", true)):
@@ -83,10 +95,11 @@ static func get_owner_at(
 		player_cities: Array[Dictionary],
 		player_army_cell: Vector2i,
 		player_army: Array[Dictionary],
-		kingdoms: Array[Dictionary]
+		kingdoms: Array[Dictionary],
+		player_armies: Array[Dictionary] = []
 ) -> int:
 	var probe: Array[Vector2i] = [cell]
-	var lookup := build_owner_lookup(probe, player_cities, player_army_cell, player_army, kingdoms)
+	var lookup := build_owner_lookup(probe, player_cities, player_army_cell, player_army, kingdoms, player_armies)
 	return int(lookup.get(cell, OWNER_UNCLAIMED))
 
 
