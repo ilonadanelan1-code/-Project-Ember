@@ -95,6 +95,7 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 			"next_expansion_turn": 8 + (index % 4),
 			"target_kingdom_id": (index + 1) % World.KINGDOM_COUNT,
 			"military_doctrine": index % 4,
+			"arcane_victory_progress": 0,
 			"neutral_target_id": "",
 		}
 		result.append(record)
@@ -222,6 +223,7 @@ static func normalize_kingdom(raw: Dictionary, fallback: Dictionary, world_seed:
 		int(result["military_doctrine"]),
 		world_seed
 	)
+	result["arcane_victory_progress"] = clampi(int(raw.get("arcane_victory_progress", result.get("arcane_victory_progress", 0))), 0, 120)
 	result["neutral_target_id"] = str(raw.get("neutral_target_id", result.get("neutral_target_id", "")))
 	return result
 
