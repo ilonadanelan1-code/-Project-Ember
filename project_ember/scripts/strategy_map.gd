@@ -423,21 +423,20 @@ func _draw_city_marker(
 		var source_rect := Rect2(Vector2(source_x, 0.0), Vector2(256.0, 256.0))
 		draw_texture_rect_region(CITY_MARKER_ATLAS, Rect2(sprite_position, sprite_size), source_rect, Color.WHITE)
 
-	# The faction-coloured pennant distinguishes AI kingdoms that share a red castle sprite.
-	if not is_player_city:
-		var flag_pole := center + Vector2(22.0, -26.0) * marker_scale
-		var flag_tip := flag_pole + Vector2(0.0, -19.0) * marker_scale
-		draw_line(flag_pole, flag_tip, Palette.MAP_CITY_FLAG_POLE, maxf(1.0, 1.4 * marker_scale))
-		var faction_banner := GameIconCatalogScript.faction_banner_icon(maxi(0, faction_index))
-		if is_instance_valid(faction_banner):
-			var flag_size := Vector2(12.0, 18.0) * marker_scale
-			draw_texture_rect(faction_banner, Rect2(flag_tip + Vector2(1.0, 0.0) * marker_scale, flag_size), false, banner_color)
-		else:
-			draw_colored_polygon(PackedVector2Array([
-				flag_tip,
-				flag_tip + Vector2(12.0, 3.0) * marker_scale,
-				flag_tip + Vector2(0.0, 7.0) * marker_scale,
-			]), banner_color)
+	# The heraldic banner identifies the player realm and every AI faction.
+	var flag_pole := center + Vector2(22.0, -26.0) * marker_scale
+	var flag_tip := flag_pole + Vector2(0.0, -19.0) * marker_scale
+	draw_line(flag_pole, flag_tip, Palette.MAP_CITY_FLAG_POLE, maxf(1.0, 1.4 * marker_scale))
+	var faction_banner := GameIconCatalogScript.faction_banner_icon(maxi(0, faction_index))
+	if is_instance_valid(faction_banner):
+		var flag_size := Vector2(12.0, 18.0) * marker_scale
+		draw_texture_rect(faction_banner, Rect2(flag_tip + Vector2(1.0, 0.0) * marker_scale, flag_size), false, banner_color)
+	else:
+		draw_colored_polygon(PackedVector2Array([
+			flag_tip,
+			flag_tip + Vector2(12.0, 3.0) * marker_scale,
+			flag_tip + Vector2(0.0, 7.0) * marker_scale,
+		]), banner_color)
 	if is_capital:
 		draw_circle(center + Vector2(0.0, 17.0) * marker_scale, maxf(1.0, 2.0 * marker_scale), Palette.GOLD_LIGHT)
 	if is_player_city:
@@ -975,7 +974,7 @@ func _create_ui() -> void:
 	_selection_button = _add_button(quick_row, "АРМИЯ", _select_player_army)
 	_set_button_icon(_selection_button, GameIconCatalogScript.unit_icon("melee"))
 	_city_button = _add_button(quick_row, "ГОРОД", _open_city)
-	_set_button_icon(_city_button, GameIconCatalogScript.settlement_icon("castle_blue"))
+	_set_button_icon(_city_button, GameIconCatalogScript.medieval_prop_icon("castle_tower"))
 	_turn_button = _add_button(quick_row, "ХОД", _advance_turn)
 	_map_more_button = _add_button(quick_row, "ЕЩЁ", _toggle_map_commands)
 	_create_city_panel(root)
