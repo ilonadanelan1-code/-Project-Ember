@@ -59,6 +59,7 @@ var _message_label: Label
 var _hud_resource_labels: Dictionary = {}
 var _city_resource_labels: Dictionary = {}
 var _attack_button: Button
+var _split_army_button: Button
 var _turn_button: Button
 var _selection_button: Button
 var _city_button: Button
@@ -203,10 +204,17 @@ func _draw() -> void:
 		var settler_center := _hex_center(CampaignState.settler_cell)
 		if CampaignState.is_cell_visible(CampaignState.settler_cell) and _point_is_visible(settler_center, 24.0 * _map_zoom):
 			_draw_settler_marker(settler_center)
-	if not CampaignState.player_units.is_empty():
-		var player_center := _hex_center(CampaignState.player_cell)
-		if _point_is_visible(player_center, 30.0 * _map_zoom):
-			_draw_army_marker(CampaignState.player_cell, PLAYER_TEAM_COLOR, "P")
+	for army_index in range(CampaignState.player_armies.size()):
+		var army_record: Dictionary = CampaignState.player_armies[army_index]
+		var army_units: Variant = army_record.get("units", [])
+		if not army_units is Array or army_units.is_empty():
+			continue
+		var army_cell := WorldGeneratorScript.array_to_cell(army_record.get("cell", []), Vector2i(9999, 9999))
+		var army_center := _hex_center(army_cell)
+		if _point_is_visible(army_center, 30.0 * _map_zoom):
+			var is_selected := str(army_record.get("id", "")) == CampaignState.selected_player_army_id
+			var marker := "P" if is_selected else str(army_index + 1)
+			_draw_army_marker(army_cell, PLAYER_TEAM_COLOR if is_selected else PLAYER_TEAM_COLOR.darkened(0.20), marker)
 
 	if _army_selected:
 		for offset in NEIGHBOR_OFFSETS:
@@ -233,7 +241,8 @@ func _refresh_owner_lookup() -> void:
 		CampaignState.cities,
 		CampaignState.player_cell,
 		CampaignState.player_units,
-		CampaignState.kingdoms
+		CampaignState.kingdoms,
+		CampaignState.player_armies
 	)
 
 
@@ -805,6 +814,8 @@ func _create_ui() -> void:
 
 	_attack_button = _add_button(more_grid, "АТАКОВАТЬ", _attack_enemy)
 	_set_button_icon(_attack_button, GameIconCatalogScript.command_icon("attack"))
+	_split_army_button = _add_button(more_grid, "РАЗДЕЛИТЬ АРМИЮ", _create_player_army)
+	_set_button_icon(_split_army_button, GameIconCatalogScript.unit_icon("melee"))
 	_add_button(more_grid, "НОВАЯ КАМПАНИЯ", _restart_campaign)
 	_found_city_button = _add_button(more_grid, "ОСНОВАТЬ ГОРОД", _found_city)
 	_set_button_icon(_found_city_button, GameIconCatalogScript.unit_icon("worker"))
@@ -2036,6 +2047,9 @@ func _refresh_city_panel() -> void:
 			var selection_hero_id := str(selection_hero.get("id", ""))
 			_hero_selector.add_item("%s · ур. %d" % [str(selection_hero.get("name", "Командир")), int(selection_hero.get("level", 1))])
 			_hero_selector.set_item_metadata(roster_index, selection_hero_id)
+			var assigned_army_id := CampaignState.get_hero_assigned_army_id(selection_hero_id)
+			if not assigned_army_id.is_empty() and assigned_army_id != CampaignState.selected_player_army_id:
+				_hero_selector.set_item_disabled(roster_index, true)
 			if selection_hero_id == CampaignState.active_hero_id:
 				active_hero_index = roster_index
 		if _hero_selector.item_count > 0:
@@ -2261,6 +2275,19 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		_refresh_ui()
 		return
 
+	var clicked_player_army := CampaignState.get_player_army_at(cell)
+	if not clicked_player_army.is_empty():
+		var clicked_army_id := str(clicked_player_army.get("id", ""))
+		if CampaignState.select_player_army(clicked_army_id):
+			_settler_selected = false
+			_selected_kingdom_id = -1
+			_army_selected = true
+			_message_text = "%s выбрана. Коснись соседнего гекса для перемещения." % str(clicked_player_army.get("name", "Армия"))
+			Haptics.tap(10)
+			_refresh_ui()
+			queue_redraw()
+			return
+
 	var location_index := CampaignState.get_neutral_location_index_at(cell, true)
 	if location_index >= 0:
 		var location: Dictionary = CampaignState.neutral_locations[location_index]
@@ -2354,9 +2381,10 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		_refresh_ui()
 		return
 
-	CampaignState.player_cell = cell
-	CampaignState.player_moves_left -= 1
-	CampaignState.save_campaign()
+	if not CampaignState.move_selected_player_army(cell):
+		_message_text = "Этот гекс занят или недоступен для выбранной армии."
+		_refresh_ui()
+		return
 	_message_text = "Армия переместилась. Теперь можно завершить ход или атаковать врага, если он рядом."
 	_refresh_ui()
 	queue_redraw()
@@ -2393,8 +2421,22 @@ func _select_player_army() -> void:
 	_settler_selected = false
 	_selected_kingdom_id = -1
 	_army_selected = true
-	_message_text = "Армия выбрана. Коснись соседнего гекса для перемещения."
+	_message_text = "Выбрана %s. Коснись соседнего гекса для перемещения." % str(CampaignState.player_armies[0].get("name", "армия")) if not CampaignState.player_armies.is_empty() else "У тебя пока нет полевой армии."
 	_center_map_on_cell(CampaignState.player_cell)
+	_refresh_ui()
+	queue_redraw()
+
+
+func _create_player_army() -> void:
+	if CampaignState.create_player_army():
+		_settler_selected = false
+		_selected_kingdom_id = -1
+		_army_selected = true
+		_center_map_on_cell(CampaignState.player_cell)
+		_message_text = "%s сформирована. Новый командир назначен автоматически." % str(CampaignState.player_armies.back().get("name", "Новая армия"))
+		Haptics.confirm(30)
+	else:
+		_message_text = "Нельзя разделить армию: нужны минимум два отряда, свободный герой и свободный соседний гекс."
 	_refresh_ui()
 	queue_redraw()
 
@@ -2549,7 +2591,9 @@ func _refresh_ui() -> void:
 	if is_instance_valid(_turn_button):
 		_turn_button.disabled = CampaignState.campaign_lost
 	if is_instance_valid(_selection_button):
-		_selection_button.disabled = CampaignState.campaign_lost
+		_selection_button.disabled = CampaignState.campaign_lost or CampaignState.player_armies.is_empty()
+	if is_instance_valid(_split_army_button):
+		_split_army_button.disabled = not CampaignState.can_create_player_army()
 	if is_instance_valid(_city_button):
 		_city_button.disabled = CampaignState.cities.is_empty() or CampaignState.campaign_lost
 	if is_instance_valid(_found_city_button):
