@@ -1384,7 +1384,8 @@ static func _maybe_send_ai_gift(kingdom: Dictionary, kingdom_id: int, relations:
 	var personality_id := str(profile.get("personality_id", ""))
 	if relation < 35 or treaty not in ["peace", "trade", "alliance"] or personality_id not in ["merchant", "honorable"]:
 		return {}
-	if turn_number - int(record.get("last_received_gift_turn", 0)) < AI_GIFT_COOLDOWN_TURNS or posmod(turn_number + kingdom_id * 5, 13) != 0:
+	var last_received_gift_turn := int(record.get("last_received_gift_turn", 0))
+	if (last_received_gift_turn > 0 and turn_number - last_received_gift_turn < AI_GIFT_COOLDOWN_TURNS) or posmod(turn_number + kingdom_id * 5, 13) != 0:
 		return {}
 	var remaining_gain := maxi(0, MAX_AI_GIFT_RELATION_GAIN - int(record.get("ai_gift_relation_gained", 0)))
 	var gift_delta := mini(maxi(0, 3 + calculate_action_reaction(player_profile, ["gift", "generous", "trade_focused"], profile)), remaining_gain)

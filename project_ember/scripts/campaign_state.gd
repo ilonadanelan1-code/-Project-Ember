@@ -2745,7 +2745,8 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 			for city_value in cities:
 				if city_value is Dictionary:
 					available_gold += maxi(0, int(city_value.get("gold", 0)))
-			var gift_cooldown := maxi(0, DiplomacyCatalogScript.GIFT_COOLDOWN_TURNS - (turn_number - int(record.get("last_gift_turn", 0))))
+			var last_gift_turn := int(record.get("last_gift_turn", 0))
+			var gift_cooldown := maxi(0, DiplomacyCatalogScript.GIFT_COOLDOWN_TURNS - (turn_number - last_gift_turn)) if last_gift_turn > 0 else 0
 			available = not gift_data.is_empty() and treaty not in ["war", "vassal"] and relation < 100 and gift_cooldown == 0 and int(record.get("gift_relation_gained", 0)) < DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN and available_gold >= gift_cost
 			if treaty in ["war", "vassal"]:
 				reason = "Подарки недоступны во время войны или вассалитета."
