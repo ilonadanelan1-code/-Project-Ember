@@ -585,7 +585,7 @@ func _draw_province_improvements() -> void:
 				"woodland_camp": marker_color = Color("#79a879")
 				"stone_quarry": marker_color = Color("#a6aab0")
 				"watchtower": marker_color = Color("#e5a14a")
-			"arcane_conduit": marker_color = Color("#82d7e8")
+				"arcane_conduit": marker_color = Color("#82d7e8")
 			draw_circle(screen_point, maxf(2.2, 3.0 * _map_zoom), marker_color)
 			draw_arc(screen_point, maxf(3.0, 4.0 * _map_zoom), 0.0, TAU, 12, Color(0.08, 0.07, 0.05, 0.9), 1.0)
 			if improvement_id == "watchtower":
