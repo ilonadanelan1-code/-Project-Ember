@@ -30,6 +30,103 @@ func _run() -> void:
 	_check(DiplomacyCatalogScript.personality_id_for_kingdom(0) == "aggressor", "first realm receives the deterministic Aggressor personality")
 	_check(DiplomacyCatalogScript.personality_id_for_kingdom(1) == "merchant", "second realm receives the deterministic Merchant personality")
 
+	var player_profile := DiplomacyCatalogScript.create_leader_profile(
+		DiplomacyCatalogScript.PLAYER_ID,
+		{"people_id": "riverfolk", "culture_id": "mercantile", "trait_ids": ["disciplined", "guild_charters"]},
+		0,
+		841207
+	)
+	var saved_profile: Dictionary = kingdoms[0].get("diplomacy_profile", {})
+	_check(DiplomacyCatalogScript.ALIGNMENTS.has(str(saved_profile.get("alignment", ""))), "every AI ruler receives a valid persistent alignment")
+	_check(saved_profile.get("affinities", {}) is Dictionary and saved_profile.get("affinities", {}).size() == 6, "every AI ruler receives all six affinity scores")
+	_check(DiplomacyCatalogScript.PERSONALITY_IDS.has(str(saved_profile.get("personality_id", ""))), "AI ruler personality is derived and stored in the kingdom profile")
+	var repeated_kingdoms := KingdomAIScript.create_initial_kingdoms(841207)
+	_check(saved_profile == repeated_kingdoms[0].get("diplomacy_profile", {}), "leader profiles are deterministic for the same world seed")
+	var personality_diversity: Dictionary = {}
+	for kingdom in kingdoms:
+		var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+		if profile_value is Dictionary:
+			personality_diversity[str(profile_value.get("personality_id", ""))] = true
+	_check(personality_diversity.size() >= 2, "different rulers can develop different personalities from alignment and affinity")
+
+	var normalized_legacy_kingdom := KingdomAIScript.normalize_kingdom({"id": 0, "name": "Старое королевство"}, kingdoms[0], 841207)
+	var migrated_profile: Dictionary = normalized_legacy_kingdom.get("diplomacy_profile", {})
+	_check(DiplomacyCatalogScript.ALIGNMENTS.has(str(migrated_profile.get("alignment", ""))), "legacy AI kingdom records gain a valid profile during normalization")
+	_check(migrated_profile == saved_profile, "legacy profile migration is deterministic and does not reroll rulers")
+
+	var profile_relations := DiplomacyCatalogScript.create_initial_relations(
+		kingdoms.size(),
+		841207,
+		kingdoms,
+		player_profile
+	)
+	var profiled_record := DiplomacyCatalogScript.get_record(profile_relations, DiplomacyCatalogScript.PLAYER_ID, 0)
+	var opinion_value: Variant = profiled_record.get("opinion_modifiers", {})
+	var opinion: Dictionary = opinion_value if opinion_value is Dictionary else {}
+	_check(opinion.has("alignment") and opinion.has("affinity") and opinion.has("personality") and opinion.has("preferences"), "relationship record explains alignment, affinity, personality and preference modifiers")
+	var profiled_relation_before := int(profiled_record.get("relation", 0))
+	DiplomacyCatalogScript.refresh_relationship_modifiers(profile_relations, kingdoms, player_profile)
+	DiplomacyCatalogScript.refresh_relationship_modifiers(profile_relations, kingdoms, player_profile)
+	_check(int(DiplomacyCatalogScript.get_record(profile_relations, DiplomacyCatalogScript.PLAYER_ID, 0).get("relation", 0)) == profiled_relation_before, "refreshing relationship modifiers never stacks the same bonus twice")
+
+	var migrated_profile_relations := DiplomacyCatalogScript.normalize_relations(
+		{"-1:0": {"relation": 40, "treaty": "peace"}},
+		kingdoms.size(),
+		841207,
+		kingdoms,
+		player_profile
+	)
+	var migrated_opinion_record := DiplomacyCatalogScript.get_record(migrated_profile_relations, DiplomacyCatalogScript.PLAYER_ID, 0)
+	var migrated_opinion_value: Variant = migrated_opinion_record.get("opinion_modifiers", {})
+	var migrated_opinion: Dictionary = migrated_opinion_value if migrated_opinion_value is Dictionary else {}
+	_check(migrated_opinion.has("total"), "legacy diplomatic records are upgraded with an opinion breakdown")
+	_check(
+		int(migrated_opinion_record.get("relation", 0)) == clampi(40 + int(migrated_opinion.get("total", 0)), -100, 100),
+		"legacy relation receives profile compatibility exactly once"
+	)
+
+	var compatible_profile := {
+		"alignment": "good",
+		"affinities": {"order": 5, "chaos": 0, "nature": 2, "astral": 0, "shadow": 0, "materium": 1},
+		"personality_id": "honorable",
+		"likes": ["honorable", "order"],
+		"dislikes": ["aggressor"],
+	}
+	var opposed_profile := {
+		"alignment": "evil",
+		"affinities": {"order": 0, "chaos": 5, "nature": 0, "astral": 0, "shadow": 3, "materium": 0},
+		"personality_id": "aggressor",
+		"likes": ["aggressor", "chaos"],
+		"dislikes": ["honorable", "good"],
+	}
+	var compatible_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(compatible_profile, compatible_profile)
+	var opposed_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(compatible_profile, opposed_profile)
+	_check(int(compatible_opinion.get("total", 0)) > int(opposed_opinion.get("total", 0)), "aligned leaders with compatible affinities prefer each other over opposing personalities")
+
+	var common_ally_relations := DiplomacyCatalogScript.create_initial_relations(3, 841207)
+	DiplomacyCatalogScript.set_treaty(common_ally_relations, 0, 2, "alliance", 1, 8)
+	DiplomacyCatalogScript.set_treaty(common_ally_relations, 1, 2, "alliance", 1, 8)
+	var common_ally_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(
+		compatible_profile,
+		compatible_profile,
+		common_ally_relations,
+		0,
+		1
+	)
+	_check(int(common_ally_opinion.get("shared_allies", 0)) == 2, "leaders gain affinity when they share a formal ally")
+	var common_enemy_relations := DiplomacyCatalogScript.create_initial_relations(3, 841207)
+	DiplomacyCatalogScript.set_treaty(common_enemy_relations, 0, 2, "war", 1)
+	DiplomacyCatalogScript.set_treaty(common_enemy_relations, 1, 2, "war", 1)
+	var common_enemy_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(
+		compatible_profile,
+		compatible_profile,
+		common_enemy_relations,
+		0,
+		1
+	)
+	_check(int(common_enemy_opinion.get("shared_enemies", 0)) == 3, "leaders gain affinity when they share an active enemy")
+
+
 	var initial_record := DiplomacyCatalogScript.get_record(relations, -1, 1)
 	_check(int(initial_record.get("relation", -100)) == 18, "merchant begins with a modest positive player relationship")
 	DiplomacyCatalogScript.set_treaty(relations, -1, 1, "trade", 3, DiplomacyCatalogScript.TRADE_DURATION)
