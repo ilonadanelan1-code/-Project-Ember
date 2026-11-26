@@ -1,1 +1,1 @@
-Project Ember v0.34.0 — Hero Roster & Recruitable Lords
+Project Ember v0.36.1 — Map Motion Performance Hotfix
