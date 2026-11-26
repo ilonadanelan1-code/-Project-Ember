@@ -1258,6 +1258,8 @@ func _apply_neutral_location_special_reward(location: Dictionary) -> String:
 			player_hero["health"] = get_hero_max_health(player_hero)
 			player_hero["wounded_turns"] = 0
 			return "Святилище полностью восстановило здоровье правителя."
+		"leyline_nexus":
+			return "Узел лей-линии закреплён за державой. Он будет приносить арканную силу каждый ход."
 		"mercenary_camp":
 			if player_units.size() < 24:
 				player_units.append({
