@@ -950,7 +950,8 @@ static func process_turn(
 		_player_power: float,
 		pending_offers: Array[Dictionary],
 		player_sources: Array[Vector2i] = [],
-		player_profile: Dictionary = {}
+		player_profile: Dictionary = {},
+		player_outpost_sources: Array[Vector2i] = []
 ) -> Dictionary:
 	refresh_relationship_modifiers(relations, kingdoms, player_profile)
 	var events: Array[String] = []
@@ -983,7 +984,7 @@ static func process_turn(
 					change_relation(relations, PLAYER_ID, kingdom_id, drift, turn_number)
 					player_record = get_record(relations, PLAYER_ID, kingdom_id)
 			var player_border_distance := _nearest_sources_to_cities(player_sources, kingdoms[kingdom_id].get("cities", []))
-			var player_outpost_distance := _nearest_sources_to_cities(player_sources, kingdoms[kingdom_id].get("outposts", []))
+			var player_outpost_distance := _nearest_sources_to_cities(player_outpost_sources, kingdoms[kingdom_id].get("cities", []))
 			var is_aggressive := personality_id in ["aggressor", "expansionist"]
 			if is_aggressive and player_border_distance <= BORDER_TENSION_DISTANCE:
 				var claim_cause := "outpost_encroachment" if player_outpost_distance <= 3 else "border_encroachment"
