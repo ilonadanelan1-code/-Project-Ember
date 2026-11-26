@@ -1,3 +1,33 @@
+## v0.34.0 — Stage IV: Hero Roster & Recruitable Lords
+
+- [x] Add stable hero IDs and a persistent player hero roster while retaining the legacy player_hero save field.
+- [x] Migrate existing single-hero campaigns into a one-entry roster without changing SAVE_VERSION.
+- [x] Add three recruitable lords with distinct commander specializations and a 100-gold hire cost.
+- [x] Add city-panel recruitment, roster display and active-commander selection for the existing player army.
+- [x] Preserve each hero's level, experience, skill ranks, health and wounds when switching commanders.
+- [x] Add recruitment, duplicate-hire, roster-cap, commander-switch and legacy-save smoke coverage.
+- [ ] Verify the commander roster UI and battle handoff on the target Android device.
+
+## v0.35.0 — Stage V: Multiple Armies & Hero Assignments
+
+- [ ] Introduce stable player army records with independent unit rosters and strategic map positions.
+- [ ] Allow creation, selection, movement and battle entry for more than one player army.
+- [ ] Assign one available hero to each army and prevent assigning the same hero twice.
+- [ ] Migrate the legacy player_units and player_cell fields into the original primary army.
+- [ ] Preserve current troop IDs, role IDs, upgrades, movement rules and campaign save compatibility.
+- [ ] Add multi-army movement, combat, recruitment, recovery and save/load smoke coverage.
+- [ ] Validate map readability, touch selection and performance on Android.
+
+## v0.36.0 — Stage VI: Hero Equipment & Loot
+
+- [ ] Add persistent hero equipment slots using data-driven item definitions.
+- [ ] Add deterministic battle and campaign rewards that grant equipment without adding a new campaign resource.
+- [ ] Apply equipment modifiers to commander stats through a single shared calculation path.
+- [ ] Add mobile inventory/equipment UI with clear comparison and equip/unequip actions.
+- [ ] Preserve old hero records and default missing inventory/equipment fields safely.
+- [ ] Add item catalog, stat, reward, save/load and combat integration smoke coverage.
+- [ ] Verify equipment UI and battle stat feedback on the target Android device.
+
 ## v0.33.1 — Pixel Art Restoration & Release Guard
 
 - [x] Restore the owner-provided Tiny Swords blue/red pixel infantry atlas and matching animation manifest in playable release archives.
@@ -229,13 +259,15 @@
 
 ## Next gameplay targets
 
-- [ ] Add recruitable lords and allow heroes to be assigned to multiple armies.
-- [ ] Add equipment slots and loot rewards for heroes.
-- [ ] Add gameplay terrain modifiers for elevation, water, cover and movement; current biome dressing is visual-only.
+- [ ] Stage IV: recruitable lords and a persistent hero roster (see v0.34.0 above).
+- [ ] Stage V: assign heroes to independent player armies (see v0.35.0 above).
+- [ ] Stage VI: hero equipment slots and loot rewards (see v0.36.0 above).
+- [x] Gameplay terrain modifiers for forest cover, high ground, marsh movement and flanking (v0.24.1).
+- [x] Neutral camps, resource sites and exploration rewards (v0.27.0–v0.30.0).
+- [x] AI kingdom settlement expansion and strategic target planning (v0.32.0).
 - [ ] Add an auto-battle estimator using the same unit catalog and role matchups.
-- [ ] Add neutral camps and resource sites to the strategic map.
 - [ ] Add city list and quick switching between founded cities.
-- [ ] Add roads, trade routes and AI settlement expansion.
+- [ ] Add roads and trade routes.
 
 ## Previous v0.6.0 roster and command status
 

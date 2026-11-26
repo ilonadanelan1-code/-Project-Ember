@@ -18,6 +18,7 @@ const TerritoryCatalogScript = preload("res://scripts/territory_catalog.gd")
 const HexTerrainTileMapRendererScript = preload("res://scripts/hex_terrain_tilemap_renderer.gd")
 const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const GameIconCatalogScript = preload("res://scripts/game_icon_catalog.gd")
+const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
 const CITY_MARKER_ATLAS: Texture2D = preload("res://assets/map/city_marker_atlas.png")
 
 ## Explored-world strategic map: fog of war, viewport streaming and AI kingdom markers.
@@ -71,7 +72,11 @@ var _settler_selected: bool = false
 var _city_income_label: Label
 var _city_queue_label: Label
 var _hero_overview_label: Label
+var _hero_roster_label: Label
+var _hero_selector: OptionButton
+var _hero_switch_button: Button
 var _hero_skill_buttons: Dictionary = {}
+var _lord_recruit_buttons: Dictionary = {}
 var _city_building_buttons: Dictionary = {}
 var _city_recruit_buttons: Dictionary = {}
 var _city_upgrade_buttons: Dictionary = {}
@@ -1609,6 +1614,46 @@ func _create_city_panel(root: Control) -> void:
 		skill_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
 		_hero_skill_buttons[skill_id] = skill_button
 
+	var roster_title := Label.new()
+	roster_title.text = "РОСТЕР КОМАНДИРОВ"
+	roster_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	roster_title.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(roster_title)
+	_hero_roster_label = Label.new()
+	_hero_roster_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hero_roster_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_hero_roster_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	details.add_child(_hero_roster_label)
+	_hero_selector = OptionButton.new()
+	_hero_selector.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	_hero_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_child(_hero_selector)
+	_hero_switch_button = _add_button(details, "НАЗНАЧИТЬ КОМАНДИРОМ АРМИИ", _activate_selected_hero)
+	_hero_switch_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(52.0))
+
+	var lord_title := Label.new()
+	lord_title.text = "НАЙМ ЛОРДОВ · 100 ЗОЛОТА"
+	lord_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	lord_title.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(lord_title)
+	var lord_grid := GridContainer.new()
+	lord_grid.columns = 2
+	lord_grid.add_theme_constant_override("h_separation", 8)
+	lord_grid.add_theme_constant_override("v_separation", 6)
+	details.add_child(lord_grid)
+	for candidate in LordCatalogScript.get_candidates():
+		var candidate_id := str(candidate.get("id", ""))
+		var candidate_text := "%s\n%s\n%d зол.\n%s" % [
+			str(candidate.get("name", "Лорд")),
+			str(candidate.get("title", "Командир")),
+			int(candidate.get("cost", 0)),
+			str(candidate.get("description", "")),
+		]
+		var recruit_lord_button := _add_button(lord_grid, candidate_text, _recruit_lord.bind(candidate_id))
+		recruit_lord_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(82.0))
+		recruit_lord_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(11))
+		_lord_recruit_buttons[candidate_id] = recruit_lord_button
+
 	var building_title := Label.new()
 	building_title.text = "СТРОИТЕЛЬСТВО"
 	building_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(16))
@@ -1831,6 +1876,30 @@ func _upgrade_hero_skill(skill_id: String) -> void:
 	_refresh_ui()
 
 
+func _recruit_lord(candidate_id: String) -> void:
+	var candidate := LordCatalogScript.get_candidate(candidate_id)
+	if CampaignState.recruit_lord(candidate_id):
+		_message_text = "Лорд %s принят на службу. Назначить его командиром можно в ростере." % str(candidate.get("name", ""))
+		Haptics.confirm(35)
+	else:
+		_message_text = "Найм недоступен: проверь золото, свободное место в ростере и список уже нанятых лордов."
+	_refresh_city_panel()
+	_refresh_ui()
+
+
+func _activate_selected_hero() -> void:
+	if not is_instance_valid(_hero_selector) or _hero_selector.item_count <= 0 or _hero_selector.selected < 0:
+		return
+	var selected_id := str(_hero_selector.get_item_metadata(_hero_selector.selected))
+	if CampaignState.activate_hero(selected_id):
+		_message_text = "Командир армии изменён. Новый командир вступит в бой при следующем сражении."
+		Haptics.confirm(25)
+	else:
+		_message_text = "Не удалось назначить выбранного героя командиром."
+	_refresh_city_panel()
+	_refresh_ui()
+
+
 func _queue_settler() -> void:
 	if CampaignState.queue_settler():
 		_message_text = "Поселенец добавлен в очередь города."
@@ -1946,6 +2015,50 @@ func _refresh_city_panel() -> void:
 		var skill_button: Button = _hero_skill_buttons[skill_id]
 		skill_button.text = "%s\nРАНГ %d/5" % [str(skill_names.get(skill_id, skill_id)).to_upper(), skill_rank]
 		skill_button.disabled = int(hero.get("skill_points", 0)) <= 0 or skill_rank >= 5
+
+	if is_instance_valid(_hero_roster_label):
+		var roster_lines: Array[String] = []
+		for roster_hero in CampaignState.hero_roster:
+			var roster_id := str(roster_hero.get("id", ""))
+			var assigned_mark := "▶ " if roster_id == CampaignState.active_hero_id else "• "
+			roster_lines.append("%s%s — %s · ур. %d" % [assigned_mark, str(roster_hero.get("name", "Командир")), str(roster_hero.get("title", "")), int(roster_hero.get("level", 1))])
+		_hero_roster_label.text = "Героев: %d/%d\n%s\nСейчас командует: %s" % [
+			CampaignState.hero_roster.size(),
+			LordCatalogScript.MAX_HERO_ROSTER_SIZE,
+			"\n".join(roster_lines),
+			str(hero.get("name", "Правитель")),
+		]
+	if is_instance_valid(_hero_selector):
+		_hero_selector.clear()
+		var active_hero_index := -1
+		for roster_index in range(CampaignState.hero_roster.size()):
+			var selection_hero: Dictionary = CampaignState.hero_roster[roster_index]
+			var selection_hero_id := str(selection_hero.get("id", ""))
+			_hero_selector.add_item("%s · ур. %d" % [str(selection_hero.get("name", "Командир")), int(selection_hero.get("level", 1))])
+			_hero_selector.set_item_metadata(roster_index, selection_hero_id)
+			if selection_hero_id == CampaignState.active_hero_id:
+				active_hero_index = roster_index
+		if _hero_selector.item_count > 0:
+			_hero_selector.select(maxi(0, active_hero_index))
+		if is_instance_valid(_hero_switch_button):
+			_hero_switch_button.disabled = _hero_selector.item_count <= 1 or active_hero_index < 0
+	for candidate in LordCatalogScript.get_candidates():
+		var candidate_id := str(candidate.get("id", ""))
+		if not _lord_recruit_buttons.has(candidate_id):
+			continue
+		var lord_button: Button = _lord_recruit_buttons[candidate_id]
+		var already_recruited := CampaignState.is_lord_recruited(candidate_id)
+		if already_recruited:
+			lord_button.text = "%s\nНАНЯТ" % str(candidate.get("name", "Лорд"))
+			lord_button.disabled = true
+		else:
+			lord_button.text = "%s\n%s\n%d зол.\n%s" % [
+				str(candidate.get("name", "Лорд")),
+				str(candidate.get("title", "Командир")),
+				int(candidate.get("cost", 0)),
+				str(candidate.get("description", "")),
+			]
+			lord_button.disabled = not CampaignState.can_recruit_lord(candidate_id)
 
 	if is_instance_valid(_settler_button):
 		_settler_button.disabled = not CampaignState.can_queue_settler()

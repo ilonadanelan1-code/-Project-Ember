@@ -1,13 +1,13 @@
-Build: Project Ember v0.33.1 — Pixel Art Restoration & Release Guard
+Build: Project Ember v0.34.0 — Hero Roster & Recruitable Lords
 Engine target: Godot 4.7.2-stable / GL Compatibility
 Platform target: Android landscape
-Base: v0.33.0 — Territorial Control & Frontier Fortifications
-Feature set: restores owner-provided Tiny Swords blue/red pixel-art infantry atlas in playable archives; keeps mounted cavalry pixel animation sheets and pixel-isometric ground; removes procedural low-poly unit fallback; adds strict local playable-release gate.
+Base: v0.33.1 — Pixel Art Restoration & Release Guard
+Feature set: persistent player hero roster, three recruitable specialist lords, city-panel recruitment and active commander switching; retains the v0.33.1 pixel-art release gate.
 Combat art: Tiny Swords (Free Pack) by Pixel Frog; integrated 1152x2304 RGBA atlas; 96x96 cells; 12 animation rows per faction; matching animation manifest. The source pack is not copied into the project package.
 Battle presentation: AnimatedSprite3D uses nearest-neighbour filtering, unshaded fixed-Y billboards and alpha-cut transparency. The battlefield keeps its pixel-isometric terrain atlas and biome dressing.
 Release gate: run tools/assets/package_playable_release.sh. It requires the atlas and manifest, validates animation metadata, PNG dimensions, no-low-poly runtime and ZIP CRC.
 Source repository: licensed runtime atlas/manifest remain excluded. Source-only CI checks the code and skips playable artifacts if those binaries are absent.
-Gameplay/economy: v0.33.0 territorial control, watchtowers, resources and unit IDs are unchanged.
-Save schema: SAVE_VERSION 1; no save migration.
+Gameplay/economy: v0.33.0 territorial control, watchtowers, resources and stable troop IDs are unchanged. Hero roster fields are additive.
+Save schema: SAVE_VERSION 1; old single-hero saves migrate to a one-entry roster.
 Package type: Godot source project, not an APK.
 Android validation: physical device runtime and GPU performance are not claimed; install the integrated playable ZIP to verify.

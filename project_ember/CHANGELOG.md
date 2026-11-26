@@ -1,3 +1,13 @@
+## v0.34.0 — Hero Roster & Recruitable Lords
+
+- Adds a stable player hero roster containing the ruler and up to three recruitable lords.
+- Adds three specialist lords: Leadership, Tactics and Might; each costs 100 gold and starts with its matching skill at rank 1.
+- Adds recruitment and active-commander selection to the city panel. The selected hero commands the existing player army in the next battle.
+- Preserves each hero's individual level, experience, skill ranks, health and wounds across commander switching.
+- Migrates legacy saves from the single player_hero record into the additive hero_roster structure; SAVE_VERSION remains 1 and the legacy active-hero field remains supported.
+- Adds smoke coverage for recruitment costs, duplicate recruitment, commander changes, individual progression and old-save migration.
+- Independent player armies and per-army commander assignment remain Stage V; no movement or troop roster split is introduced in this release.
+
 ## v0.33.1 — Pixel Art Restoration & Release Guard
 
 - Restores the supplied Tiny Swords 1152×2304 combat sprite atlas and matching animation manifest in playable release archives. The generated atlas matches the previously working restored-sprite build pixel-for-pixel.

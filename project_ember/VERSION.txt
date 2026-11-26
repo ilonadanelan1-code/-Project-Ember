@@ -1,1 +1,1 @@
-Project Ember v0.33.1 — Pixel Art Restoration & Release Guard
+Project Ember v0.34.0 — Hero Roster & Recruitable Lords

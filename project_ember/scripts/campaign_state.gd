@@ -14,6 +14,7 @@ const WorldLocationCatalogScript = preload("res://scripts/world_location_catalog
 const WorldEventCatalogScript = preload("res://scripts/world_event_catalog.gd")
 const FactionCatalogScript = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
+const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -77,6 +78,8 @@ var player_units: Array[Dictionary] = []
 var army_upgrades: Dictionary = {"melee": 0, "ranged": 0, "spear": 0, "cavalry": 0}
 var enemy_units: Array[Dictionary] = []
 var player_hero: Dictionary = {}
+var hero_roster: Array[Dictionary] = []
+var active_hero_id: String = "hero_ruler"
 var player_faction: Dictionary = FactionCatalogScript.get_legacy_selection()
 var faction_setup_pending: bool = false
 var enemy_hero: Dictionary = {}
@@ -212,6 +215,10 @@ func new_campaign(persist: bool = true) -> void:
 	player_units = _make_starting_army()
 	army_upgrades = {"melee": 0, "ranged": 0, "spear": 0, "cavalry": 0}
 	player_hero = _make_hero_record("Эдрик", "Правитель Каменного Брода")
+	player_hero["id"] = "hero_ruler"
+	player_hero["kind"] = "ruler"
+	hero_roster = [player_hero.duplicate(true)]
+	active_hero_id = "hero_ruler"
 	kingdoms = KingdomAIScript.create_initial_kingdoms(world_seed)
 	diplomacy_relations = DiplomacyCatalogScript.create_initial_relations(kingdoms.size(), world_seed)
 	pending_diplomacy_offers.clear()
@@ -280,6 +287,121 @@ func _make_hero_record(hero_name: String, hero_title: String) -> Dictionary:
 	}
 
 
+
+func get_lord_candidate_catalog() -> Array[Dictionary]:
+	return LordCatalogScript.get_candidates()
+
+
+func is_lord_recruited(candidate_id: String) -> bool:
+	for hero in hero_roster:
+		if str(hero.get("id", "")) == candidate_id:
+			return true
+	return false
+
+
+func can_recruit_lord(candidate_id: String) -> bool:
+	var candidate := LordCatalogScript.get_candidate(candidate_id)
+	if candidate.is_empty() or battle_in_progress:
+		return false
+	if hero_roster.size() >= LordCatalogScript.MAX_HERO_ROSTER_SIZE:
+		return false
+	if is_lord_recruited(candidate_id):
+		return false
+	return city_gold >= int(candidate.get("cost", 0))
+
+
+func recruit_lord(candidate_id: String) -> bool:
+	if not can_recruit_lord(candidate_id):
+		return false
+	var candidate := LordCatalogScript.get_candidate(candidate_id)
+	if candidate.is_empty():
+		return false
+	var cost := maxi(0, int(candidate.get("cost", 0)))
+	city_gold -= cost
+	var hero := _make_hero_record(
+		str(candidate.get("name", "Новый лорд")),
+		str(candidate.get("title", "Командир"))
+	)
+	hero["id"] = candidate_id
+	hero["kind"] = "lord"
+	var skills_value: Variant = hero.get("skills", {})
+	var skills: Dictionary = skills_value.duplicate(true) if skills_value is Dictionary else {}
+	var specialty := str(candidate.get("specialty", ""))
+	if ["leadership", "tactics", "might"].has(specialty):
+		skills[specialty] = 1
+	hero["skills"] = skills
+	hero["health"] = get_hero_max_health(hero)
+	hero_roster.append(hero)
+	save_campaign()
+	return true
+
+
+func activate_hero(hero_id: String) -> bool:
+	if battle_in_progress or hero_id.is_empty():
+		return false
+	_sync_active_hero_to_roster()
+	var selected_hero := _get_hero_record(hero_id)
+	if selected_hero.is_empty():
+		return false
+	active_hero_id = hero_id
+	player_hero = selected_hero
+	save_campaign()
+	return true
+
+
+func _get_hero_record(hero_id: String) -> Dictionary:
+	for hero in hero_roster:
+		if str(hero.get("id", "")) == hero_id:
+			return hero.duplicate(true)
+	return {}
+
+
+func _sync_active_hero_to_roster() -> void:
+	if player_hero.is_empty():
+		return
+	if active_hero_id.is_empty():
+		active_hero_id = str(player_hero.get("id", "hero_ruler"))
+	if active_hero_id.is_empty():
+		active_hero_id = "hero_ruler"
+	player_hero["id"] = active_hero_id
+	var active_record := player_hero.duplicate(true)
+	for index in range(hero_roster.size()):
+		if str(hero_roster[index].get("id", "")) == active_hero_id:
+			hero_roster[index] = active_record
+			return
+	hero_roster.append(active_record)
+
+
+func _read_hero_roster(value: Variant, fallback_hero: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var seen_ids: Dictionary = {}
+	if value is Array:
+		for index in range(value.size()):
+			var raw_hero: Variant = value[index]
+			if not raw_hero is Dictionary:
+				continue
+			var fallback := fallback_hero.duplicate(true)
+			if index > 0:
+				fallback["id"] = "hero_legacy_%d" % index
+			var hero := _read_hero_record(raw_hero, fallback)
+			var hero_id := str(hero.get("id", "")).strip_edges()
+			if hero_id.is_empty() or seen_ids.has(hero_id):
+				hero_id = "hero_legacy_%d" % index
+			hero["id"] = hero_id
+			if hero_id == "hero_ruler":
+				hero["kind"] = "ruler"
+			else:
+				hero["kind"] = str(hero.get("kind", "lord"))
+			seen_ids[hero_id] = true
+			result.append(hero)
+	if result.is_empty():
+		var legacy_hero := _read_hero_record(fallback_hero, fallback_hero)
+		legacy_hero["id"] = str(fallback_hero.get("id", "hero_ruler"))
+		legacy_hero["kind"] = str(fallback_hero.get("kind", "ruler"))
+		result.append(legacy_hero)
+	return result
+
+
 func get_hero_max_health(hero: Dictionary) -> float:
 	var level := clampi(int(hero.get("level", 1)), 1, 30)
 	var skills_value: Variant = hero.get("skills", {})
@@ -342,6 +464,8 @@ func upgrade_hero_skill(skill_id: String) -> bool:
 func _read_hero_record(value: Variant, fallback: Dictionary) -> Dictionary:
 	var source: Dictionary = value if value is Dictionary else fallback
 	var result := fallback.duplicate(true)
+	result["id"] = str(source.get("id", result.get("id", "hero_ruler")))
+	result["kind"] = str(source.get("kind", result.get("kind", "ruler")))
 	result["name"] = str(source.get("name", result.get("name", "Командир")))
 	result["title"] = str(source.get("title", result.get("title", "Правитель")))
 	result["level"] = clampi(int(source.get("level", 1)), 1, 30)
@@ -391,7 +515,23 @@ func _ensure_hero_ready_for_battle(hero: Dictionary) -> void:
 
 
 func _recover_campaign_heroes() -> void:
-	_recover_hero_record(player_hero)
+	if hero_roster.is_empty():
+		var ruler_fallback := _make_hero_record("Эдрик", "Правитель Каменного Брода")
+		ruler_fallback["id"] = "hero_ruler"
+		ruler_fallback["kind"] = "ruler"
+		hero_roster = _read_hero_roster([], player_hero if not player_hero.is_empty() else ruler_fallback)
+		active_hero_id = str(hero_roster[0].get("id", "hero_ruler"))
+	_sync_active_hero_to_roster()
+	for index in range(hero_roster.size()):
+		var player_record: Dictionary = hero_roster[index]
+		_recover_hero_record(player_record)
+		hero_roster[index] = player_record
+	var active_record := _get_hero_record(active_hero_id)
+	if not active_record.is_empty():
+		player_hero = active_record
+	else:
+		active_hero_id = str(hero_roster[0].get("id", "hero_ruler"))
+		player_hero = hero_roster[0].duplicate(true)
 	if kingdoms.is_empty():
 		_recover_hero_record(enemy_hero)
 		return
@@ -416,7 +556,6 @@ func _recover_campaign_heroes() -> void:
 		"Правитель " + str(primary.get("name", "Королевства"))
 	)
 	enemy_hero = _read_hero_record(primary.get("hero", primary_fallback), primary_fallback)
-
 
 func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 	if battle_in_progress or campaign_lost or player_units.is_empty():
@@ -1823,6 +1962,8 @@ func _remove_conflicting_neutral_locations() -> void:
 
 
 func save_campaign() -> bool:
+	# Keep the legacy active-hero field and the additive roster in sync.
+	_sync_active_hero_to_roster()
 	# Do not overwrite the last safe strategic state during an unfinished tactical battle
 	# or when a damaged save could not be preserved during startup.
 	if battle_in_progress or _prevent_save_overwrite:
@@ -1853,6 +1994,8 @@ func save_campaign() -> bool:
 		"army_upkeep_last_paid": army_upkeep_last_paid,
 		"enemy_units": enemy_units,
 		"player_hero": player_hero,
+		"hero_roster": hero_roster,
+		"active_hero_id": active_hero_id,
 		"player_faction": player_faction,
 		"enemy_hero": enemy_hero,
 		"last_battle_result": last_battle_result,
@@ -1986,8 +2129,18 @@ func load_campaign() -> bool:
 	army_upkeep_last_paid = clampi(int(data.get("army_upkeep_last_paid", 0)), 0, army_upkeep_last_due)
 	army_upgrades = _read_army_upgrades(data.get("army_upgrades", {}))
 	var player_hero_fallback := _make_hero_record("Эдрик", "Правитель Каменного Брода")
-	var enemy_hero_fallback := _make_hero_record("Варг", "Воевода Красного Отряда")
-	player_hero = _read_hero_record(data.get("player_hero", player_hero_fallback), player_hero_fallback)
+	player_hero_fallback["id"] = "hero_ruler"
+	player_hero_fallback["kind"] = "ruler"
+	var loaded_active_hero := _read_hero_record(
+		data.get("player_hero", player_hero_fallback),
+		player_hero_fallback
+	)
+	hero_roster = _read_hero_roster(data.get("hero_roster", []), loaded_active_hero)
+	active_hero_id = str(data.get("active_hero_id", loaded_active_hero.get("id", "hero_ruler")))
+	player_hero = _get_hero_record(active_hero_id)
+	if player_hero.is_empty():
+		active_hero_id = str(hero_roster[0].get("id", "hero_ruler"))
+		player_hero = hero_roster[0].duplicate(true)
 	player_faction = FactionCatalogScript.normalize_selection(data.get("player_faction", {}))
 	faction_setup_pending = false
 	enemy_hero = _read_hero_record(data.get("enemy_hero", enemy_hero_fallback), enemy_hero_fallback)

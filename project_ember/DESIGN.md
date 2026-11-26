@@ -1,5 +1,13 @@
 # Project Ember — Design Document
 
+## Current release constraints — v0.34.0
+
+- Tactical soldiers, commanders, cavalry, battlefield terrain and combat effects use the established pixel-art presentation.
+- The historical v0.8.0 low-poly visual-overhaul notes below are superseded. They are not the current art target and must not be reintroduced into active combat rendering.
+- SPRITE_ART_POLICY.md is authoritative: nearest-filtered animated pixel sprites are mandatory, the battlefield remains pixel-isometric, and the active runtime must never fall back to procedural low-poly soldiers.
+- The active player field army still uses the legacy player_units / player_cell fields. Stage IV adds a hero roster; Stage V is responsible for independent player armies.
+- Campaign save compatibility, stable unit/building/resource IDs and mobile performance remain release requirements.
+
 ## High concept
 
 Fantasy 4X strategy with real-time tactical battles, built in Godot 4. The player rules a growing kingdom in a procedurally generated world, develops cities, recruits armies, commands heroes and decides between expansion, diplomacy and war.

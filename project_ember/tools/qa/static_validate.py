@@ -118,6 +118,23 @@ check(all(token in campaign_state_text for token in [
 ]), "all existing campaign unit role IDs remain unchanged")
 check("const ARMY_CAPACITY := 24" in campaign_state_text, "existing 24-unit army capacity remains unchanged")
 check("const SAVE_VERSION := 1" in campaign_state_text, "campaign save schema remains version 1")
+
+# Stage IV: persistent player hero roster and recruitable lords.
+lord_catalog_path = ROOT / "scripts/lord_catalog.gd"
+lord_catalog_text = lord_catalog_path.read_text(encoding="utf-8") if lord_catalog_path.is_file() else ""
+hero_roster_test_path = ROOT / "tests/hero_progression_smoke_test.gd"
+hero_roster_test_text = hero_roster_test_path.read_text(encoding="utf-8") if hero_roster_test_path.is_file() else ""
+check(lord_catalog_path.is_file(), "recruitable lord catalog exists")
+check(all(token in lord_catalog_text for token in ['"lord_ragnar"', '"lord_mirena"', '"lord_torvald"']), "three stable recruitable lord IDs are defined")
+check(all(token in lord_catalog_text for token in ['"cost": 100', '"leadership"', '"tactics"', '"might"', "MAX_HERO_ROSTER_SIZE := 4"]), "lord catalog defines the hire cost, distinct specializations and roster cap")
+check(all(token in campaign_state_text for token in ["hero_roster: Array[Dictionary]", "active_hero_id: String", "func can_recruit_lord(", "func recruit_lord(", "func activate_hero(", "_read_hero_roster("]), "campaign state supports hiring, selecting and migrating persistent player heroes")
+check(all(token in campaign_state_text for token in ['"hero_roster": hero_roster', '"active_hero_id": active_hero_id', 'data.get("hero_roster", [])', 'data.get("active_hero_id"']), "hero roster and active commander persist as additive save fields")
+check("_sync_active_hero_to_roster()" in campaign_state_text and "_recover_hero_record(player_record)" in campaign_state_text, "active hero changes sync to legacy player_hero and inactive lords recover between turns")
+hero_ui_text = (ROOT / "scripts/strategy_map.gd").read_text(encoding="utf-8")
+check(all(token in hero_ui_text for token in ["РОСТЕР КОМАНДИРОВ", "НАЗНАЧИТЬ КОМАНДИРОМ АРМИИ", "НАЙМ ЛОРДОВ", "_recruit_lord", "_activate_selected_hero"]), "city UI exposes roster management, commander switching and lord recruitment")
+check(hero_roster_test_path.is_file(), "hero roster smoke-test source exists")
+check(all(token in hero_roster_test_text for token in ["lord_ragnar", "lord_mirena", "lord_torvald", "cannot be purchased twice", "inactive lord experience survives save and load", "one-entry roster"]), "hero smoke tests cover lord recruitment, identity, persistence and legacy-save migration")
+
 load_campaign_block = campaign_state_text.split("func load_campaign() -> bool:", 1)[1].split("\nfunc _read_city_queue", 1)[0] if "func load_campaign() -> bool:" in campaign_state_text and "\nfunc _read_city_queue" in campaign_state_text else ""
 check(load_campaign_block.count("var loaded_buildings") == 1 and "var city_buildings_data" in load_campaign_block, "city loading uses unique local variable names and avoids the duplicate loaded_buildings parser error")
 make_city_record_block = campaign_state_text.split("func _make_city_record(", 1)[1].split("\nfunc _save_active_city", 1)[0] if "func _make_city_record(" in campaign_state_text and "\nfunc _save_active_city" in campaign_state_text else ""
