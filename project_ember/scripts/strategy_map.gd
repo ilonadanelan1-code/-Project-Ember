@@ -2817,6 +2817,8 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 				_message_text = "%s: охрана не может быть атакована сейчас." % location_name
 			else:
 				_message_text = "%s: локация в %d гексах. Подойди ближе, чтобы атаковать охрану." % [location_name, distance]
+		if str(location.get("type", "")) == "leyline_nexus":
+			_message_text += " Узел приносит владельцу +4 арканной силы каждый ход. Контролируй его, чтобы приблизить магическое восхождение."
 		_refresh_ui()
 		return
 
