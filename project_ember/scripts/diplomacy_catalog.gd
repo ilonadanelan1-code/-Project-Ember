@@ -623,7 +623,14 @@ static func normalize_relations(
 			record["war_exhaustion"] = clampi(int(raw_record.get("war_exhaustion", 0)), 0, 100)
 			record["overlord_id"] = clampi(int(raw_record.get("overlord_id", -99)), -99, kingdom_count - 1)
 			var war_reason := str(raw_record.get("war_reason", "none"))
-			record["war_reason"] = war_reason if ["none", "player_declaration", "battle_provocation", "border_tension", "resolved"].has(war_reason) else "none"
+			var allowed_war_reasons := ["none", "player_declaration", "battle_provocation", "border_tension", "resolved"] + CASUS_BELLI_CAUSES + ["ally_call", "unjustified_declaration"]
+			record["war_reason"] = war_reason if allowed_war_reasons.has(war_reason) else "none"
+			record["war_initiator_id"] = clampi(int(raw_record.get("war_initiator_id", -99)), PLAYER_ID, kingdom_count - 1)
+			record["war_target_id"] = clampi(int(raw_record.get("war_target_id", -99)), PLAYER_ID, kingdom_count - 1)
+			var pair_parts := key.split(":")
+			if pair_parts.size() == 2:
+				record["casus_belli"] = _normalize_casus_belli(raw_record.get("casus_belli", []), int(pair_parts[0]), int(pair_parts[1]), kingdom_count)
+			record["last_war_call_turn"] = clampi(int(raw_record.get("last_war_call_turn", 0)), 0, 100000000)
 			record["truce_until"] = clampi(int(raw_record.get("truce_until", 0)), 0, 100000000)
 			record["last_offer_turn"] = clampi(int(raw_record.get("last_offer_turn", 0)), 0, 100000000)
 			record["last_change_turn"] = clampi(int(raw_record.get("last_change_turn", 1)), 1, 100000000)
@@ -854,6 +861,8 @@ static func set_treaty(
 	record["last_change_turn"] = turn_number
 	if treaty_id != "war":
 		record["war_exhaustion"] = 0
+		record["war_initiator_id"] = -99
+		record["war_target_id"] = -99
 	set_record(relations, first_id, second_id, record)
 
 
