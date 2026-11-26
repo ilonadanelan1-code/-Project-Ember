@@ -2,6 +2,8 @@ name: Import audited Project Ember v0.38.2 archive
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: write
