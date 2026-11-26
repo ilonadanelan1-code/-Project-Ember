@@ -2525,6 +2525,14 @@ func advance_campaign_turn() -> void:
 	last_diplomacy_events.clear()
 	for event_text in diplomacy_result.get("events", []):
 		last_diplomacy_events.append(str(event_text))
+	for gift_transfer_value in diplomacy_result.get("gift_transfers", []):
+		if not gift_transfer_value is Dictionary:
+			continue
+		var gift_transfer: Dictionary = gift_transfer_value
+		var gift_gold := clampi(int(gift_transfer.get("gold", 0)), 0, 1000)
+		if gift_gold > 0:
+			_capital_gold_change(cities, gift_gold)
+		_load_active_city()
 	last_kingdom_events = KingdomAIScript.process_turns(
 		kingdoms,
 		turn_number,
@@ -2730,6 +2738,25 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 		"demand_vassalage":
 			available = treaty != "vassal" and player_power >= target_power * 1.65 and (treaty == "war" or relation <= 25 or int(record.get("war_exhaustion", 0)) >= 50)
 			reason = "Вассал платит до 3 золота за ход в течение 10 ходов." if available else "Нужно превосходство 65% и ослабленный или недоверчивый соперник."
+		"send_gift_small", "send_gift_medium", "send_gift_large":
+			var gift_data := DiplomacyCatalogScript.get_gift_data(action_id)
+			var gift_cost := int(gift_data.get("cost", 0))
+			var available_gold := 0
+			for city_value in cities:
+				if city_value is Dictionary:
+					available_gold += maxi(0, int(city_value.get("gold", 0)))
+			var gift_cooldown := maxi(0, DiplomacyCatalogScript.GIFT_COOLDOWN_TURNS - (turn_number - int(record.get("last_gift_turn", 0))))
+			available = not gift_data.is_empty() and treaty not in ["war", "vassal"] and relation < 100 and gift_cooldown == 0 and int(record.get("gift_relation_gained", 0)) < DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN and available_gold >= gift_cost
+			if treaty in ["war", "vassal"]:
+				reason = "Подарки недоступны во время войны или вассалитета."
+			elif gift_cooldown > 0:
+				reason = "Правитель сможет принять новый подарок через %d ход(а/ов)." % gift_cooldown
+			elif int(record.get("gift_relation_gained", 0)) >= DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN or relation >= 100:
+				reason = "Ты уже исчерпал дипломатический эффект подарков для этой державы."
+			elif available_gold < gift_cost:
+				reason = "В городских казнах недостаточно золота. Нужно: %d." % gift_cost
+			else:
+				reason = "%s · стоимость %d золота · базовый эффект +%d к отношению. Подарки дают не более %d положительных пунктов за всю кампанию." % [str(gift_data.get("name", "Подарок")), gift_cost, int(gift_data.get("relation", 0)), DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN]
 		_:
 			available = false
 			reason = "Неизвестное дипломатическое действие."
@@ -2755,7 +2782,32 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 	if not bool(preview.get("available", false)):
 		return {"ok": false, "message": str(preview.get("reason", "Действие недоступно."))}
 	var kingdom_name := str(kingdoms[kingdom_id].get("name", "Королевство"))
+	var target_profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+	var target_profile: Dictionary = target_profile_value if target_profile_value is Dictionary else {}
+	if action_id.begins_with("send_gift_"):
+		var gift_data := DiplomacyCatalogScript.get_gift_data(action_id)
+		var gift_cost := int(gift_data.get("cost", 0))
+		var paid_gold := _pay_gold_from_city_treasuries(gift_cost)
+		if gift_cost <= 0 or paid_gold != gift_cost:
+			if paid_gold > 0:
+				_capital_gold_change(cities, paid_gold)
+			_load_active_city()
+			return {"ok": false, "message": "Не удалось оплатить подарок из городских казн."}
+		_load_active_city()
+		var gift_message := "Ты отправил державе «%s» подарок «%s» за %d золота." % [kingdom_name, str(gift_data.get("name", "Подарок")), gift_cost]
+		var gift_result := DiplomacyCatalogScript.apply_relationship_action(
+			diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number,
+			"gift_" + action_id, ["gift", "generous", "trade_focused"], int(gift_data.get("relation", 0)),
+			gift_message, target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN
+		)
+		var gift_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id)
+		gift_record["last_gift_turn"] = turn_number
+		DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, gift_record)
+		_record_diplomacy_event(gift_message)
+		save_campaign()
+		return {"ok": true, "accepted": true, "message": gift_message, "chance": 100, "gold_cost": gift_cost, "relation_delta": int(gift_result.get("delta", 0))}
 	if action_id == "declare_war":
+		var war_previous_treaty := str(get_diplomacy_record(kingdom_id).get("treaty", "peace"))
 		var player_claims := DiplomacyCatalogScript.get_active_casus_belli(get_diplomacy_record(kingdom_id), turn_number, DiplomacyCatalogScript.PLAYER_ID)
 		DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "war", turn_number)
 		var declared_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
@@ -2767,9 +2819,12 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 		if not player_claims.is_empty():
 			DiplomacyCatalogScript.consume_casus_belli(diplomacy_relations, -1, kingdom_id, turn_number)
 		var relation_penalty := -18 if not player_claims.is_empty() else -35
-		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, relation_penalty, turn_number)
+		var war_tags: Array = ["war_declared"]
+		if war_previous_treaty in ["trade", "alliance"]:
+			war_tags.append("treaty_breach")
 		var reason_text := " по обоснованной претензии" if not player_claims.is_empty() else " без формального повода"
 		var message := "Ты объявил войну державе «%s»%s." % [kingdom_name, reason_text]
+		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "war_declared", war_tags, relation_penalty, message, target_profile)
 		_record_diplomacy_event(message)
 		save_campaign()
 		return {"ok": true, "accepted": true, "message": message, "chance": 100}
@@ -2780,31 +2835,31 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 		match action_id:
 			"offer_trade":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "trade", turn_number, DiplomacyCatalogScript.TRADE_DURATION)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 8, turn_number)
 				message = "%s приняло торговый договор на 6 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, target_profile)
 			"offer_alliance":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "alliance", turn_number, DiplomacyCatalogScript.ALLIANCE_DURATION)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 12, turn_number)
 				message = "%s заключило с тобой союз на 8 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, target_profile)
 			"offer_peace":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "peace", turn_number, 0)
 				var peace_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 				peace_record["truce_until"] = turn_number + DiplomacyCatalogScript.TRUCE_DURATION
 				peace_record["war_reason"] = "resolved"
 				DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, peace_record)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 15, turn_number)
 				message = "С %s заключён мир. Перемирие действует 4 хода." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, target_profile)
 			"demand_tribute":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "tribute", turn_number, DiplomacyCatalogScript.TRIBUTE_DURATION, -1)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -10, turn_number)
 				message = "%s согласилось платить дань до 3 золота за ход в течение 5 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "tribute_agreed", ["coercion"], -10, message, target_profile)
 			"demand_vassalage":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "vassal", turn_number, DiplomacyCatalogScript.VASSAL_DURATION, -1)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -8, turn_number)
 				message = "%s признало твоё верховенство на 10 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "vassalage_agreed", ["coercion"], -8, message, target_profile)
 	else:
-		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -3, turn_number)
 		message = "%s отклонило предложение. Шанс принятия был %d%%." % [kingdom_name, chance]
+		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_rejected", ["rejected_offer"], -3, message, target_profile)
 	_record_diplomacy_event(message)
 	save_campaign()
 	return {"ok": true, "accepted": accepted, "message": message, "chance": chance}
@@ -2825,6 +2880,8 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			pending_diplomacy_offers.remove_at(offer_index)
 			save_campaign()
 			return {"ok": false, "message": "Держава больше не существует. Предложение отменено."}
+		var offer_profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+		var offer_profile: Dictionary = offer_profile_value if offer_profile_value is Dictionary else {}
 		if action_id == "call_to_war":
 			var enemy_id := int(offer.get("enemy_kingdom_id", -1))
 			var caller_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id)
@@ -2857,8 +2914,10 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 				joined_record["war_initiator_id"] = original_initiator
 				joined_record["war_target_id"] = int(enemy_record.get("war_target_id", enemy_id))
 				DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, joined_record)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, -8, turn_number)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, 5, turn_number)
+				var enemy_profile_value: Variant = kingdoms[enemy_id].get("diplomacy_profile", {})
+				var enemy_profile: Dictionary = enemy_profile_value if enemy_profile_value is Dictionary else {}
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, turn_number, "joined_ally_war", ["war_declared", "ally_support"], -8, "Ты вступил в войну против «%s» по призыву союзника." % enemy_name, enemy_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number, "supported_ally", ["ally_support", "keeps_treaties"], 5, "Ты поддержал призыв союзника к войне.", offer_profile)
 				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [str(kingdoms[kingdom_id].get("name", "Держава")), enemy_name]
 			else:
 				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
@@ -2880,23 +2939,23 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			match action_id:
 				"offer_trade":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "trade", turn_number, DiplomacyCatalogScript.TRADE_DURATION)
-					DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 8, turn_number)
 					message = "Ты принял торговое предложение державы «%s»." % kingdom_name
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, offer_profile)
 				"offer_alliance":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "alliance", turn_number, DiplomacyCatalogScript.ALLIANCE_DURATION)
-					DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 12, turn_number)
 					message = "Ты заключил союз с державой «%s»." % kingdom_name
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, offer_profile)
 				"offer_peace":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "peace", turn_number, 0)
 					var peace_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 					peace_record["truce_until"] = turn_number + DiplomacyCatalogScript.TRUCE_DURATION
 					peace_record["war_reason"] = "resolved"
 					DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, peace_record)
-					DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 15, turn_number)
 					message = "Ты заключил мир с державой «%s»." % kingdom_name
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, offer_profile)
 		else:
-			DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -2, turn_number)
 			message = "Ты отклонил предложение державы «%s»." % kingdom_name
+			DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_declined", ["rejected_offer"], -2, message, offer_profile)
 		pending_diplomacy_offers.remove_at(offer_index)
 		_record_diplomacy_event(message)
 		save_campaign()

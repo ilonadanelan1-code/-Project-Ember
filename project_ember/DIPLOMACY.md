@@ -228,3 +228,52 @@
 6. Скопируй сохранение v0.28.0 в тестовую папку, загрузи его и убедись, что новая дипломатическая матрица создаётся без изменения номера схемы.
 
 **Проверка в этой сборочной среде:** 162/162 статических QA-проверок пройдены. GDScript smoke-test включён как исходник, но не исполнялся. Godot 4.7.2 parser/import/runtime и Android touch/FPS тесты не выполнялись, потому что исполняемый файл Godot недоступен.
+
+## v0.39 — Block 4: diplomatic behavior and relationship memory
+
+The v0.39 extension keeps the existing 45-pair diplomacy matrix and `SAVE_VERSION = 1`. New state is optional and stored inside each existing pair record.
+
+### Persistent relationship memory
+
+- Each pair stores up to 12 recent diplomatic events with actor, target, turn, action, message, relation delta and resulting relation.
+- Repeated identical action IDs in the same turn are idempotent and cannot apply a second relation change.
+- Legacy pair records normalize to an empty history and safe defaults for all gift and statement fields.
+- History is bounded per pair; it does not grow with campaign length.
+
+### Personality reactions to actions
+
+- Action reaction combines the target ruler's saved likes/dislikes with a small personality-specific response.
+- Reactions cover gifts, border/outpost expansion, declared wars, treaty breaches, allied support, coercion and keeping agreements.
+- Reactions are applied through one deterministic function and the resulting delta is written to relationship history.
+- A border claim caused by player expansion is recorded as a concrete diplomatic grievance rather than an unexplained periodic modifier.
+
+### Gifts
+
+| Gift | Cost | Base relation |
+|---|---:|---:|
+| Small | 25 gold | +4 |
+| Generous | 50 gold | +8 |
+| Royal | 90 gold | +12 |
+
+- The target ruler's preferences and personality modify the base relation effect.
+- A pair has a six-turn player-gift cooldown and a lifetime cap of 24 positive relation points gained from player gifts.
+- Gifts are paid from player city treasuries; outpost reserves are not treated as spendable city gold.
+- Merchant and honorable AI rulers may send a deterministic 20-gold gift when relations are friendly and their capital can afford it. AI gifts have a 12-turn cooldown and an 18-point lifetime relationship cap.
+- AI gift gold is transferred to the player's capital and deducted from the sender's capital on the same campaign turn.
+
+### Public diplomatic statements
+
+- An AI ruler publicly declares friendship at relation `+65` or higher.
+- It publicly names the player a rival at relation `-45` or lower.
+- A statement is withdrawn or revised after the relation moves back across `+45` or `-25` respectively.
+- Statements have a six-turn minimum interval and are stored in the pair record for the diplomacy panel.
+
+### Mobile UI
+
+- The diplomacy detail panel shows the current public position and the latest four relationship-history entries.
+- Three gift actions show their cost, base relation effect, remaining cooldown or the lifetime cap.
+- Existing diplomacy controls remain in the scrollable mobile panel; no new always-visible HUD row is added.
+
+### Validation additions
+
+- Tests cover personality/preference reaction, action idempotency, bounded history, lifetime gift caps, legacy normalization, public statements and AI-to-player gift transfers.

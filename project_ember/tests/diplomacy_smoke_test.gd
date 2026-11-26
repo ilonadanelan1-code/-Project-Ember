@@ -126,6 +126,69 @@ func _run() -> void:
 	)
 	_check(int(common_enemy_opinion.get("shared_enemies", 0)) == 3, "leaders gain affinity when they share an active enemy")
 
+	var gift_target_profile := {
+		"alignment": "good",
+		"personality_id": "honorable",
+		"likes": ["generous", "gift"],
+		"dislikes": ["treaty_breach"],
+	}
+	var gift_reaction := DiplomacyCatalogScript.calculate_action_reaction(gift_target_profile, ["gift", "generous"])
+	_check(gift_reaction >= 4, "a ruler's stated likes and honorable personality improve the response to a gift")
+	var memory_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	var gift_action := DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 4, "gift_small", ["gift", "generous"], 4, "Игрок отправил небольшой подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	_check(bool(gift_action.get("applied", false)) and int(gift_action.get("delta", 0)) > 4, "diplomatic action reaction adds a personality and preference modifier to a gift")
+	var gift_memory_record := DiplomacyCatalogScript.get_record(memory_relations, -1, 0)
+	_check(gift_memory_record.get("relationship_history", []) is Array and gift_memory_record.get("relationship_history", []).size() == 1, "gift is stored in the relationship's persistent event history")
+	var duplicate_gift_action := DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 4, "gift_small", ["gift", "generous"], 4, "Повторный подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	_check(not bool(duplicate_gift_action.get("applied", true)), "the same diplomatic action cannot be applied twice in one turn")
+	DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 5, "gift_medium", ["gift", "generous"], 20, "Игрок отправил щедрый подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 6, "gift_large", ["gift", "generous"], 20, "Игрок отправил королевский дар.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	gift_memory_record = DiplomacyCatalogScript.get_record(memory_relations, -1, 0)
+	_check(int(gift_memory_record.get("gift_relation_gained", 0)) == DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN, "lifetime positive relation gain from gifts is capped")
+	_check(gift_memory_record.get("relationship_history", []).size() <= DiplomacyCatalogScript.MAX_RELATIONSHIP_HISTORY, "relationship history has a strict per-pair size limit")
+
+	var statement_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	var statement_record := DiplomacyCatalogScript.get_record(statement_relations, -1, 0)
+	statement_record["relation"] = 70
+	DiplomacyCatalogScript.set_record(statement_relations, -1, 0, statement_record)
+	var friendship_statement := DiplomacyCatalogScript.update_public_statement(statement_relations, 0, -1, 8, "Северный Венец", "твоей державой")
+	_check(str(friendship_statement.get("type", "")) == "friendship", "a ruler publicly declares friendship after crossing the relation threshold")
+	var saved_statement_record := DiplomacyCatalogScript.get_record(statement_relations, 0, -1)
+	_check(str(saved_statement_record.get("public_statement", {}).get("type", "")) == "friendship", "public diplomatic statements are stored in the persistent pair record")
+
+	var migrated_memory := DiplomacyCatalogScript.normalize_relations({
+		"-1:0": {
+			"relation": 12,
+			"relationship_history": [{"actor_id": -1, "target_id": 0, "turn": 3, "action": "gift_small", "message": "Legacy gift", "relation_delta": 5}],
+			"last_gift_turn": 3,
+			"gift_relation_gained": 5,
+			"public_statement": {"type": "friendship", "text": "Старое заявление", "turn": 3},
+		},
+	}, 1, 841207)
+	var migrated_memory_record := DiplomacyCatalogScript.get_record(migrated_memory, -1, 0)
+	_check(migrated_memory_record.get("relationship_history", []).size() == 1, "legacy save migration preserves and normalizes diplomatic memories")
+	_check(int(migrated_memory_record.get("last_gift_turn", 0)) == 3 and int(migrated_memory_record.get("gift_relation_gained", 0)) == 5, "gift cooldown and gift cap survive save normalization")
+	_check(str(migrated_memory_record.get("public_statement", {}).get("type", "")) == "friendship", "legacy public diplomatic statements survive normalization")
+
+	var gift_kingdoms := KingdomAIScript.create_initial_kingdoms(841207)
+	var merchant_gift_kingdom: Dictionary = gift_kingdoms[1]
+	merchant_gift_kingdom["diplomacy_profile"] = {"personality_id": "merchant", "likes": ["generous"], "dislikes": []}
+	var gift_cities: Array = merchant_gift_kingdom.get("cities", [])
+	var gift_capital: Dictionary = gift_cities[0]
+	gift_capital["gold"] = 60
+	gift_cities[0] = gift_capital
+	merchant_gift_kingdom["cities"] = gift_cities
+	gift_kingdoms[1] = merchant_gift_kingdom
+	var ai_gift_relations := DiplomacyCatalogScript.create_initial_relations(gift_kingdoms.size(), 841207)
+	var ai_gift_record := DiplomacyCatalogScript.get_record(ai_gift_relations, -1, 1)
+	ai_gift_record["relation"] = 50
+	DiplomacyCatalogScript.set_record(ai_gift_relations, -1, 1, ai_gift_record)
+	var ai_gift_offers: Array[Dictionary] = []
+	var ai_gift_result := DiplomacyCatalogScript.process_turn(ai_gift_relations, gift_kingdoms, 21, 841207, 100.0, ai_gift_offers, [], {"likes": ["generous"], "personality_id": "honorable"})
+	_check(ai_gift_result.get("gift_transfers", []).size() == 1, "a friendly merchant AI can send a real gold gift to the player")
+	_check(int(gift_kingdoms[1].get("cities", [])[0].get("gold", 0)) == 40, "AI gift is paid from the sender's capital treasury")
+	_check(not DiplomacyCatalogScript.get_record(ai_gift_relations, -1, 1).get("relationship_history", []).is_empty(), "AI gifts are also recorded in relationship memory")
+
 
 	var initial_record := DiplomacyCatalogScript.get_record(relations, -1, 1)
 	_check(int(initial_record.get("relation", -100)) == 18, "merchant begins with a modest positive player relationship")

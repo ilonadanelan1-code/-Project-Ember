@@ -34,6 +34,17 @@ const COMMON_ENEMY_OPINION_BONUS := 3
 const MAX_COMMON_ENEMY_BONUS := 6
 const COMMON_ALLY_OPINION_BONUS := 2
 const MAX_COMMON_ALLY_BONUS := 4
+const MAX_RELATIONSHIP_HISTORY := 12
+const GIFT_COOLDOWN_TURNS := 6
+const MAX_GIFT_RELATION_GAIN := 24
+const AI_GIFT_COOLDOWN_TURNS := 12
+const MAX_AI_GIFT_RELATION_GAIN := 18
+const AI_GIFT_GOLD := 20
+const GIFT_ACTIONS := {
+	"send_gift_small": {"cost": 25, "relation": 4, "name": "Небольшой подарок"},
+	"send_gift_medium": {"cost": 50, "relation": 8, "name": "Щедрый подарок"},
+	"send_gift_large": {"cost": 90, "relation": 12, "name": "Королевский дар"},
+}
 
 const PERSONALITIES := {
 	"aggressor": {
@@ -445,7 +456,8 @@ static func _normalize_preference_tags(raw_value: Variant, fallback_value: Varia
 		"good", "neutral", "evil", "order", "chaos", "nature", "astral", "shadow", "materium",
 		"aggressor", "merchant", "isolationist", "honorable", "expansionist", "strong",
 		"war_focused", "trade_focused", "expansion_focused", "keeps_treaties", "breaks_treaties",
-		"blocks_expansion",
+		"blocks_expansion", "generous", "gift", "border_expansion", "outpost_expansion",
+		"treaty_breach", "ally_support", "coercion", "rejected_offer", "peace_made",
 	]
 	var source: Variant = raw_value if raw_value is Array else fallback_value
 	var result: Array[String] = []
@@ -500,6 +512,13 @@ static func _make_record(initial_relation: int = 0) -> Dictionary:
 		"truce_until": 0,
 		"last_offer_turn": 0,
 		"last_change_turn": 1,
+		"relationship_history": [],
+		"last_gift_turn": 0,
+		"gift_relation_gained": 0,
+		"last_received_gift_turn": 0,
+		"ai_gift_relation_gained": 0,
+		"public_statement": {"type": "none", "text": "", "turn": 0},
+		"last_statement_turn": 0,
 	}
 
 
@@ -639,6 +658,18 @@ static func normalize_relations(
 			record["truce_until"] = clampi(int(raw_record.get("truce_until", 0)), 0, 100000000)
 			record["last_offer_turn"] = clampi(int(raw_record.get("last_offer_turn", 0)), 0, 100000000)
 			record["last_change_turn"] = clampi(int(raw_record.get("last_change_turn", 1)), 1, 100000000)
+			record["relationship_history"] = _normalize_relationship_history(raw_record.get("relationship_history", []), int(pair_parts[0]), int(pair_parts[1])) if pair_parts.size() == 2 else []
+			record["last_gift_turn"] = clampi(int(raw_record.get("last_gift_turn", 0)), 0, 100000000)
+			record["gift_relation_gained"] = clampi(int(raw_record.get("gift_relation_gained", 0)), 0, MAX_GIFT_RELATION_GAIN)
+			record["last_received_gift_turn"] = clampi(int(raw_record.get("last_received_gift_turn", 0)), 0, 100000000)
+			record["ai_gift_relation_gained"] = clampi(int(raw_record.get("ai_gift_relation_gained", 0)), 0, MAX_AI_GIFT_RELATION_GAIN)
+			var statement_value: Variant = raw_record.get("public_statement", {})
+			var statement: Dictionary = statement_value if statement_value is Dictionary else {}
+			var statement_type := str(statement.get("type", "none"))
+			if statement_type not in ["none", "friendship", "hostility", "neutral"]:
+				statement_type = "none"
+			record["public_statement"] = {"type": statement_type, "text": str(statement.get("text", "")).left(240), "turn": clampi(int(statement.get("turn", 0)), 0, 100000000)}
+			record["last_statement_turn"] = clampi(int(raw_record.get("last_statement_turn", statement.get("turn", 0))), 0, 100000000)
 			if record["treaty"] != "tribute" and record["treaty"] != "vassal":
 				record["overlord_id"] = -99
 			result[key] = record
@@ -646,6 +677,168 @@ static func normalize_relations(
 		refresh_relationship_modifiers(result, kingdoms, player_profile)
 	return result
 
+
+static func get_gift_data(action_id: String) -> Dictionary:
+	var value: Variant = GIFT_ACTIONS.get(action_id, {})
+	return value.duplicate(true) if value is Dictionary else {}
+
+static func calculate_action_reaction(target_profile: Dictionary, action_tags: Array) -> int:
+	var score := 0
+	var likes_value: Variant = target_profile.get("likes", [])
+	var dislikes_value: Variant = target_profile.get("dislikes", [])
+	var likes: Array = likes_value if likes_value is Array else []
+	var dislikes: Array = dislikes_value if dislikes_value is Array else []
+	for tag_value in action_tags:
+		var tag := str(tag_value)
+		if likes.has(tag):
+			score += 2
+		if dislikes.has(tag):
+			score -= 2
+	var personality_id := str(target_profile.get("personality_id", ""))
+	for tag_value in action_tags:
+		match str(tag_value):
+			"gift":
+				if personality_id in ["merchant", "honorable"]:
+					score += 2
+				elif personality_id in ["aggressor", "isolationist"]:
+					score -= 1
+			"border_expansion":
+				if personality_id == "expansionist":
+					score += 2
+				elif personality_id == "aggressor":
+					score += 1
+				elif personality_id == "isolationist":
+					score -= 3
+				elif personality_id == "honorable":
+					score -= 2
+			"war_declared":
+				if personality_id == "aggressor":
+					score += 2
+				elif personality_id == "expansionist":
+					score += 1
+				elif personality_id == "honorable":
+					score -= 3
+				elif personality_id in ["merchant", "isolationist"]:
+					score -= 2
+			"treaty_breach":
+				if personality_id == "honorable":
+					score -= 5
+				elif personality_id == "merchant":
+					score -= 3
+			"ally_support":
+				if personality_id == "honorable":
+					score += 3
+				elif personality_id in ["aggressor", "expansionist"]:
+					score += 1
+			"coercion":
+				if personality_id in ["merchant", "honorable", "isolationist"]:
+					score -= 2
+			"keeps_treaties":
+				if personality_id == "honorable":
+					score += 2
+	return clampi(score, -8, 8)
+
+static func _append_history_to_record(record: Dictionary, actor_id: int, target_id: int, turn_number: int, action_id: String, message: String, relation_delta: int) -> void:
+	var history_value: Variant = record.get("relationship_history", [])
+	var history: Array = history_value if history_value is Array else []
+	var event_id := "%d:%d:%s:%d" % [actor_id, target_id, action_id, turn_number]
+	for existing_value in history:
+		if existing_value is Dictionary and str(existing_value.get("id", "")) == event_id:
+			return
+	history.append({
+		"id": event_id, "actor_id": actor_id, "target_id": target_id,
+		"turn": maxi(1, turn_number), "action": action_id, "message": message.left(240),
+		"relation_delta": relation_delta, "relation_after": int(record.get("relation", 0)),
+	})
+	while history.size() > MAX_RELATIONSHIP_HISTORY:
+		history.pop_front()
+	record["relationship_history"] = history
+
+static func append_relationship_event(relations: Dictionary, actor_id: int, target_id: int, turn_number: int, action_id: String, message: String, relation_delta: int = 0) -> Dictionary:
+	var record := get_record(relations, actor_id, target_id)
+	_append_history_to_record(record, actor_id, target_id, turn_number, action_id, message, relation_delta)
+	set_record(relations, actor_id, target_id, record)
+	return record.duplicate(true)
+
+static func apply_relationship_action(relations: Dictionary, actor_id: int, target_id: int, turn_number: int, action_id: String, action_tags: Array, base_delta: int, message: String, target_profile: Dictionary = {}, gain_cap_field: String = "", gain_cap: int = 0) -> Dictionary:
+	var record := get_record(relations, actor_id, target_id)
+	var event_id := "%d:%d:%s:%d" % [actor_id, target_id, action_id, turn_number]
+	var history_value: Variant = record.get("relationship_history", [])
+	var history: Array = history_value if history_value is Array else []
+	for existing_value in history:
+		if existing_value is Dictionary and str(existing_value.get("id", "")) == event_id:
+			return {"applied": false, "delta": 0, "relation": int(record.get("relation", 0)), "reaction": 0}
+	var reaction := calculate_action_reaction(target_profile, action_tags)
+	var delta := base_delta + reaction
+	var previous_gift_gain := clampi(int(record.get(gain_cap_field, 0)), 0, gain_cap) if gain_cap > 0 and not gain_cap_field.is_empty() else 0
+	if gain_cap > 0 and not gain_cap_field.is_empty() and delta > 0:
+		delta = mini(delta, maxi(0, gain_cap - previous_gift_gain))
+	var previous_relation := int(record.get("relation", 0))
+	var next_relation := clampi(previous_relation + delta, RELATION_MIN, RELATION_MAX)
+	delta = next_relation - previous_relation
+	if gain_cap > 0 and not gain_cap_field.is_empty():
+		record[gain_cap_field] = previous_gift_gain + maxi(0, delta)
+	record["relation"] = next_relation
+	record["last_change_turn"] = turn_number
+	_append_history_to_record(record, actor_id, target_id, turn_number, action_id, message, delta)
+	set_record(relations, actor_id, target_id, record)
+	return {"applied": true, "delta": delta, "reaction": reaction, "relation": next_relation}
+
+static func update_public_statement(relations: Dictionary, actor_id: int, target_id: int, turn_number: int, actor_name: String, target_name: String) -> Dictionary:
+	var record := get_record(relations, actor_id, target_id)
+	var statement_value: Variant = record.get("public_statement", {})
+	var statement: Dictionary = statement_value if statement_value is Dictionary else {}
+	var current_type := str(statement.get("type", "none"))
+	var relation := int(record.get("relation", 0))
+	var next_type := ""
+	if relation >= 65 and current_type != "friendship":
+		next_type = "friendship"
+	elif relation <= -45 and current_type != "hostility":
+		next_type = "hostility"
+	elif current_type == "friendship" and relation < 45:
+		next_type = "neutral"
+	elif current_type == "hostility" and relation > -25:
+		next_type = "neutral"
+	if next_type.is_empty() or turn_number - int(record.get("last_statement_turn", 0)) < 6:
+		return {}
+	var message := ""
+	match next_type:
+		"friendship": message = "%s публично заявил о дружбе с державой «%s»." % [actor_name, target_name]
+		"hostility": message = "%s публично объявил державу «%s» своим противником." % [actor_name, target_name]
+		"neutral": message = "%s пересмотрел свою публичную позицию по отношению к державе «%s»." % [actor_name, target_name]
+	var next_statement := {"type": next_type, "text": message, "turn": turn_number}
+	record["public_statement"] = next_statement
+	record["last_statement_turn"] = turn_number
+	_append_history_to_record(record, actor_id, target_id, turn_number, "statement_" + next_type, message, 0)
+	set_record(relations, actor_id, target_id, record)
+	return next_statement.duplicate(true)
+
+static func _normalize_relationship_history(raw_value: Variant, first_id: int, second_id: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not raw_value is Array:
+		return result
+	for value in raw_value:
+		if not value is Dictionary:
+			continue
+		var event: Dictionary = value
+		var actor_id := int(event.get("actor_id", -99))
+		var target_id := int(event.get("target_id", -99))
+		if [actor_id, target_id] not in [[first_id, second_id], [second_id, first_id]]:
+			continue
+		var action_id := str(event.get("action", ""))
+		if action_id.is_empty():
+			continue
+		result.append({
+			"id": str(event.get("id", "%d:%d:%s:%d" % [actor_id, target_id, action_id, int(event.get("turn", 1))])).left(160),
+			"actor_id": actor_id, "target_id": target_id,
+			"turn": clampi(int(event.get("turn", 1)), 1, 100000000),
+			"action": action_id.left(48), "message": str(event.get("message", "")).left(240),
+			"relation_delta": clampi(int(event.get("relation_delta", 0)), -100, 100),
+			"relation_after": clampi(int(event.get("relation_after", 0)), RELATION_MIN, RELATION_MAX),
+		})
+	while result.size() > MAX_RELATIONSHIP_HISTORY:
+		result.pop_front()
+	return result
 
 static func get_record(relations: Dictionary, first_id: int, second_id: int) -> Dictionary:
 	var value: Variant = relations.get(pair_key(first_id, second_id), _make_record())
@@ -842,6 +1035,7 @@ static func _apply_war_call_refusal(
 	if caller_id < 0:
 		return 0
 	var next_relation := change_relation(relations, PLAYER_ID, caller_id, -WAR_CALL_REFUSAL_PENALTY, turn_number)
+	append_relationship_event(relations, PLAYER_ID, caller_id, turn_number, "war_call_refused", "Ты отказался поддержать союзника или не ответил на призыв к войне.", -WAR_CALL_REFUSAL_PENALTY)
 	var record := get_record(relations, PLAYER_ID, caller_id)
 	if str(record.get("treaty", "peace")) == "alliance" and next_relation <= -45:
 		set_treaty(relations, PLAYER_ID, caller_id, "peace", turn_number)
@@ -955,6 +1149,7 @@ static func process_turn(
 ) -> Dictionary:
 	refresh_relationship_modifiers(relations, kingdoms, player_profile)
 	var events: Array[String] = []
+	var gift_transfers: Array[Dictionary] = []
 	for offer_index in range(pending_offers.size() - 1, -1, -1):
 		if int(pending_offers[offer_index].get("expires_turn", 0)) < turn_number:
 			var expired_offer: Dictionary = pending_offers[offer_index]
@@ -990,7 +1185,12 @@ static func process_turn(
 				var claim_cause := "outpost_encroachment" if player_outpost_distance <= 3 else "border_encroachment"
 				var created_claim := create_casus_belli(relations, kingdom_id, PLAYER_ID, claim_cause, turn_number, 2 if player_border_distance <= 2 else 1)
 				if not created_claim.is_empty() and int(created_claim.get("created_turn", -1)) == turn_number:
-					events.append("%s выдвинуло претензию против твоей державы: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), claim_cause])
+					var border_message := "%s осудило расширение твоей державы и выдвинуло претензию: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), claim_cause]
+					var border_tags: Array = ["border_expansion"]
+					if claim_cause == "outpost_encroachment":
+						border_tags.append("outpost_expansion")
+					apply_relationship_action(relations, PLAYER_ID, kingdom_id, turn_number, "border_expansion", border_tags, 0, border_message, kingdom_profile)
+					events.append(border_message)
 				player_record = get_record(relations, PLAYER_ID, kingdom_id)
 			if is_aggressive and player_border_distance <= BORDER_TENSION_DISTANCE and turn_number % BORDER_TENSION_INTERVAL == posmod(kingdom_id, BORDER_TENSION_INTERVAL):
 				var player_border_penalty := 2 if player_border_distance <= 2 else 1
@@ -1007,9 +1207,16 @@ static func process_turn(
 				war_record["war_target_id"] = PLAYER_ID
 				set_record(relations, PLAYER_ID, kingdom_id, war_record)
 				consume_casus_belli(relations, kingdom_id, PLAYER_ID, turn_number)
-				change_relation(relations, PLAYER_ID, kingdom_id, -8, turn_number)
-				events.append("%s объявило тебе войну по причине: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), war_cause])
+				var ai_war_message := "%s объявило тебе войну по причине: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), war_cause]
+				apply_relationship_action(relations, kingdom_id, PLAYER_ID, turn_number, "ai_declared_war", ["war_declared"], -8, ai_war_message, player_profile)
+				events.append(ai_war_message)
 				player_record = get_record(relations, PLAYER_ID, kingdom_id)
+		var gifting_kingdom: Dictionary = kingdoms[kingdom_id]
+		var gift_transfer := _maybe_send_ai_gift(gifting_kingdom, kingdom_id, relations, turn_number, player_profile)
+		kingdoms[kingdom_id] = gifting_kingdom
+		if not gift_transfer.is_empty():
+			gift_transfers.append(gift_transfer)
+			events.append("%s отправило тебе дипломатический подарок." % str(kingdoms[kingdom_id].get("name", "Королевство")))
 		_maybe_create_player_offer(
 				pending_offers,
 				relations,
@@ -1096,7 +1303,13 @@ static func process_turn(
 					change_relation(relations, first_id, second_id, 8, turn_number)
 					events.append("%s и %s заключили мир после истощительной войны." % [str(kingdoms[first_id].get("name", "Держава")), str(kingdoms[second_id].get("name", "Держава"))])
 
-	return {"events": events, "offers": pending_offers}
+	for kingdom_id in range(kingdoms.size()):
+		if not bool(kingdoms[kingdom_id].get("alive", true)):
+			continue
+		var statement := update_public_statement(relations, kingdom_id, PLAYER_ID, turn_number, str(kingdoms[kingdom_id].get("name", "Королевство")), "твоей державой")
+		if not statement.is_empty():
+			events.append(str(statement.get("text", "")))
+	return {"events": events, "offers": pending_offers, "gift_transfers": gift_transfers}
 
 
 static func _nearest_sources_to_cities(sources: Array[Vector2i], city_values: Variant) -> int:
@@ -1156,6 +1369,44 @@ static func _tick_record(record: Dictionary, turn_number: int) -> void:
 	elif treaty == "tribute":
 		record["relation"] = clampi(int(record.get("relation", 0)) + 1, RELATION_MIN, RELATION_MAX)
 
+
+static func _maybe_send_ai_gift(kingdom: Dictionary, kingdom_id: int, relations: Dictionary, turn_number: int, player_profile: Dictionary) -> Dictionary:
+	if player_profile.is_empty() or not bool(kingdom.get("alive", true)):
+		return {}
+	var record := get_record(relations, kingdom_id, PLAYER_ID)
+	var treaty := str(record.get("treaty", "peace"))
+	var relation := int(record.get("relation", 0))
+	var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+	var profile: Dictionary = profile_value if profile_value is Dictionary else {}
+	var personality_id := str(profile.get("personality_id", ""))
+	if relation < 35 or treaty not in ["peace", "trade", "alliance"] or personality_id not in ["merchant", "honorable"]:
+		return {}
+	if turn_number - int(record.get("last_received_gift_turn", 0)) < AI_GIFT_COOLDOWN_TURNS or posmod(turn_number + kingdom_id * 5, 13) != 0:
+		return {}
+	var remaining_gain := maxi(0, MAX_AI_GIFT_RELATION_GAIN - int(record.get("ai_gift_relation_gained", 0)))
+	var gift_delta := mini(maxi(0, 3 + calculate_action_reaction(player_profile, ["gift", "generous", "trade_focused"])), remaining_gain)
+	if gift_delta <= 0:
+		return {}
+	var cities_value: Variant = kingdom.get("cities", [])
+	var cities: Array = cities_value if cities_value is Array else []
+	if cities.is_empty() or not cities[0] is Dictionary:
+		return {}
+	var capital: Dictionary = cities[0]
+	var capital_gold := maxi(0, int(capital.get("gold", 0)))
+	if capital_gold < AI_GIFT_GOLD:
+		return {}
+	capital["gold"] = capital_gold - AI_GIFT_GOLD
+	cities[0] = capital
+	kingdom["cities"] = cities
+	var next_relation := clampi(relation + gift_delta, RELATION_MIN, RELATION_MAX)
+	gift_delta = next_relation - relation
+	record["relation"] = next_relation
+	record["last_change_turn"] = turn_number
+	record["last_received_gift_turn"] = turn_number
+	record["ai_gift_relation_gained"] = int(record.get("ai_gift_relation_gained", 0)) + maxi(0, gift_delta)
+	_append_history_to_record(record, kingdom_id, PLAYER_ID, turn_number, "ai_gift", "%s прислало тебе подарок: %d золота." % [str(kingdom.get("name", "Держава")), AI_GIFT_GOLD], gift_delta)
+	set_record(relations, kingdom_id, PLAYER_ID, record)
+	return {"kingdom_id": kingdom_id, "gold": AI_GIFT_GOLD}
 
 static func _maybe_create_player_offer(
 		pending_offers: Array[Dictionary],

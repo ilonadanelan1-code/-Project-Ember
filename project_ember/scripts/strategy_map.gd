@@ -1588,6 +1588,19 @@ func _refresh_diplomacy_panel() -> void:
 	if str(record.get("war_join_reason", "none")) == "ally_call":
 		war_reason_text += "\nТы вступил в конфликт по призыву союзника."
 	var claims_text := _format_casus_belli_claims(record.get("casus_belli", []), CampaignState.turn_number)
+	var statement_value: Variant = record.get("public_statement", {})
+	var statement: Dictionary = statement_value if statement_value is Dictionary else {}
+	var statement_text := str(statement.get("text", "")) if str(statement.get("type", "none")) != "none" else "Публичного заявления пока нет."
+	var history_value: Variant = record.get("relationship_history", [])
+	var history: Array = history_value if history_value is Array else []
+	var history_lines: Array[String] = []
+	var history_start := maxi(0, history.size() - 4)
+	for history_index in range(history_start, history.size()):
+		var history_event_value: Variant = history[history_index]
+		if history_event_value is Dictionary:
+			var history_event: Dictionary = history_event_value
+			history_lines.append("Ход %d · %s (%+d)" % [int(history_event.get("turn", 0)), str(history_event.get("message", "Событие")), int(history_event.get("relation_delta", 0))])
+	var history_text := "\nИстория отношений:\n" + "\n".join(history_lines) if not history_lines.is_empty() else "\nИстория отношений пока пуста."
 	var overlord_text := ""
 	if treaty_value == "tribute" or treaty_value == "vassal":
 		overlord_text = "\nПолучатель выплат: %s." % ("твоё королевство" if int(record.get("overlord_id", -99)) == -1 else "другая держава")
@@ -1611,6 +1624,7 @@ func _refresh_diplomacy_panel() -> void:
 		overlord_text,
 		army_count,
 	]
+	_diplomacy_summary_label.text += "\nПубличная позиция: %s%s" % [statement_text, history_text]
 	for child in _diplomacy_actions_list.get_children():
 		child.queue_free()
 	var action_options := [
@@ -1620,11 +1634,14 @@ func _refresh_diplomacy_panel() -> void:
 		{"id": "demand_tribute", "label": "ПОТРЕБОВАТЬ ДАНЬ"},
 		{"id": "demand_vassalage", "label": "ПОТРЕБОВАТЬ ВАССАЛИТЕТ"},
 		{"id": "declare_war", "label": "ОБЪЯВИТЬ ВОЙНУ"},
+		{"id": "send_gift_small", "label": "ОТПРАВИТЬ НЕБОЛЬШОЙ ПОДАРОК"},
+		{"id": "send_gift_medium", "label": "ОТПРАВИТЬ ЩЕДРЫЙ ПОДАРОК"},
+		{"id": "send_gift_large", "label": "ОТПРАВИТЬ КОРОЛЕВСКИЙ ДАР"},
 	]
 	for action_value in action_options:
 		var action_id := str(action_value.get("id", ""))
 		var preview := CampaignState.get_diplomacy_action_preview(kingdom_id, action_id)
-		var chance_text := "" if action_id == "declare_war" else " · шанс %d%%" % int(preview.get("chance", 0))
+		var chance_text := "" if action_id == "declare_war" or action_id.begins_with("send_gift_") else " · шанс %d%%" % int(preview.get("chance", 0))
 		var action_button := _add_button(
 			_diplomacy_actions_list,
 			str(action_value.get("label", "ДЕЙСТВИЕ")) + chance_text,
