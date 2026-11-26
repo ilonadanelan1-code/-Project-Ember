@@ -507,6 +507,8 @@ func _read_player_armies(value: Variant, fallback: Dictionary) -> Array[Dictiona
 			if not WorldGeneratorScript.is_inside_world(army_cell):
 				army_cell = fallback_cell
 			var units := _read_unit_records(raw.get("units", []))
+			var upgrades_value: Variant = raw.get("upgrades", {})
+			var upgrades: Dictionary = upgrades_value if upgrades_value is Dictionary else {}
 			var hero_id := str(raw.get("hero_id", ""))
 			if hero_id.is_empty() or _get_hero_record(hero_id).is_empty() or assigned_heroes.has(hero_id):
 				hero_id = ""
@@ -526,7 +528,7 @@ func _read_player_armies(value: Variant, fallback: Dictionary) -> Array[Dictiona
 				army_cell,
 				units,
 				hero_id,
-				raw.get("upgrades", {}),
+				upgrades,
 				clampi(int(raw.get("moves_left", 1)), 0, 1)
 			))
 	if result.is_empty():
@@ -536,13 +538,15 @@ func _read_player_armies(value: Variant, fallback: Dictionary) -> Array[Dictiona
 		var fallback_hero_id := str(fallback.get("hero_id", ""))
 		if fallback_hero_id.is_empty() or _get_hero_record(fallback_hero_id).is_empty():
 			fallback_hero_id = str(hero_roster[0].get("id", "")) if not hero_roster.is_empty() else ""
+		var fallback_upgrades_value: Variant = fallback.get("upgrades", {})
+		var fallback_upgrades: Dictionary = fallback_upgrades_value if fallback_upgrades_value is Dictionary else {}
 		result.append(_make_player_army_record(
 			fallback_id,
 			str(fallback.get("name", "Первая армия")),
 			fallback_cell,
 			fallback_units,
 			fallback_hero_id,
-			fallback.get("upgrades", {}),
+			fallback_upgrades,
 			int(fallback.get("moves_left", 1))
 		))
 	var has_primary := false
