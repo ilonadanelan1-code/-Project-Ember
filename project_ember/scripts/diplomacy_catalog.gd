@@ -369,7 +369,9 @@ static func _get_profile_for_id(
 
 
 static func _get_top_affinities(affinities: Dictionary, count: int) -> Array[String]:
-	var remaining: Array[String] = AFFINITY_IDS.duplicate()
+	var remaining: Array[String] = []
+	for affinity_id in AFFINITY_IDS:
+		remaining.append(str(affinity_id))
 	var result: Array[String] = []
 	for _rank in range(mini(count, remaining.size())):
 		var best_id := ""
@@ -492,7 +494,7 @@ static func create_initial_relations(
 		result[pair_key(PLAYER_ID, kingdom_id)] = _make_record(_initial_player_relation(kingdom_id))
 		for other_id in range(kingdom_id + 1, kingdom_count):
 			result[pair_key(kingdom_id, other_id)] = _make_record(_initial_ai_relation(kingdom_id, other_id, world_seed))
-	if kingdoms.size() == kingdom_count and not player_profile.is_empty():
+	if kingdoms.size() == kingdom_count:
 		refresh_relationship_modifiers(result, kingdoms, player_profile)
 	return result
 
@@ -528,8 +530,10 @@ static func normalize_relations(
 			else:
 				# Legacy saves stored a single raw relation score. Apply the new
 				# profile modifiers once and persist the breakdown to prevent stacking.
+				var default_modifiers_value: Variant = record.get("opinion_modifiers", {})
+				var default_modifiers: Dictionary = default_modifiers_value if default_modifiers_value is Dictionary else {}
 				record["relation"] = clampi(
-					raw_relation + int(record.get("opinion_modifiers", {}).get("total", 0)),
+					raw_relation + int(default_modifiers.get("total", 0)),
 					RELATION_MIN,
 					RELATION_MAX
 				)
@@ -546,7 +550,7 @@ static func normalize_relations(
 			if record["treaty"] != "tribute" and record["treaty"] != "vassal":
 				record["overlord_id"] = -99
 			result[key] = record
-	if kingdoms.size() == kingdom_count and not player_profile.is_empty():
+	if kingdoms.size() == kingdom_count:
 		refresh_relationship_modifiers(result, kingdoms, player_profile)
 	return result
 
