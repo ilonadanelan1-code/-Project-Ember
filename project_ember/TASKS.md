@@ -20,12 +20,12 @@
 
 ## v0.36.0 — Stage VI: Hero Equipment & Loot
 
-- [ ] Add persistent hero equipment slots using data-driven item definitions.
-- [ ] Add deterministic battle and campaign rewards that grant equipment without adding a new campaign resource.
-- [ ] Apply equipment modifiers to commander stats through a single shared calculation path.
-- [ ] Add mobile inventory/equipment UI with clear comparison and equip/unequip actions.
-- [ ] Preserve old hero records and default missing inventory/equipment fields safely.
-- [ ] Add item catalog, stat, reward, save/load and combat integration smoke coverage.
+- [x] Add persistent weapon, armor and relic slots with data-driven item definitions and per-hero inventory.
+- [x] Add deterministic battle rewards using campaign seed, turn, reward sequence and encounter identity without adding a new campaign resource.
+- [x] Apply equipment modifiers through one shared commander-stat calculator used by campaign and tactical combat.
+- [x] Add mobile inventory/equipment UI with item comparison and equip/unequip actions.
+- [x] Preserve old hero records and normalize missing equipment/inventory fields safely without changing SAVE_VERSION.
+- [x] Add smoke coverage for item definitions, inventory, equip/unequip, deterministic rewards, commander stats and save/load.
 - [ ] Verify equipment UI and battle stat feedback on the target Android device.
 
 ## v0.33.1 — Pixel Art Restoration & Release Guard
