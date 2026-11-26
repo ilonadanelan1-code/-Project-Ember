@@ -15,6 +15,8 @@ const WorldEventCatalogScript = preload("res://scripts/world_event_catalog.gd")
 const FactionCatalogScript = preload("res://scripts/faction_catalog.gd")
 const DiplomacyCatalogScript = preload("res://scripts/diplomacy_catalog.gd")
 const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
+const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
+const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -138,6 +140,7 @@ var battle_enemy_cell: Vector2i = Vector2i.ZERO
 var battlefield_biome_id: String = BattlefieldBiomesScript.GRASSLAND
 var battlefield_seed: int = 841207
 var battle_territory_armor_bonus: float = 0.0
+var battle_reward_counter: int = 0
 var last_battle_result: Dictionary = {}
 var last_battle_report_pending: bool = false
 var _prevent_save_overwrite: bool = false
@@ -212,6 +215,7 @@ func new_campaign(persist: bool = true) -> void:
 	campaign_started = true
 	campaign_lost = false
 	turn_number = 1
+	battle_reward_counter = 0
 	player_moves_left = 1
 	player_cell = Vector2i(-2, 0)
 	world_seed = WorldGeneratorScript.DEFAULT_SEED
@@ -595,6 +599,8 @@ func _make_hero_record(hero_name: String, hero_title: String) -> Dictionary:
 		"skills": {"leadership": 0, "tactics": 0, "might": 0},
 		"health": 210.0,
 		"wounded_turns": 0,
+		"equipment": {"weapon": "", "armor": "", "relic": ""},
+		"inventory": [],
 	}
 
 
@@ -726,12 +732,156 @@ func _read_hero_roster(value: Variant, fallback_hero: Dictionary) -> Array[Dicti
 	return result
 
 
+func get_hero_equipment_modifiers(hero: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for modifier_key in ItemCatalogScript.MODIFIER_KEYS:
+		result[modifier_key] = 1.0 if modifier_key == "attack_damage_multiplier" else 0.0
+	var equipment := _normalize_hero_equipment(hero.get("equipment", {}))
+	for slot_id in ItemCatalogScript.SLOT_IDS:
+		var item_id := str(equipment.get(slot_id, ""))
+		if item_id.is_empty():
+			continue
+		var item := ItemCatalogScript.get_item(item_id)
+		var item_modifiers_value: Variant = item.get("modifiers", {})
+		if not item_modifiers_value is Dictionary:
+			continue
+		var item_modifiers: Dictionary = item_modifiers_value
+		for modifier_key in ItemCatalogScript.MODIFIER_KEYS:
+			if not item_modifiers.has(modifier_key):
+				continue
+			if modifier_key == "attack_damage_multiplier":
+				result[modifier_key] = float(result.get(modifier_key, 1.0)) * float(item_modifiers.get(modifier_key, 1.0))
+			else:
+				result[modifier_key] = float(result.get(modifier_key, 0.0)) + float(item_modifiers.get(modifier_key, 0.0))
+	return result
+
+
+func get_hero_combat_stats(hero: Dictionary, territory_armor_bonus: float = 0.0) -> Dictionary:
+	return CommanderStatsScript.calculate(hero, get_hero_equipment_modifiers(hero), territory_armor_bonus)
+
+
+func get_hero_stats_with_item(hero: Dictionary, slot_id: String, item_id: String) -> Dictionary:
+	if not ItemCatalogScript.SLOT_IDS.has(slot_id):
+		return {}
+	var item := ItemCatalogScript.get_item(item_id)
+	if item.is_empty() or str(item.get("slot", "")) != slot_id:
+		return {}
+	var hero_copy := hero.duplicate(true)
+	var equipment := _normalize_hero_equipment(hero_copy.get("equipment", {}))
+	equipment[slot_id] = item_id
+	hero_copy["equipment"] = equipment
+	return get_hero_combat_stats(hero_copy)
+
+
+func get_hero_inventory_item_ids(hero_id: String) -> Array[String]:
+	var hero := _get_hero_record(hero_id)
+	return _normalize_hero_inventory(hero.get("inventory", []))
+
+
+func equip_item_to_hero(hero_id: String, item_id: String) -> bool:
+	if battle_in_progress or not ItemCatalogScript.is_valid_item(item_id):
+		return false
+	var hero := _get_hero_record(hero_id)
+	if hero.is_empty():
+		return false
+	var inventory := _normalize_hero_inventory(hero.get("inventory", []))
+	var inventory_index := inventory.find(item_id)
+	if inventory_index < 0:
+		return false
+	var item := ItemCatalogScript.get_item(item_id)
+	var slot_id := str(item.get("slot", ""))
+	if not ItemCatalogScript.SLOT_IDS.has(slot_id):
+		return false
+	var equipment := _normalize_hero_equipment(hero.get("equipment", {}))
+	var current_item_id := str(equipment.get(slot_id, ""))
+	if current_item_id == item_id:
+		return false
+	inventory.remove_at(inventory_index)
+	if not current_item_id.is_empty():
+		inventory.append(current_item_id)
+	equipment[slot_id] = item_id
+	hero["inventory"] = inventory
+	hero["equipment"] = equipment
+	var new_max_health := float(get_hero_combat_stats(hero).get("max_health", get_hero_max_health(hero)))
+	hero["health"] = minf(float(hero.get("health", new_max_health)), new_max_health)
+	_store_hero_record(hero_id, hero)
+	save_campaign()
+	return true
+
+
+func unequip_hero_slot(hero_id: String, slot_id: String) -> bool:
+	if battle_in_progress or not ItemCatalogScript.SLOT_IDS.has(slot_id):
+		return false
+	var hero := _get_hero_record(hero_id)
+	if hero.is_empty():
+		return false
+	var equipment := _normalize_hero_equipment(hero.get("equipment", {}))
+	var item_id := str(equipment.get(slot_id, ""))
+	if item_id.is_empty():
+		return false
+	var inventory := _normalize_hero_inventory(hero.get("inventory", []))
+	if inventory.size() >= ItemCatalogScript.MAX_HERO_INVENTORY:
+		return false
+	inventory.append(item_id)
+	equipment[slot_id] = ""
+	hero["equipment"] = equipment
+	hero["inventory"] = inventory
+	var new_max_health := float(get_hero_combat_stats(hero).get("max_health", get_hero_max_health(hero)))
+	hero["health"] = minf(float(hero.get("health", new_max_health)), new_max_health)
+	_store_hero_record(hero_id, hero)
+	save_campaign()
+	return true
+
+
+func _store_hero_record(hero_id: String, hero: Dictionary) -> void:
+	for index in range(hero_roster.size()):
+		if str(hero_roster[index].get("id", "")) == hero_id:
+			hero_roster[index] = hero.duplicate(true)
+			break
+	if active_hero_id == hero_id:
+		player_hero = hero.duplicate(true)
+
+
+func _add_item_to_hero_inventory(hero_id: String, item_id: String) -> bool:
+	if not ItemCatalogScript.is_valid_item(item_id):
+		return false
+	var hero := _get_hero_record(hero_id)
+	if hero.is_empty():
+		return false
+	var inventory := _normalize_hero_inventory(hero.get("inventory", []))
+	if inventory.size() >= ItemCatalogScript.MAX_HERO_INVENTORY:
+		return false
+	inventory.append(item_id)
+	hero["inventory"] = inventory
+	_store_hero_record(hero_id, hero)
+	return true
+
+
+func _normalize_hero_equipment(value: Variant) -> Dictionary:
+	var result := {"weapon": "", "armor": "", "relic": ""}
+	if not value is Dictionary:
+		return result
+	for slot_id in ItemCatalogScript.SLOT_IDS:
+		var item_id := str(value.get(slot_id, ""))
+		var item := ItemCatalogScript.get_item(item_id)
+		if not item.is_empty() and str(item.get("slot", "")) == slot_id:
+			result[slot_id] = item_id
+	return result
+
+
+func _normalize_hero_inventory(value: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if not value is Array:
+		return result
+	for item_value in value:
+		var item_id := str(item_value)
+		if ItemCatalogScript.is_valid_item(item_id) and result.size() < ItemCatalogScript.MAX_HERO_INVENTORY:
+			result.append(item_id)
+	return result
+
+
 func get_hero_max_health(hero: Dictionary) -> float:
-	var level := clampi(int(hero.get("level", 1)), 1, 30)
-	var skills_value: Variant = hero.get("skills", {})
-	var skills: Dictionary = skills_value if skills_value is Dictionary else {}
-	var might := clampi(int(skills.get("might", 0)), 0, 5)
-	return 210.0 + float(level - 1) * 16.0 + float(might) * 14.0
+	return float(get_hero_combat_stats(hero).get("max_health", 210.0))
 
 
 func get_hero_xp_to_next_level() -> int:
@@ -800,6 +950,8 @@ func _read_hero_record(value: Variant, fallback: Dictionary) -> Dictionary:
 	for skill_id in ["leadership", "tactics", "might"]:
 		skills[skill_id] = clampi(int(skills.get(skill_id, 0)), 0, 5)
 	result["skills"] = skills
+	result["equipment"] = _normalize_hero_equipment(source.get("equipment", result.get("equipment", {})))
+	result["inventory"] = _normalize_hero_inventory(source.get("inventory", result.get("inventory", [])))
 	result["wounded_turns"] = clampi(int(source.get("wounded_turns", 0)), 0, 5)
 	result["health"] = clampf(
 		float(source.get("health", get_hero_max_health(result))),
@@ -1161,6 +1313,23 @@ func complete_battle(
 		float(stats.get("player_damage", 0.0))
 	)
 	last_battle_result["hero_xp_gained"] = hero_xp_gained
+	battle_reward_counter += 1
+	var reward_target_id := battle_location_id if battle_target_type == "location" else str(battle_kingdom_id)
+	var reward_item_id := ItemCatalogScript.get_deterministic_battle_reward(
+		world_seed,
+		turn_number,
+		battle_reward_counter,
+		battle_target_type,
+		reward_target_id,
+		active_hero_id
+	) if victory else ""
+	if not reward_item_id.is_empty() and _add_item_to_hero_inventory(active_hero_id, reward_item_id):
+		var reward_item := ItemCatalogScript.get_item(reward_item_id)
+		last_battle_result["equipment_reward_id"] = reward_item_id
+		last_battle_result["equipment_reward_name"] = str(reward_item.get("name", reward_item_id))
+	else:
+		last_battle_result["equipment_reward_id"] = ""
+		last_battle_result["equipment_reward_name"] = ""
 	last_battle_result["hero_level"] = int(player_hero.get("level", 1))
 	last_battle_result["hero_skill_points"] = int(player_hero.get("skill_points", 0))
 	last_battle_report_pending = true
@@ -2366,6 +2535,7 @@ func save_campaign() -> bool:
 		"version": SAVE_VERSION,
 		"world_seed": world_seed,
 		"world_generation_version": world_generation_version,
+		"battle_reward_counter": battle_reward_counter,
 		"explored_cells": _serialize_explored_cells(),
 		"neutral_locations": neutral_locations,
 		"pending_world_event": pending_world_event,
@@ -2564,6 +2734,7 @@ func load_campaign() -> bool:
 	enemy_hero = _read_hero_record(data.get("enemy_hero", enemy_hero_fallback), enemy_hero_fallback)
 	enemy_present = bool(data.get("enemy_present", true)) and not enemy_units.is_empty()
 	world_seed = int(data.get("world_seed", WorldGeneratorScript.DEFAULT_SEED))
+	battle_reward_counter = maxi(0, int(data.get("battle_reward_counter", 0)))
 	# Saves without this field were made with the original per-cell terrain algorithm.
 	world_generation_version = clampi(
 		int(data.get("world_generation_version", 1)),
