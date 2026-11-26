@@ -53,6 +53,7 @@ func _run() -> void:
 	_check(ArcaneVictoryScript.count_controlled_nexuses(owned_sites, -1) == 2, "only cleared nexus sites owned by the faction count")
 	_check(ArcaneVictoryScript.count_arcane_conduits(city_records) == 1, "only completed arcane conduits contribute power")
 	_check(ArcaneVictoryScript.get_affinity_power(profile) == 3, "astral and materium affinities increase arcane output")
+	_check(ArcaneVictoryScript.calculate_turn_power([], [], profile, -1) == 0, "affinities alone cannot generate magical power without a controlled nexus or conduit")
 	_check(
 		ArcaneVictoryScript.calculate_turn_power(owned_sites, city_records, profile, -1) == 13,
 		"two controlled nexuses, one conduit and affinity bonuses combine into bounded turn power"
