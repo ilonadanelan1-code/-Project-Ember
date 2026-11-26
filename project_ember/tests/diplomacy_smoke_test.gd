@@ -238,8 +238,13 @@ func _run() -> void:
 	var call_offers: Array[Dictionary] = []
 	DiplomacyCatalogScript.process_turn(call_to_war_relations, call_to_war_kingdoms, 5, 841207, 100.0, call_offers)
 	_check(str(DiplomacyCatalogScript.get_record(call_to_war_relations, 0, 1).get("treaty", "")) == "war", "border claim can trigger the AI-AI war that activates allied calls")
-	_check(not call_offers.is_empty() and str(call_offers[0].get("action", "")) == "call_to_war", "AI ally sends a formal call to war to the player")
-	_check(int(call_offers[0].get("expires_turn", 0)) == 8, "war call gives the player three turns to answer")
+	var war_call_offer: Dictionary = {}
+	for offer_value in call_offers:
+		if str(offer_value.get("action", "")) == "call_to_war":
+			war_call_offer = offer_value
+			break
+	_check(not war_call_offer.is_empty(), "AI ally sends a formal call to war to the player")
+	_check(int(war_call_offer.get("expires_turn", 0)) == 8, "war call gives the player three turns to answer")
 
 
 	var player_war_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
