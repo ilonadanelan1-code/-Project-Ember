@@ -26,7 +26,7 @@ static func _get_data() -> Dictionary:
 
 
 static func has_assets() -> bool:
-	return not VisualAssetDataScript.IMAGE_WEBP_BASE64.is_empty()
+	return not VisualAssetDataScript.get_image_webp_base64().is_empty()
 
 
 static func _get_meta() -> Dictionary:
@@ -37,7 +37,7 @@ static func _get_meta() -> Dictionary:
 static func _get_texture() -> Texture2D:
 	if is_instance_valid(_atlas_texture):
 		return _atlas_texture
-	var encoded := VisualAssetDataScript.IMAGE_WEBP_BASE64
+	var encoded: String = VisualAssetDataScript.get_image_webp_base64()
 	if encoded.is_empty():
 		return null
 	var bytes := Marshalls.base64_to_raw(encoded)
