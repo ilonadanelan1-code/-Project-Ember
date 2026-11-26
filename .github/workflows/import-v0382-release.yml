@@ -1,0 +1,146 @@
+name: Import audited Project Ember v0.38.2 archive
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-project-ember-v0382
+  cancel-in-progress: false
+
+jobs:
+  import-archive:
+    name: Import v0.38.2 playable archive into source branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RELEASE_TAG: v0.38.2
+      ASSET_NAME: Project-Ember-v0.38.2-Godot-Audited.zip
+      TARGET_BRANCH: release/v0.38.2-godot-audited
+    steps:
+      - name: Checkout the latest upstream game branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/v0.36.1
+          fetch-depth: 0
+
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends unzip rsync
+
+      - name: Download the published GitHub Release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ember-release"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ASSET_NAME" \
+            --dir "$RUNNER_TEMP/ember-release"
+          test -s "$RUNNER_TEMP/ember-release/$ASSET_NAME"
+          unzip -tq "$RUNNER_TEMP/ember-release/$ASSET_NAME"
+
+      - name: Validate and import source without licensed sprite binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/ember-release/$ASSET_NAME" "$RUNNER_TEMP/ember-unpacked" "$GITHUB_WORKSPACE/project_ember" <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import hashlib
+          import shutil
+          import sys
+
+          archive, unpack_root, destination = map(Path, sys.argv[1:])
+          unpack_root.mkdir(parents=True, exist_ok=True)
+          with ZipFile(archive) as zf:
+              for info in zf.infolist():
+                  path = PurePosixPath(info.filename)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"Unsafe archive path: {info.filename}")
+              zf.extractall(unpack_root)
+
+          projects = [p.parent for p in unpack_root.rglob("project.godot") if ".godot" not in p.parts]
+          if len(projects) != 1:
+              raise SystemExit(f"Expected exactly one Godot project; found {len(projects)}")
+          source = projects[0]
+          if not (source / "scripts").is_dir() or not (source / "scenes").is_dir():
+              raise SystemExit("Archive does not contain the expected scripts/ and scenes/ folders")
+
+          if destination.exists():
+              shutil.rmtree(destination)
+          ignored = shutil.ignore_patterns(
+              ".godot", ".import", "artifacts", "*.tmp", "*.bak",
+              "combat_units_atlas.png", "atlas_manifest.json"
+          )
+          shutil.copytree(source, destination, ignore=ignored)
+
+          # The licensed Tiny Swords atlas and manifest are deliberately excluded
+          # from public source. They remain in the player's playable release ZIP.
+          tiny_swords = destination / "assets" / "combat" / "tiny_swords"
+          for name in ("combat_units_atlas.png", "atlas_manifest.json"):
+              target = tiny_swords / name
+              if target.exists():
+                  target.unlink()
+
+          version_file = destination / "VERSION.txt"
+          if not version_file.is_file() or "v0.38.2" not in version_file.read_text(encoding="utf-8"):
+              raise SystemExit("The imported project is not the expected v0.38.2 build")
+
+          # Rebuild a source-only checksum manifest so it does not reference
+          # binaries intentionally omitted from the public repository.
+          entries = []
+          for path in sorted(destination.rglob("*")):
+              if not path.is_file() or path.name == "FILE_MANIFEST.txt":
+                  continue
+              rel = path.relative_to(destination).as_posix()
+              if rel.startswith(".godot/") or rel.startswith("artifacts/"):
+                  continue
+              entries.append((hashlib.sha256(path.read_bytes()).hexdigest(), rel))
+          manifest = [
+              "PROJECT EMBER v0.38.2 — PUBLIC SOURCE FILE MANIFEST",
+              f"Files: {len(entries)} (licensed Tiny Swords atlas binaries excluded)",
+              "SHA-256  PATH",
+          ]
+          manifest.extend(f"{digest}  {rel}" for digest, rel in entries)
+          (destination / "FILE_MANIFEST.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
+
+          (destination / "IMPORT_INFO.txt").write_text(
+              "Project Ember v0.38.2 — imported from GitHub Release v0.38.2.\n"
+              "Playable archive: Project-Ember-v0.38.2-Godot-Audited.zip\n"
+              "Public source branch excludes licensed Tiny Swords combat_units_atlas.png and atlas_manifest.json.\n"
+              "Keep those licensed binaries in the player's playable ZIP only.\n",
+              encoding="utf-8",
+          )
+          print(f"Imported {len(entries)} public source files from {source}")
+          PY
+
+      - name: Run static source validation
+        run: python3 project_ember/tools/qa/static_validate.py project_ember
+
+      - name: Create the audited release source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then
+            echo "Target branch already exists; refusing to overwrite it: $TARGET_BRANCH" >&2
+            exit 1
+          fi
+          git switch -c "$TARGET_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A project_ember
+          git diff --cached --quiet && { echo "No source changes to commit" >&2; exit 1; }
+          git commit -m "Import Project Ember v0.38.2 Godot-audited source"
+          git push --set-upstream origin "$TARGET_BRANCH"
+
+      - name: Report the resulting source branch
+        run: |
+          echo "Source branch: $TARGET_BRANCH"
+          echo "Base: release/v0.36.1"
+          echo "The branch push should trigger the existing Godot 4.7.2 QA workflow."
