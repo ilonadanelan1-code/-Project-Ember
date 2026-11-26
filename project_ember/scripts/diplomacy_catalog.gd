@@ -155,8 +155,8 @@ static func create_leader_profile(
 			"provincial_charters", "guild_charters":
 				affinities["materium"] += 1
 
-	var first_bonus := AFFINITY_IDS[posmod((token + ":affinity_a").hash(), AFFINITY_IDS.size())]
-	var second_bonus := AFFINITY_IDS[posmod((token + ":affinity_b").hash(), AFFINITY_IDS.size())]
+	var first_bonus: String = str(AFFINITY_IDS[posmod((token + ":affinity_a").hash(), AFFINITY_IDS.size())])
+	var second_bonus: String = str(AFFINITY_IDS[posmod((token + ":affinity_b").hash(), AFFINITY_IDS.size())])
 	affinities[first_bonus] += 1
 	if second_bonus != first_bonus:
 		affinities[second_bonus] += 1
@@ -471,7 +471,7 @@ static func _choose_personality(
 	var best_score := -999999
 	var tie_seed := posmod((token + ":personality").hash(), PERSONALITY_IDS.size())
 	for index in range(PERSONALITY_IDS.size()):
-		var personality_id := PERSONALITY_IDS[posmod(index + tie_seed, PERSONALITY_IDS.size())]
+		var personality_id: String = str(PERSONALITY_IDS[posmod(index + tie_seed, PERSONALITY_IDS.size())])
 		var score := int(scores.get(personality_id, 0))
 		if score > best_score:
 			best_score = score
