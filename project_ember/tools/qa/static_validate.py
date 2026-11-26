@@ -156,7 +156,7 @@ check(all(token in unit_catalog_text for token in ['"xp_required": 0', '"xp_requ
 check("get_battle_experience" in unit_catalog_text and "clampi(" in unit_catalog_text, "unit battle experience uses a capped deterministic formula")
 check(all(role_id in army_upgrade_text for role_id in ['"melee"', '"ranged"', '"spear"', '"cavalry"']) and "const MAX_RANK := 2" in army_upgrade_text, "army upgrade catalog covers all four stable roles with two ranks")
 check(all(token in battle_unit_text for token in ["var experience: int", "var army_upgrade_rank: int", "get_veterancy_data(experience)", "ArmyUpgradeCatalogScript.get_bonuses"]), "battle units apply per-unit veterancy and campaign upgrade bonuses")
-check(all(token in campaign_state_text for token in ["army_upgrades", "battle_xp_gained", "_read_army_upgrades", "get_army_veterancy_summary", '"army_upgrades": army_upgrades']), "campaign records and root save persist individual XP and army upgrades")
+check(all(token in campaign_state_text for token in ["army_upgrades", "battle_xp_gained", "_read_army_upgrades", "get_army_veterancy_summary", '"army_upgrades": primary_upgrades', '"player_armies": player_armies']), "campaign records and root save preserve per-unit XP plus primary and independent army upgrades")
 check('var experience := clampi(int(unit_value.get("experience", 0))' in kingdom_ai_text, "AI kingdom normalization preserves veterancy experience")
 check(all(token in strategy_map_text_for_upgrades for token in ["ВОЕННАЯ ПОДГОТОВКА", "_city_upgrade_buttons", "purchase_army_upgrade", "get_army_veterancy_summary"]), "city UI exposes army training, upgrade purchase and veteran ranks")
 check(progression_test_path.is_file(), "unit progression smoke test is included")
