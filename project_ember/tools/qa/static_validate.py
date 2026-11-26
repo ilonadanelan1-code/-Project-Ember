@@ -480,6 +480,37 @@ check(all(token in player_army_test_text for token in [
     "save/load restores the independent army roster",
 ]), "player army smoke tests cover splitting, assignments, recruitment, battle handoff and save migration")
 
+
+# Stage VI: persistent hero equipment, deterministic loot and shared combat stat calculation.
+item_catalog_path = ROOT / "scripts/item_catalog.gd"
+item_catalog_text = item_catalog_path.read_text(encoding="utf-8") if item_catalog_path.is_file() else ""
+commander_stats_path = ROOT / "scripts/commander_stats.gd"
+commander_stats_text = commander_stats_path.read_text(encoding="utf-8") if commander_stats_path.is_file() else ""
+equipment_test_path = ROOT / "tests/equipment_smoke_test.gd"
+equipment_test_text = equipment_test_path.read_text(encoding="utf-8") if equipment_test_path.is_file() else ""
+check(item_catalog_path.is_file() and all(token in item_catalog_text for token in ["SLOT_IDS", "DEFINITIONS", "weapon", "armor", "relic", "get_deterministic_battle_reward"]), "data-driven equipment catalog defines hero slots and deterministic battle loot")
+check(commander_stats_path.is_file() and all(token in commander_stats_text for token in ["static func calculate", "attack_damage", "max_health", "move_speed", "armor"]), "commander campaign and combat stats use a shared calculator")
+check(all(token in campaign_state_text for token in [
+    '"equipment": {"weapon": "", "armor": "", "relic": ""}',
+    '"inventory": []',
+    "func get_hero_equipment_modifiers(",
+    "func equip_item_to_hero(",
+    "func unequip_hero_slot(",
+    "func get_hero_stats_with_item(",
+    "battle_reward_counter",
+    '"battle_reward_counter": battle_reward_counter',
+]), "hero equipment and inventory persist while legacy saves receive safe defaults")
+check(all(token in battle_unit_text for token in ["CommanderStatsScript.calculate", "commander_equipment_modifiers"]) and "get_hero_equipment_modifiers(hero_record)" in combat_test_text, "tactical commanders consume the same equipment modifiers as campaign stats")
+check(all(token in strategy_map_text for token in ["ЭКИПИРОВКА И ИНВЕНТАРЬ", "НАДЕТЬ", "СНЯТЬ", "get_hero_stats_with_item"]), "mobile equipment panel supports slot selection, comparison and equip actions")
+check(equipment_test_path.is_file() and all(token in equipment_test_text for token in [
+    "legacy hero records receive all missing equipment slots",
+    "replacement weapon returns to the inventory",
+    "tactical commander damage uses the shared equipment calculation",
+    "equipped weapon survives save and load",
+    "battle victory adds the reward to the assigned commander inventory",
+]), "equipment smoke test covers migration, slots, combat stats, save/load and loot")
+check("const SAVE_VERSION := 1" in campaign_state_text, "hero equipment remains additive to the existing campaign save schema")
+
 print(f"\nStatic QA: {checks - len(failures)}/{checks} checks passed")
 if failures:
     print("Failures:")
