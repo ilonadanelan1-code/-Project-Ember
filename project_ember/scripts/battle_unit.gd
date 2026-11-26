@@ -9,6 +9,7 @@ const BattlefieldRulesScript = preload("res://scripts/battlefield_rules.gd")
 const BattleFlankingScript = preload("res://scripts/battle_flanking.gd")
 const CombatStatusCatalogScript = preload("res://scripts/combat_status_catalog.gd")
 const BattleAITacticsScript = preload("res://scripts/battle_ai_tactics.gd")
+const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
 
 signal eliminated(unit: BattleUnit, killer: BattleUnit)
 
@@ -58,6 +59,7 @@ var commander_level: int = 1
 var commander_leadership: int = 0
 var commander_tactics: int = 0
 var commander_might: int = 0
+var commander_equipment_modifiers: Dictionary = {}
 var command_damage_bonus: float = 0.0
 var command_speed_bonus: float = 0.0
 var command_aura_timer: float = 0.0
@@ -144,19 +146,28 @@ func _ready() -> void:
 
 func _apply_role_stats() -> void:
 	if role == UnitRole.COMMANDER:
-		commander_level = clampi(commander_level, 1, 30)
-		commander_leadership = clampi(commander_leadership, 0, 5)
-		commander_tactics = clampi(commander_tactics, 0, 5)
-		commander_might = clampi(commander_might, 0, 5)
-		max_health = 210.0 + float(commander_level - 1) * 16.0 + float(commander_might) * 14.0
-		move_speed = 4.0 + float(commander_tactics) * 0.06
-		attack_damage = 24.0 + float(commander_level - 1) * 2.4 + float(commander_might) * 3.5
-		attack_range = 1.9
-		attack_cooldown = 0.88
-		detection_range = 16.0
-		preferred_range = 1.7
-		projectile_speed = 0.0
-		armor = 4.0 + float(commander_might) * 0.8 + territory_armor_bonus
+		var commander_record := {
+			"level": clampi(commander_level, 1, 30),
+			"skills": {
+				"leadership": clampi(commander_leadership, 0, 5),
+				"tactics": clampi(commander_tactics, 0, 5),
+				"might": clampi(commander_might, 0, 5),
+			},
+		}
+		var commander_stats := CommanderStatsScript.calculate(commander_record, commander_equipment_modifiers, territory_armor_bonus)
+		commander_level = int(commander_stats.get("level", 1))
+		commander_leadership = int(commander_stats.get("leadership", 0))
+		commander_tactics = int(commander_stats.get("tactics", 0))
+		commander_might = int(commander_stats.get("might", 0))
+		max_health = float(commander_stats.get("max_health", 210.0))
+		move_speed = float(commander_stats.get("move_speed", 4.0))
+		attack_damage = float(commander_stats.get("attack_damage", 24.0))
+		attack_range = float(commander_stats.get("attack_range", 1.9))
+		attack_cooldown = float(commander_stats.get("attack_cooldown", 0.88))
+		detection_range = float(commander_stats.get("detection_range", 16.0))
+		preferred_range = float(commander_stats.get("preferred_range", 1.7))
+		projectile_speed = float(commander_stats.get("projectile_speed", 0.0))
+		armor = float(commander_stats.get("armor", 4.0))
 		anti_cavalry_multiplier = 1.0
 		charge_multiplier = 1.0
 		return
