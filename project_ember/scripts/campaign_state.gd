@@ -20,6 +20,8 @@ const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
 const ROLE_CAVALRY := "cavalry"
 const ARMY_CAPACITY := 24
+const MAX_PLAYER_ARMIES := 4
+const PRIMARY_PLAYER_ARMY_ID := "army_primary"
 const SAVE_PATH := "user://project_ember_campaign.json"
 const SAVE_TEMP_PATH := SAVE_PATH + ".tmp"
 const SAVE_BACKUP_PATH := SAVE_PATH + ".bak"
@@ -76,6 +78,8 @@ var enemy_cell: Vector2i = Vector2i(2, 0)
 var enemy_present: bool = true
 var player_units: Array[Dictionary] = []
 var army_upgrades: Dictionary = {"melee": 0, "ranged": 0, "spear": 0, "cavalry": 0}
+var player_armies: Array[Dictionary] = []
+var selected_player_army_id: String = PRIMARY_PLAYER_ARMY_ID
 var enemy_units: Array[Dictionary] = []
 var player_hero: Dictionary = {}
 var hero_roster: Array[Dictionary] = []
@@ -219,6 +223,9 @@ func new_campaign(persist: bool = true) -> void:
 	player_hero["kind"] = "ruler"
 	hero_roster = [player_hero.duplicate(true)]
 	active_hero_id = "hero_ruler"
+	player_armies.clear()
+	selected_player_army_id = PRIMARY_PLAYER_ARMY_ID
+	player_armies.append(_make_player_army_record(PRIMARY_PLAYER_ARMY_ID, "Первая армия", player_cell, player_units, active_hero_id, army_upgrades, player_moves_left))
 	kingdoms = KingdomAIScript.create_initial_kingdoms(world_seed)
 	diplomacy_relations = DiplomacyCatalogScript.create_initial_relations(kingdoms.size(), world_seed)
 	pending_diplomacy_offers.clear()
@@ -271,6 +278,302 @@ func _make_starting_army() -> Array[Dictionary]:
 		result.append({"role": ROLE_MELEE, "health": 125.0, "experience": 0})
 	for _index in range(2):
 		result.append({"role": ROLE_RANGED, "health": 72.0, "experience": 0})
+	return result
+
+
+func _make_player_army_record(
+		army_id: String,
+		army_name: String,
+		army_cell: Vector2i,
+		units: Array[Dictionary],
+		hero_id: String,
+		upgrades: Dictionary,
+		moves_left: int
+) -> Dictionary:
+	return {
+		"id": army_id,
+		"name": army_name,
+		"cell": WorldGeneratorScript.cell_to_array(army_cell),
+		"units": _copy_unit_records(units),
+		"hero_id": hero_id,
+		"upgrades": _read_army_upgrades(upgrades),
+		"moves_left": clampi(moves_left, 0, 1),
+	}
+
+
+func _get_player_army_index(army_id: String) -> int:
+	for index in range(player_armies.size()):
+		if str(player_armies[index].get("id", "")) == army_id:
+			return index
+	return -1
+
+
+func _get_primary_player_army() -> Dictionary:
+	var index := _get_player_army_index(PRIMARY_PLAYER_ARMY_ID)
+	if index >= 0:
+		return player_armies[index].duplicate(true)
+	if not player_armies.is_empty():
+		return player_armies[0].duplicate(true)
+	return _make_player_army_record(PRIMARY_PLAYER_ARMY_ID, "Первая армия", player_cell, player_units, active_hero_id, army_upgrades, player_moves_left)
+
+
+func _sync_selected_player_army_from_legacy() -> void:
+	if player_armies.is_empty():
+		return
+	var index := _get_player_army_index(selected_player_army_id)
+	if index < 0:
+		return
+	var record: Dictionary = player_armies[index]
+	record["cell"] = WorldGeneratorScript.cell_to_array(player_cell)
+	record["units"] = _copy_unit_records(player_units)
+	record["moves_left"] = clampi(player_moves_left, 0, 1)
+	record["upgrades"] = _read_army_upgrades(army_upgrades)
+	record["hero_id"] = active_hero_id
+	player_armies[index] = record
+
+
+func _load_selected_player_army_to_legacy() -> bool:
+	var index := _get_player_army_index(selected_player_army_id)
+	if index < 0:
+		return false
+	var record: Dictionary = player_armies[index]
+	player_cell = WorldGeneratorScript.array_to_cell(record.get("cell", []), player_cell)
+	player_units = _read_unit_records(record.get("units", []))
+	player_moves_left = clampi(int(record.get("moves_left", 1)), 0, 1)
+	army_upgrades = _read_army_upgrades(record.get("upgrades", {}))
+	active_hero_id = str(record.get("hero_id", ""))
+	player_hero = _get_hero_record(active_hero_id)
+	return true
+
+
+func get_player_army_at(cell: Vector2i) -> Dictionary:
+	for record in player_armies:
+		var army_cell := WorldGeneratorScript.array_to_cell(record.get("cell", []), Vector2i(9999, 9999))
+		if army_cell == cell:
+			return record.duplicate(true)
+	return {}
+
+
+func get_player_army_total_units() -> int:
+	_sync_selected_player_army_from_legacy()
+	var total := 0
+	for record in player_armies:
+		var units_value: Variant = record.get("units", [])
+		if units_value is Array:
+			total += units_value.size()
+	return total
+
+
+func get_hero_assigned_army_id(hero_id: String) -> String:
+	if hero_id.is_empty():
+		return ""
+	for record in player_armies:
+		if str(record.get("hero_id", "")) == hero_id:
+			return str(record.get("id", ""))
+	return ""
+
+
+func get_unassigned_hero_id() -> String:
+	for hero in hero_roster:
+		var hero_id := str(hero.get("id", ""))
+		if not hero_id.is_empty() and get_hero_assigned_army_id(hero_id).is_empty():
+			return hero_id
+	return ""
+
+
+func get_player_army_spawn_cell(origin: Vector2i) -> Vector2i:
+	for offset in WorldGeneratorScript.neighbors():
+		var candidate := origin + offset
+		if not WorldGeneratorScript.is_inside_world(candidate) or get_world_terrain(candidate) == "water":
+			continue
+		if get_city_index_at(candidate) >= 0 or get_kingdom_index_at_army(candidate) >= 0:
+			continue
+		var occupied_by_player_army := false
+		for record in player_armies:
+			var army_id := str(record.get("id", ""))
+			var army_cell := WorldGeneratorScript.array_to_cell(record.get("cell", []), Vector2i(9999, 9999))
+			if army_cell == candidate and army_id != selected_player_army_id:
+				occupied_by_player_army = true
+				break
+		if not occupied_by_player_army:
+			return candidate
+	return Vector2i(9999, 9999)
+
+
+func can_create_player_army() -> bool:
+	_sync_selected_player_army_from_legacy()
+	if battle_in_progress or campaign_lost or player_armies.size() >= MAX_PLAYER_ARMIES:
+		return false
+	if player_armies.size() >= hero_roster.size() or player_units.size() < 2:
+		return false
+	return not get_unassigned_hero_id().is_empty() and get_player_army_spawn_cell(player_cell) != Vector2i(9999, 9999)
+
+
+func create_player_army(split_count: int = 0) -> bool:
+	_sync_selected_player_army_from_legacy()
+	if not can_create_player_army():
+		return false
+	var source_units := _copy_unit_records(player_units)
+	var transfer_count := split_count if split_count > 0 else maxi(1, source_units.size() / 2)
+	transfer_count = clampi(transfer_count, 1, source_units.size() - 1)
+	var split_index := source_units.size() - transfer_count
+	var remaining_units: Array[Dictionary] = []
+	var transferred_units: Array[Dictionary] = []
+	for index in range(source_units.size()):
+		if index < split_index:
+			remaining_units.append(source_units[index].duplicate(true))
+		else:
+			transferred_units.append(source_units[index].duplicate(true))
+	var spawn_cell := get_player_army_spawn_cell(player_cell)
+	if spawn_cell == Vector2i(9999, 9999):
+		return false
+	var assigned_hero_id := get_unassigned_hero_id()
+	if assigned_hero_id.is_empty():
+		return false
+	var serial := 2
+	var new_army_id := "army_%02d" % serial
+	while _get_player_army_index(new_army_id) >= 0:
+		serial += 1
+		new_army_id = "army_%02d" % serial
+	player_units = remaining_units
+	_sync_selected_player_army_from_legacy()
+	player_armies.append(_make_player_army_record(
+		new_army_id,
+		"Армия %d" % serial,
+		spawn_cell,
+		transferred_units,
+		assigned_hero_id,
+		army_upgrades,
+		1
+	))
+	selected_player_army_id = new_army_id
+	_load_selected_player_army_to_legacy()
+	refresh_fog_of_war()
+	save_campaign()
+	return true
+
+
+func select_player_army(army_id: String) -> bool:
+	if battle_in_progress or army_id.is_empty() or _get_player_army_index(army_id) < 0:
+		return false
+	_sync_selected_player_army_from_legacy()
+	selected_player_army_id = army_id
+	if not _load_selected_player_army_to_legacy():
+		return false
+	refresh_fog_of_war()
+	save_campaign()
+	return true
+
+
+func move_selected_player_army(target_cell: Vector2i) -> bool:
+	if battle_in_progress or player_moves_left <= 0:
+		return false
+	_sync_selected_player_army_from_legacy()
+	if WorldGeneratorScript.hex_distance(player_cell, target_cell) != 1:
+		return false
+	if not WorldGeneratorScript.is_inside_world(target_cell) or get_world_terrain(target_cell) == "water":
+		return false
+	if get_city_index_at(target_cell) >= 0 or get_kingdom_index_at_army(target_cell) >= 0:
+		return false
+	for record in player_armies:
+		if str(record.get("id", "")) == selected_player_army_id:
+			continue
+		if WorldGeneratorScript.array_to_cell(record.get("cell", []), Vector2i(9999, 9999)) == target_cell:
+			return false
+	player_cell = target_cell
+	player_moves_left -= 1
+	_sync_selected_player_army_from_legacy()
+	refresh_fog_of_war()
+	save_campaign()
+	return true
+
+
+func _read_player_armies(value: Variant, fallback: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var seen_ids: Dictionary = {}
+	var assigned_heroes: Dictionary = {}
+	if value is Array:
+		for index in range(mini(value.size(), MAX_PLAYER_ARMIES)):
+			var raw_value: Variant = value[index]
+			if not raw_value is Dictionary:
+				continue
+			var raw: Dictionary = raw_value
+			var army_id := str(raw.get("id", "")).strip_edges()
+			if army_id.is_empty() or seen_ids.has(army_id):
+				army_id = "army_legacy_%d" % index
+			seen_ids[army_id] = true
+			var fallback_cell := WorldGeneratorScript.array_to_cell(fallback.get("cell", []), player_cell)
+			var army_cell := WorldGeneratorScript.array_to_cell(raw.get("cell", []), fallback_cell)
+			if not WorldGeneratorScript.is_inside_world(army_cell):
+				army_cell = fallback_cell
+			var units := _read_unit_records(raw.get("units", []))
+			var hero_id := str(raw.get("hero_id", ""))
+			if hero_id.is_empty() or _get_hero_record(hero_id).is_empty() or assigned_heroes.has(hero_id):
+				hero_id = ""
+				for hero in hero_roster:
+					var candidate_id := str(hero.get("id", ""))
+					if not candidate_id.is_empty() and not assigned_heroes.has(candidate_id):
+						hero_id = candidate_id
+						break
+			if not hero_id.is_empty():
+				assigned_heroes[hero_id] = true
+			var army_name := str(raw.get("name", "Армия %d" % (index + 1))).strip_edges()
+			if army_name.is_empty():
+				army_name = "Армия %d" % (index + 1)
+			result.append(_make_player_army_record(
+				army_id,
+				army_name,
+				army_cell,
+				units,
+				hero_id,
+				raw.get("upgrades", {}),
+				clampi(int(raw.get("moves_left", 1)), 0, 1)
+			))
+	if result.is_empty():
+		var fallback_id := str(fallback.get("id", PRIMARY_PLAYER_ARMY_ID))
+		var fallback_units := _read_unit_records(fallback.get("units", []))
+		var fallback_cell := WorldGeneratorScript.array_to_cell(fallback.get("cell", []), player_cell)
+		var fallback_hero_id := str(fallback.get("hero_id", ""))
+		if fallback_hero_id.is_empty() or _get_hero_record(fallback_hero_id).is_empty():
+			fallback_hero_id = str(hero_roster[0].get("id", "")) if not hero_roster.is_empty() else ""
+		result.append(_make_player_army_record(
+			fallback_id,
+			str(fallback.get("name", "Первая армия")),
+			fallback_cell,
+			fallback_units,
+			fallback_hero_id,
+			fallback.get("upgrades", {}),
+			int(fallback.get("moves_left", 1))
+		))
+	var has_primary := false
+	for record in result:
+		if str(record.get("id", "")) == PRIMARY_PLAYER_ARMY_ID:
+			has_primary = true
+			break
+	if not has_primary:
+		if result.size() >= MAX_PLAYER_ARMIES:
+			result.pop_back()
+		var primary_fallback := fallback.duplicate(true)
+		primary_fallback["id"] = PRIMARY_PLAYER_ARMY_ID
+		primary_fallback["name"] = "Первая армия"
+		var primary_hero_id := str(primary_fallback.get("hero_id", ""))
+		if primary_hero_id.is_empty() or assigned_heroes.has(primary_hero_id):
+			primary_hero_id = ""
+			for hero in hero_roster:
+				var candidate_id := str(hero.get("id", ""))
+				if not candidate_id.is_empty() and not assigned_heroes.has(candidate_id):
+					primary_hero_id = candidate_id
+					break
+		primary_fallback["hero_id"] = primary_hero_id
+		result.push_front(_make_player_army_record(
+			PRIMARY_PLAYER_ARMY_ID,
+			"Первая армия",
+			WorldGeneratorScript.array_to_cell(primary_fallback.get("cell", []), player_cell),
+			_read_unit_records(primary_fallback.get("units", [])),
+			primary_hero_id,
+			primary_fallback.get("upgrades", {}),
+			int(primary_fallback.get("moves_left", 1))
+		))
 	return result
 
 
@@ -337,14 +640,27 @@ func recruit_lord(candidate_id: String) -> bool:
 
 
 func activate_hero(hero_id: String) -> bool:
+	return assign_hero_to_army(selected_player_army_id, hero_id)
+
+
+func assign_hero_to_army(army_id: String, hero_id: String) -> bool:
 	if battle_in_progress or hero_id.is_empty():
 		return false
+	_sync_selected_player_army_from_legacy()
 	_sync_active_hero_to_roster()
-	var selected_hero := _get_hero_record(hero_id)
-	if selected_hero.is_empty():
+	var army_index := _get_player_army_index(army_id)
+	var hero_record := _get_hero_record(hero_id)
+	if army_index < 0 or hero_record.is_empty():
 		return false
-	active_hero_id = hero_id
-	player_hero = selected_hero
+	for record in player_armies:
+		if str(record.get("id", "")) != army_id and str(record.get("hero_id", "")) == hero_id:
+			return false
+	var army: Dictionary = player_armies[army_index]
+	army["hero_id"] = hero_id
+	player_armies[army_index] = army
+	if army_id == selected_player_army_id:
+		active_hero_id = hero_id
+		player_hero = hero_record
 	save_campaign()
 	return true
 
@@ -846,7 +1162,8 @@ func complete_battle(
 	else:
 		player_cell = battle_origin_cell
 
-	campaign_lost = player_units.is_empty()
+	_sync_selected_player_army_from_legacy()
+	campaign_lost = get_player_army_total_units() <= 0
 	battle_in_progress = false
 	battle_kingdom_id = -1
 	battle_target_type = "kingdom"
@@ -960,7 +1277,7 @@ func queue_settler() -> bool:
 func can_found_city(cell: Vector2i) -> bool:
 	if not settler_active or not WorldGeneratorScript.is_inside_world(cell) or WorldGeneratorScript.terrain_at(cell, world_seed, world_generation_version) == "water":
 		return false
-	if get_city_index_at(cell) >= 0 or cities.size() >= 5 or cell == player_cell or cell == enemy_cell:
+	if get_city_index_at(cell) >= 0 or cities.size() >= 5 or not get_player_army_at(cell).is_empty() or cell == enemy_cell:
 		return false
 	if WorldLocationCatalogScript.has_location_at(neutral_locations, cell):
 		return false
@@ -1186,12 +1503,24 @@ func queue_province_improvement(improvement_id: String) -> bool:
 
 
 func get_army_upkeep_per_turn() -> int:
+	_sync_selected_player_army_from_legacy()
 	var total_upkeep := 0.0
-	for unit in player_units:
-		var role_id := str(unit.get("role", ROLE_MELEE))
-		var unit_data := UNIT_CATALOG_SCRIPT.get_data(role_id)
-		var base_upkeep := float(unit_data.get("upkeep", 0.0))
-		total_upkeep += base_upkeep * FactionCatalogScript.get_upkeep_multiplier(role_id, player_faction)
+	if player_armies.is_empty():
+		for unit in player_units:
+			var role_id := str(unit.get("role", ROLE_MELEE))
+			var unit_data := UNIT_CATALOG_SCRIPT.get_data(role_id)
+			total_upkeep += float(unit_data.get("upkeep", 0.0)) * FactionCatalogScript.get_upkeep_multiplier(role_id, player_faction)
+	else:
+		for army in player_armies:
+			var units_value: Variant = army.get("units", [])
+			if not units_value is Array:
+				continue
+			for unit_value in units_value:
+				if not unit_value is Dictionary:
+					continue
+				var role_id := str(unit_value.get("role", ROLE_MELEE))
+				var unit_data := UNIT_CATALOG_SCRIPT.get_data(role_id)
+				total_upkeep += float(unit_data.get("upkeep", 0.0)) * FactionCatalogScript.get_upkeep_multiplier(role_id, player_faction)
 	return ceili(total_upkeep)
 
 
@@ -1358,9 +1687,14 @@ func get_city_queue_summary() -> String:
 
 
 func advance_campaign_turn() -> void:
+	_sync_selected_player_army_from_legacy()
 	turn_number += 1
 	_recover_campaign_heroes()
-	player_moves_left = 1
+	for army_index in range(player_armies.size()):
+		var army_record: Dictionary = player_armies[army_index]
+		army_record["moves_left"] = 1
+		player_armies[army_index] = army_record
+	_load_selected_player_army_to_legacy()
 	settler_moves_left = 1
 	var previous_city_id := active_city_id
 	_save_active_city()
@@ -1410,7 +1744,14 @@ func advance_campaign_turn() -> void:
 
 
 func _get_player_diplomacy_sources() -> Array[Vector2i]:
-	var sources: Array[Vector2i] = [player_cell]
+	_sync_selected_player_army_from_legacy()
+	var sources: Array[Vector2i] = []
+	for army in player_armies:
+		var army_cell := WorldGeneratorScript.array_to_cell(army.get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.is_inside_world(army_cell) and not sources.has(army_cell):
+			sources.append(army_cell)
+	if sources.is_empty():
+		sources.append(player_cell)
 	for city_record in cities:
 		var city_cell_value := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
 		if not sources.has(city_cell_value):
@@ -1723,11 +2064,17 @@ func refresh_fog_of_war() -> void:
 	visible_cells.clear()
 	if not campaign_started:
 		return
-	if not player_units.is_empty():
-		var faction_effects := FactionCatalogScript.get_effects(player_faction)
-		var army_vision := clampi(ARMY_VISION_RADIUS + int(faction_effects.get("army_vision_bonus", 0)), ARMY_VISION_RADIUS, 12)
-		_reveal_fog_area(player_cell, army_vision)
-	else:
+	_sync_selected_player_army_from_legacy()
+	var faction_effects := FactionCatalogScript.get_effects(player_faction)
+	var army_vision := clampi(ARMY_VISION_RADIUS + int(faction_effects.get("army_vision_bonus", 0)), ARMY_VISION_RADIUS, 12)
+	var armies_with_units := 0
+	for army in player_armies:
+		var units_value: Variant = army.get("units", [])
+		var army_cell := WorldGeneratorScript.array_to_cell(army.get("cell", []), Vector2i(9999, 9999))
+		if units_value is Array and not units_value.is_empty() and WorldGeneratorScript.is_inside_world(army_cell):
+			_reveal_fog_area(army_cell, army_vision)
+			armies_with_units += 1
+	if armies_with_units == 0:
 		_reveal_fog_area(city_cell, CITY_VISION_RADIUS)
 	for city_record in cities:
 		var cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
@@ -1962,8 +2309,14 @@ func _remove_conflicting_neutral_locations() -> void:
 
 
 func save_campaign() -> bool:
-	# Keep the legacy active-hero field and the additive roster in sync.
+	# Keep the selected army and active commander compatibility fields synchronized.
+	_sync_selected_player_army_from_legacy()
 	_sync_active_hero_to_roster()
+	var primary_army := _get_primary_player_army()
+	var primary_cell := WorldGeneratorScript.array_to_cell(primary_army.get("cell", []), player_cell)
+	var primary_units := _read_unit_records(primary_army.get("units", []))
+	var primary_moves_left := clampi(int(primary_army.get("moves_left", 1)), 0, 1)
+	var primary_upgrades := _read_army_upgrades(primary_army.get("upgrades", {}))
 	# Do not overwrite the last safe strategic state during an unfinished tactical battle
 	# or when a damaged save could not be preserved during startup.
 	if battle_in_progress or _prevent_save_overwrite:
@@ -1984,12 +2337,14 @@ func save_campaign() -> bool:
 		"pending_diplomacy_offers": pending_diplomacy_offers,
 		"campaign_lost": campaign_lost,
 		"turn_number": turn_number,
-		"player_moves_left": player_moves_left,
-		"player_cell": [player_cell.x, player_cell.y],
+		"player_moves_left": primary_moves_left,
+		"player_cell": [primary_cell.x, primary_cell.y],
 		"enemy_cell": [enemy_cell.x, enemy_cell.y],
 		"enemy_present": enemy_present,
-		"player_units": player_units,
-		"army_upgrades": army_upgrades,
+		"player_units": primary_units,
+		"army_upgrades": primary_upgrades,
+		"player_armies": player_armies,
+		"selected_player_army_id": selected_player_army_id,
 		"army_upkeep_last_due": army_upkeep_last_due,
 		"army_upkeep_last_paid": army_upkeep_last_paid,
 		"enemy_units": enemy_units,
@@ -2114,7 +2469,14 @@ func load_campaign() -> bool:
 	var loaded_player := _read_unit_records(data.get("player_units", []))
 	var loaded_enemy := _read_unit_records(data.get("enemy_units", []))
 	var lost := bool(data.get("campaign_lost", false))
-	if loaded_player.is_empty() and not lost:
+	var saved_armies_value: Variant = data.get("player_armies", [])
+	var has_saved_army_units := false
+	if saved_armies_value is Array:
+		for saved_army_value in saved_armies_value:
+			if saved_army_value is Dictionary and saved_army_value.get("units", []) is Array and not saved_army_value.get("units", []).is_empty():
+				has_saved_army_units = true
+				break
+	if loaded_player.is_empty() and not has_saved_army_units and not lost:
 		return false
 
 	campaign_started = true
@@ -2141,6 +2503,22 @@ func load_campaign() -> bool:
 	if player_hero.is_empty():
 		active_hero_id = str(hero_roster[0].get("id", "hero_ruler"))
 		player_hero = hero_roster[0].duplicate(true)
+	var legacy_primary_army := {
+		"id": PRIMARY_PLAYER_ARMY_ID,
+		"name": "Первая армия",
+		"cell": [player_cell.x, player_cell.y],
+		"units": loaded_player,
+		"hero_id": active_hero_id,
+		"upgrades": army_upgrades,
+		"moves_left": player_moves_left,
+	}
+	player_armies = _read_player_armies(data.get("player_armies", []), legacy_primary_army)
+	selected_player_army_id = str(data.get("selected_player_army_id", PRIMARY_PLAYER_ARMY_ID))
+	if _get_player_army_index(selected_player_army_id) < 0:
+		selected_player_army_id = PRIMARY_PLAYER_ARMY_ID
+	if not _load_selected_player_army_to_legacy():
+		selected_player_army_id = str(player_armies[0].get("id", PRIMARY_PLAYER_ARMY_ID))
+		_load_selected_player_army_to_legacy()
 	player_faction = FactionCatalogScript.normalize_selection(data.get("player_faction", {}))
 	faction_setup_pending = false
 	var enemy_hero_fallback := _make_hero_record("Варг", "Воевода Красного Отряда")
