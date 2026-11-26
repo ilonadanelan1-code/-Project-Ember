@@ -2798,7 +2798,7 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 		var gift_result := DiplomacyCatalogScript.apply_relationship_action(
 			diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number,
 			"gift_" + action_id, ["gift", "generous", "trade_focused"], int(gift_data.get("relation", 0)),
-			gift_message, target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN
+			gift_message, target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN, player_diplomacy_profile
 		)
 		var gift_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id)
 		gift_record["last_gift_turn"] = turn_number
@@ -2824,7 +2824,7 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 			war_tags.append("treaty_breach")
 		var reason_text := " по обоснованной претензии" if not player_claims.is_empty() else " без формального повода"
 		var message := "Ты объявил войну державе «%s»%s." % [kingdom_name, reason_text]
-		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "war_declared", war_tags, relation_penalty, message, target_profile)
+		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "war_declared", war_tags, relation_penalty, message, target_profile, "", 0, player_diplomacy_profile)
 		_record_diplomacy_event(message)
 		save_campaign()
 		return {"ok": true, "accepted": true, "message": message, "chance": 100}
@@ -2836,11 +2836,11 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 			"offer_trade":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "trade", turn_number, DiplomacyCatalogScript.TRADE_DURATION)
 				message = "%s приняло торговый договор на 6 ходов." % kingdom_name
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, target_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, target_profile, "", 0, player_diplomacy_profile)
 			"offer_alliance":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "alliance", turn_number, DiplomacyCatalogScript.ALLIANCE_DURATION)
 				message = "%s заключило с тобой союз на 8 ходов." % kingdom_name
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, target_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, target_profile, "", 0, player_diplomacy_profile)
 			"offer_peace":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "peace", turn_number, 0)
 				var peace_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
@@ -2848,18 +2848,18 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 				peace_record["war_reason"] = "resolved"
 				DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, peace_record)
 				message = "С %s заключён мир. Перемирие действует 4 хода." % kingdom_name
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, target_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, target_profile, "", 0, player_diplomacy_profile)
 			"demand_tribute":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "tribute", turn_number, DiplomacyCatalogScript.TRIBUTE_DURATION, -1)
 				message = "%s согласилось платить дань до 3 золота за ход в течение 5 ходов." % kingdom_name
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "tribute_agreed", ["coercion"], -10, message, target_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "tribute_agreed", ["coercion"], -10, message, target_profile, "", 0, player_diplomacy_profile)
 			"demand_vassalage":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "vassal", turn_number, DiplomacyCatalogScript.VASSAL_DURATION, -1)
 				message = "%s признало твоё верховенство на 10 ходов." % kingdom_name
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "vassalage_agreed", ["coercion"], -8, message, target_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "vassalage_agreed", ["coercion"], -8, message, target_profile, "", 0, player_diplomacy_profile)
 	else:
 		message = "%s отклонило предложение. Шанс принятия был %d%%." % [kingdom_name, chance]
-		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_rejected", ["rejected_offer"], -3, message, target_profile)
+		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_rejected", ["rejected_offer"], -3, message, target_profile, "", 0, player_diplomacy_profile)
 	_record_diplomacy_event(message)
 	save_campaign()
 	return {"ok": true, "accepted": accepted, "message": message, "chance": chance}
@@ -2916,8 +2916,8 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 				DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, joined_record)
 				var enemy_profile_value: Variant = kingdoms[enemy_id].get("diplomacy_profile", {})
 				var enemy_profile: Dictionary = enemy_profile_value if enemy_profile_value is Dictionary else {}
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, turn_number, "joined_ally_war", ["war_declared", "ally_support"], -8, "Ты вступил в войну против «%s» по призыву союзника." % enemy_name, enemy_profile)
-				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number, "supported_ally", ["ally_support", "keeps_treaties"], 5, "Ты поддержал призыв союзника к войне.", offer_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, turn_number, "joined_ally_war", ["war_declared", "ally_support"], -8, "Ты вступил в войну против «%s» по призыву союзника." % enemy_name, enemy_profile, "", 0, player_diplomacy_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number, "supported_ally", ["ally_support", "keeps_treaties"], 5, "Ты поддержал призыв союзника к войне.", offer_profile, "", 0, player_diplomacy_profile)
 				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [str(kingdoms[kingdom_id].get("name", "Держава")), enemy_name]
 			else:
 				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
@@ -2940,11 +2940,11 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 				"offer_trade":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "trade", turn_number, DiplomacyCatalogScript.TRADE_DURATION)
 					message = "Ты принял торговое предложение державы «%s»." % kingdom_name
-					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, offer_profile)
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, offer_profile, "", 0, player_diplomacy_profile)
 				"offer_alliance":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "alliance", turn_number, DiplomacyCatalogScript.ALLIANCE_DURATION)
 					message = "Ты заключил союз с державой «%s»." % kingdom_name
-					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, offer_profile)
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, offer_profile, "", 0, player_diplomacy_profile)
 				"offer_peace":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "peace", turn_number, 0)
 					var peace_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
@@ -2952,10 +2952,10 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 					peace_record["war_reason"] = "resolved"
 					DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, peace_record)
 					message = "Ты заключил мир с державой «%s»." % kingdom_name
-					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, offer_profile)
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, offer_profile, "", 0, player_diplomacy_profile)
 		else:
 			message = "Ты отклонил предложение державы «%s»." % kingdom_name
-			DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_declined", ["rejected_offer"], -2, message, offer_profile)
+			DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_declined", ["rejected_offer"], -2, message, offer_profile, "", 0, player_diplomacy_profile)
 		pending_diplomacy_offers.remove_at(offer_index)
 		_record_diplomacy_event(message)
 		save_campaign()

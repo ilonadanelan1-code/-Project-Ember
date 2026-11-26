@@ -682,20 +682,23 @@ static func get_gift_data(action_id: String) -> Dictionary:
 	var value: Variant = GIFT_ACTIONS.get(action_id, {})
 	return value.duplicate(true) if value is Dictionary else {}
 
-static func calculate_action_reaction(target_profile: Dictionary, action_tags: Array) -> int:
+static func calculate_action_reaction(target_profile: Dictionary, action_tags: Array, actor_profile: Dictionary = {}) -> int:
 	var score := 0
+	var evaluated_tags: Array = action_tags.duplicate()
+	if not actor_profile.is_empty():
+		evaluated_tags.append_array(get_profile_behavior_tags(actor_profile))
 	var likes_value: Variant = target_profile.get("likes", [])
 	var dislikes_value: Variant = target_profile.get("dislikes", [])
 	var likes: Array = likes_value if likes_value is Array else []
 	var dislikes: Array = dislikes_value if dislikes_value is Array else []
-	for tag_value in action_tags:
+	for tag_value in evaluated_tags:
 		var tag := str(tag_value)
 		if likes.has(tag):
 			score += 2
 		if dislikes.has(tag):
 			score -= 2
 	var personality_id := str(target_profile.get("personality_id", ""))
-	for tag_value in action_tags:
+	for tag_value in evaluated_tags:
 		match str(tag_value):
 			"gift":
 				if personality_id in ["merchant", "honorable"]:
@@ -760,7 +763,7 @@ static func append_relationship_event(relations: Dictionary, actor_id: int, targ
 	set_record(relations, actor_id, target_id, record)
 	return record.duplicate(true)
 
-static func apply_relationship_action(relations: Dictionary, actor_id: int, target_id: int, turn_number: int, action_id: String, action_tags: Array, base_delta: int, message: String, target_profile: Dictionary = {}, gain_cap_field: String = "", gain_cap: int = 0) -> Dictionary:
+static func apply_relationship_action(relations: Dictionary, actor_id: int, target_id: int, turn_number: int, action_id: String, action_tags: Array, base_delta: int, message: String, target_profile: Dictionary = {}, gain_cap_field: String = "", gain_cap: int = 0, actor_profile: Dictionary = {}) -> Dictionary:
 	var record := get_record(relations, actor_id, target_id)
 	var event_id := "%d:%d:%s:%d" % [actor_id, target_id, action_id, turn_number]
 	var history_value: Variant = record.get("relationship_history", [])
@@ -768,7 +771,7 @@ static func apply_relationship_action(relations: Dictionary, actor_id: int, targ
 	for existing_value in history:
 		if existing_value is Dictionary and str(existing_value.get("id", "")) == event_id:
 			return {"applied": false, "delta": 0, "relation": int(record.get("relation", 0)), "reaction": 0}
-	var reaction := calculate_action_reaction(target_profile, action_tags)
+	var reaction := calculate_action_reaction(target_profile, action_tags, actor_profile)
 	var delta := base_delta + reaction
 	var previous_gift_gain := clampi(int(record.get(gain_cap_field, 0)), 0, gain_cap) if gain_cap > 0 and not gain_cap_field.is_empty() else 0
 	if gain_cap > 0 and not gain_cap_field.is_empty() and delta > 0:
@@ -1189,7 +1192,7 @@ static func process_turn(
 					var border_tags: Array = ["border_expansion"]
 					if claim_cause == "outpost_encroachment":
 						border_tags.append("outpost_expansion")
-					apply_relationship_action(relations, PLAYER_ID, kingdom_id, turn_number, "border_expansion", border_tags, 0, border_message, kingdom_profile)
+					apply_relationship_action(relations, PLAYER_ID, kingdom_id, turn_number, "border_expansion", border_tags, 0, border_message, kingdom_profile, "", 0, player_profile)
 					events.append(border_message)
 				player_record = get_record(relations, PLAYER_ID, kingdom_id)
 			if is_aggressive and player_border_distance <= BORDER_TENSION_DISTANCE and turn_number % BORDER_TENSION_INTERVAL == posmod(kingdom_id, BORDER_TENSION_INTERVAL):
@@ -1208,7 +1211,7 @@ static func process_turn(
 				set_record(relations, PLAYER_ID, kingdom_id, war_record)
 				consume_casus_belli(relations, kingdom_id, PLAYER_ID, turn_number)
 				var ai_war_message := "%s объявило тебе войну по причине: %s." % [str(kingdoms[kingdom_id].get("name", "Королевство")), war_cause]
-				apply_relationship_action(relations, kingdom_id, PLAYER_ID, turn_number, "ai_declared_war", ["war_declared"], -8, ai_war_message, player_profile)
+				apply_relationship_action(relations, kingdom_id, PLAYER_ID, turn_number, "ai_declared_war", ["war_declared"], -8, ai_war_message, player_profile, "", 0, kingdom_profile)
 				events.append(ai_war_message)
 				player_record = get_record(relations, PLAYER_ID, kingdom_id)
 		var gifting_kingdom: Dictionary = kingdoms[kingdom_id]
@@ -1384,7 +1387,7 @@ static func _maybe_send_ai_gift(kingdom: Dictionary, kingdom_id: int, relations:
 	if turn_number - int(record.get("last_received_gift_turn", 0)) < AI_GIFT_COOLDOWN_TURNS or posmod(turn_number + kingdom_id * 5, 13) != 0:
 		return {}
 	var remaining_gain := maxi(0, MAX_AI_GIFT_RELATION_GAIN - int(record.get("ai_gift_relation_gained", 0)))
-	var gift_delta := mini(maxi(0, 3 + calculate_action_reaction(player_profile, ["gift", "generous", "trade_focused"])), remaining_gain)
+	var gift_delta := mini(maxi(0, 3 + calculate_action_reaction(player_profile, ["gift", "generous", "trade_focused"], profile)), remaining_gain)
 	if gift_delta <= 0:
 		return {}
 	var cities_value: Variant = kingdom.get("cities", [])

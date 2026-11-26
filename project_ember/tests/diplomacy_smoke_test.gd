@@ -134,6 +134,10 @@ func _run() -> void:
 	}
 	var gift_reaction := DiplomacyCatalogScript.calculate_action_reaction(gift_target_profile, ["gift", "generous"])
 	_check(gift_reaction >= 4, "a ruler's stated likes and honorable personality improve the response to a gift")
+	gift_target_profile["dislikes"] = ["treaty_breach", "evil", "chaos"]
+	var hostile_actor_profile := {"alignment": "evil", "personality_id": "aggressor", "affinities": {"chaos": 4, "order": 0, "nature": 0, "astral": 0, "shadow": 0, "materium": 0}}
+	var affinity_reaction := DiplomacyCatalogScript.calculate_action_reaction(gift_target_profile, ["gift", "generous"], hostile_actor_profile)
+	_check(affinity_reaction < gift_reaction, "action reactions also account for the actor's alignment, personality and leading affinity")
 	var memory_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
 	var gift_action := DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 4, "gift_small", ["gift", "generous"], 4, "Игрок отправил небольшой подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
 	_check(bool(gift_action.get("applied", false)) and int(gift_action.get("delta", 0)) > 4, "diplomatic action reaction adds a personality and preference modifier to a gift")

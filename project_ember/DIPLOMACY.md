@@ -243,6 +243,7 @@ The v0.39 extension keeps the existing 45-pair diplomacy matrix and `SAVE_VERSIO
 ### Personality reactions to actions
 
 - Action reaction combines the target ruler's saved likes/dislikes with a small personality-specific response.
+- The acting ruler's alignment, personality, leading affinity and strategic behavior tags are also included, so a ruler can like a generous gift but dislike the worldview of its sender.
 - Reactions cover gifts, border/outpost expansion, declared wars, treaty breaches, allied support, coercion and keeping agreements.
 - Reactions are applied through one deterministic function and the resulting delta is written to relationship history.
 - A border claim caused by player expansion is recorded as a concrete diplomatic grievance rather than an unexplained periodic modifier.
