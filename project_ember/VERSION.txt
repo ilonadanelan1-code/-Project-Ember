@@ -1,1 +1,1 @@
-Project Ember v0.38.2 — Godot Audit Hotfix
+Project Ember v0.39.0-dev — Development Build (PR #9)

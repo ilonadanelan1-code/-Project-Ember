@@ -7,7 +7,7 @@ on:
       - ".github/workflows/package.yml"
       - "README.md"
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
     paths:
       - "project_ember/**"
       - ".github/workflows/package.yml"
@@ -23,6 +23,22 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+      - name: Read build version
+        id: build-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_LINE="$(head -n 1 project_ember/VERSION.txt)"
+          BUILD_TAG="${VERSION_LINE#Project Ember }"
+          BUILD_TAG="${BUILD_TAG%% *}"
+          if [[ -z "$BUILD_TAG" ]]; then
+            echo "Could not extract a build tag from project_ember/VERSION.txt" >&2
+            exit 1
+          fi
+          echo "tag=$BUILD_TAG" >> "$GITHUB_OUTPUT"
+          echo "BUILD_TAG=$BUILD_TAG" >> "$GITHUB_ENV"
+          echo "Building Project Ember $BUILD_TAG"
+
       - name: Set up Godot 4.7.2
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -174,23 +190,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cat > dist/BUILD-LIMITATIONS.txt <<'EOF'
-          Project Ember v0.38.2 — source-only archive
+          cat > dist/BUILD-LIMITATIONS.txt <<EOF
+          Project Ember ${BUILD_TAG} — source-only archive
           This package contains the Godot project code and tracked assets from GitHub.
           It is not a complete playable release: the licensed Tiny Swords runtime atlas
           and atlas_manifest.json are excluded from the public source repository.
           Restore the owner-provided Tiny Swords (Free Pack) ZIP and run:
           bash project_ember/tools/assets/package_playable_release.sh
           EOF
-          zip -qr dist/Project-Ember-v0.38.2-source.zip project_ember README.md RELEASE_v0.36.1.md dist/BUILD-LIMITATIONS.txt
-          unzip -tq dist/Project-Ember-v0.38.2-source.zip
+          zip -qr "dist/Project-Ember-${BUILD_TAG}-source.zip" project_ember README.md project_ember/CHANGELOG.md project_ember/TASKS.md dist/BUILD-LIMITATIONS.txt
+          unzip -tq "dist/Project-Ember-${BUILD_TAG}-source.zip"
 
       - name: Upload source-only archive
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') == '' || hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') == '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.38.2-source
-          path: dist/Project-Ember-v0.38.2-source.zip
+          name: Project-Ember-${{ steps.build-version.outputs.tag }}-source
+          path: dist/Project-Ember-${{ steps.build-version.outputs.tag }}-source.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -255,16 +271,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          bash project_ember/tools/assets/package_playable_release.sh "$PWD/dist/Project-Ember-v0.38.2.zip"
+          bash project_ember/tools/assets/package_playable_release.sh "$PWD/dist/Project-Ember-${BUILD_TAG}.zip"
           cp tiny-swords-recovery.txt dist/TINY-SWORDS-ASSET-RECOVERY.txt
 
       - name: Upload complete playable ZIP
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.38.2-playable
+          name: Project-Ember-${{ steps.build-version.outputs.tag }}-playable
           path: |
-            dist/Project-Ember-v0.38.2.zip
+            dist/Project-Ember-${{ steps.build-version.outputs.tag }}.zip
             dist/TINY-SWORDS-ASSET-RECOVERY.txt
           if-no-files-found: error
           retention-days: 30
@@ -280,7 +296,7 @@ jobs:
         if: ${{ hashFiles('project_ember/assets/combat/tiny_swords/combat_units_atlas.png') != '' && hashFiles('project_ember/assets/combat/tiny_swords/atlas_manifest.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Project-Ember-v0.38.2
+          name: Project-Ember-${{ steps.build-version.outputs.tag }}
           path: |
             project_ember/**
             !project_ember/.godot/**
