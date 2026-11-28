@@ -7,6 +7,8 @@ ARTIFACT_ROOT="${EMBER_QA_ARTIFACTS:-$PROJECT_ROOT/artifacts/qa}"
 LOG_ROOT="$ARTIFACT_ROOT/logs"
 mkdir -p "$LOG_ROOT"
 
+python3 "$PROJECT_ROOT/tools/qa/validate_visual_assets.py" "$PROJECT_ROOT"
+
 if ! command -v "$GODOT_BIN" >/dev/null 2>&1 && [[ ! -x "$GODOT_BIN" ]]; then
   echo "Godot executable not found: $GODOT_BIN" >&2
   exit 2

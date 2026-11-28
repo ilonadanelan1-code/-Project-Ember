@@ -46,6 +46,7 @@ func _run() -> void:
 	var valid_guards := true
 	var valid_rewards := true
 	var valid_location_terrain := true
+	var arcane_nexus_count := 0
 	for index in range(locations.size()):
 		var location: Dictionary = locations[index]
 		var location_id := str(location.get("id", ""))
@@ -64,6 +65,8 @@ func _run() -> void:
 		var terrain_id := WorldGeneratorScript.terrain_at(cell, seed_value, generation_version)
 		valid_terrain = valid_terrain and terrain_id not in ["water", "void"]
 		var type_id := str(location.get("type", ""))
+		if type_id == "leyline_nexus":
+			arcane_nexus_count += 1
 		var type_data := WorldLocationScript.get_type_data(type_id)
 		var allowed_terrain: Array = type_data.get("terrain", [])
 		valid_location_terrain = valid_location_terrain and allowed_terrain.has(terrain_id)
@@ -89,6 +92,7 @@ func _run() -> void:
 	_check(inside_world, "all locations are inside the generated world")
 	_check(valid_terrain, "locations never occupy water or void")
 	_check(valid_location_terrain, "each neutral location type matches its catalogued terrain")
+	_check(arcane_nexus_count >= 2, "every generated world contains at least two spaced magical leyline nexuses")
 	_check(clear_of_cities and clear_of_capitals, "locations respect starting city and AI capital exclusion rings")
 	_check(enough_spacing, "locations respect the minimum five-hex spacing")
 	_check(valid_guards, "all neutral guard rosters use valid tiers and stable campaign role IDs")

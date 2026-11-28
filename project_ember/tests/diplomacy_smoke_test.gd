@@ -30,6 +30,170 @@ func _run() -> void:
 	_check(DiplomacyCatalogScript.personality_id_for_kingdom(0) == "aggressor", "first realm receives the deterministic Aggressor personality")
 	_check(DiplomacyCatalogScript.personality_id_for_kingdom(1) == "merchant", "second realm receives the deterministic Merchant personality")
 
+	var player_profile := DiplomacyCatalogScript.create_leader_profile(
+		DiplomacyCatalogScript.PLAYER_ID,
+		{"people_id": "riverfolk", "culture_id": "mercantile", "trait_ids": ["disciplined", "guild_charters"]},
+		0,
+		841207
+	)
+	var saved_profile: Dictionary = kingdoms[0].get("diplomacy_profile", {})
+	_check(DiplomacyCatalogScript.ALIGNMENTS.has(str(saved_profile.get("alignment", ""))), "every AI ruler receives a valid persistent alignment")
+	_check(saved_profile.get("affinities", {}) is Dictionary and saved_profile.get("affinities", {}).size() == 6, "every AI ruler receives all six affinity scores")
+	_check(DiplomacyCatalogScript.PERSONALITY_IDS.has(str(saved_profile.get("personality_id", ""))), "AI ruler personality is derived and stored in the kingdom profile")
+	var repeated_kingdoms := KingdomAIScript.create_initial_kingdoms(841207)
+	_check(saved_profile == repeated_kingdoms[0].get("diplomacy_profile", {}), "leader profiles are deterministic for the same world seed")
+	var personality_diversity: Dictionary = {}
+	for kingdom in kingdoms:
+		var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+		if profile_value is Dictionary:
+			personality_diversity[str(profile_value.get("personality_id", ""))] = true
+	_check(personality_diversity.size() >= 2, "different rulers can develop different personalities from alignment and affinity")
+
+	var normalized_legacy_kingdom := KingdomAIScript.normalize_kingdom({"id": 0, "name": "Старое королевство"}, kingdoms[0], 841207)
+	var migrated_profile: Dictionary = normalized_legacy_kingdom.get("diplomacy_profile", {})
+	_check(DiplomacyCatalogScript.ALIGNMENTS.has(str(migrated_profile.get("alignment", ""))), "legacy AI kingdom records gain a valid profile during normalization")
+	_check(migrated_profile == saved_profile, "legacy profile migration is deterministic and does not reroll rulers")
+
+	var profile_relations := DiplomacyCatalogScript.create_initial_relations(
+		kingdoms.size(),
+		841207,
+		kingdoms,
+		player_profile
+	)
+	var profiled_record := DiplomacyCatalogScript.get_record(profile_relations, DiplomacyCatalogScript.PLAYER_ID, 0)
+	var opinion_value: Variant = profiled_record.get("opinion_modifiers", {})
+	var opinion: Dictionary = opinion_value if opinion_value is Dictionary else {}
+	_check(opinion.has("alignment") and opinion.has("affinity") and opinion.has("personality") and opinion.has("preferences"), "relationship record explains alignment, affinity, personality and preference modifiers")
+	var profiled_relation_before := int(profiled_record.get("relation", 0))
+	DiplomacyCatalogScript.refresh_relationship_modifiers(profile_relations, kingdoms, player_profile)
+	DiplomacyCatalogScript.refresh_relationship_modifiers(profile_relations, kingdoms, player_profile)
+	_check(int(DiplomacyCatalogScript.get_record(profile_relations, DiplomacyCatalogScript.PLAYER_ID, 0).get("relation", 0)) == profiled_relation_before, "refreshing relationship modifiers never stacks the same bonus twice")
+
+	var migrated_profile_relations := DiplomacyCatalogScript.normalize_relations(
+		{"-1:0": {"relation": 40, "treaty": "peace"}},
+		kingdoms.size(),
+		841207,
+		kingdoms,
+		player_profile
+	)
+	var migrated_opinion_record := DiplomacyCatalogScript.get_record(migrated_profile_relations, DiplomacyCatalogScript.PLAYER_ID, 0)
+	var migrated_opinion_value: Variant = migrated_opinion_record.get("opinion_modifiers", {})
+	var migrated_opinion: Dictionary = migrated_opinion_value if migrated_opinion_value is Dictionary else {}
+	_check(migrated_opinion.has("total"), "legacy diplomatic records are upgraded with an opinion breakdown")
+	_check(
+		int(migrated_opinion_record.get("relation", 0)) == clampi(40 + int(migrated_opinion.get("total", 0)), -100, 100),
+		"legacy relation receives profile compatibility exactly once"
+	)
+
+	var compatible_profile := {
+		"alignment": "good",
+		"affinities": {"order": 5, "chaos": 0, "nature": 2, "astral": 0, "shadow": 0, "materium": 1},
+		"personality_id": "honorable",
+		"likes": ["honorable", "order"],
+		"dislikes": ["aggressor"],
+	}
+	var opposed_profile := {
+		"alignment": "evil",
+		"affinities": {"order": 0, "chaos": 5, "nature": 0, "astral": 0, "shadow": 3, "materium": 0},
+		"personality_id": "aggressor",
+		"likes": ["aggressor", "chaos"],
+		"dislikes": ["honorable", "good"],
+	}
+	var compatible_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(compatible_profile, compatible_profile)
+	var opposed_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(compatible_profile, opposed_profile)
+	_check(int(compatible_opinion.get("total", 0)) > int(opposed_opinion.get("total", 0)), "aligned leaders with compatible affinities prefer each other over opposing personalities")
+
+	var common_ally_relations := DiplomacyCatalogScript.create_initial_relations(3, 841207)
+	DiplomacyCatalogScript.set_treaty(common_ally_relations, 0, 2, "alliance", 1, 8)
+	DiplomacyCatalogScript.set_treaty(common_ally_relations, 1, 2, "alliance", 1, 8)
+	var common_ally_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(
+		compatible_profile,
+		compatible_profile,
+		common_ally_relations,
+		0,
+		1
+	)
+	_check(int(common_ally_opinion.get("shared_allies", 0)) == 2, "leaders gain affinity when they share a formal ally")
+	var common_enemy_relations := DiplomacyCatalogScript.create_initial_relations(3, 841207)
+	DiplomacyCatalogScript.set_treaty(common_enemy_relations, 0, 2, "war", 1)
+	DiplomacyCatalogScript.set_treaty(common_enemy_relations, 1, 2, "war", 1)
+	var common_enemy_opinion := DiplomacyCatalogScript.calculate_relationship_modifiers(
+		compatible_profile,
+		compatible_profile,
+		common_enemy_relations,
+		0,
+		1
+	)
+	_check(int(common_enemy_opinion.get("shared_enemies", 0)) == 3, "leaders gain affinity when they share an active enemy")
+
+	var gift_target_profile := {
+		"alignment": "good",
+		"personality_id": "honorable",
+		"likes": ["generous", "gift"],
+		"dislikes": ["treaty_breach"],
+	}
+	var gift_reaction := DiplomacyCatalogScript.calculate_action_reaction(gift_target_profile, ["gift", "generous"])
+	_check(gift_reaction >= 4, "a ruler's stated likes and honorable personality improve the response to a gift")
+	gift_target_profile["dislikes"] = ["treaty_breach", "evil", "chaos"]
+	var hostile_actor_profile := {"alignment": "evil", "personality_id": "aggressor", "affinities": {"chaos": 4, "order": 0, "nature": 0, "astral": 0, "shadow": 0, "materium": 0}}
+	var affinity_reaction := DiplomacyCatalogScript.calculate_action_reaction(gift_target_profile, ["gift", "generous"], hostile_actor_profile)
+	_check(affinity_reaction < gift_reaction, "action reactions also account for the actor's alignment, personality and leading affinity")
+	var memory_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	var gift_action := DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 4, "gift_small", ["gift", "generous"], 4, "Игрок отправил небольшой подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	_check(bool(gift_action.get("applied", false)) and int(gift_action.get("delta", 0)) > 4, "diplomatic action reaction adds a personality and preference modifier to a gift")
+	var gift_memory_record := DiplomacyCatalogScript.get_record(memory_relations, -1, 0)
+	_check(gift_memory_record.get("relationship_history", []) is Array and gift_memory_record.get("relationship_history", []).size() == 1, "gift is stored in the relationship's persistent event history")
+	var duplicate_gift_action := DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 4, "gift_small", ["gift", "generous"], 4, "Повторный подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	_check(not bool(duplicate_gift_action.get("applied", true)), "the same diplomatic action cannot be applied twice in one turn")
+	DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 5, "gift_medium", ["gift", "generous"], 20, "Игрок отправил щедрый подарок.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	DiplomacyCatalogScript.apply_relationship_action(memory_relations, -1, 0, 6, "gift_large", ["gift", "generous"], 20, "Игрок отправил королевский дар.", gift_target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN)
+	gift_memory_record = DiplomacyCatalogScript.get_record(memory_relations, -1, 0)
+	_check(int(gift_memory_record.get("gift_relation_gained", 0)) == DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN, "lifetime positive relation gain from gifts is capped")
+	_check(gift_memory_record.get("relationship_history", []).size() <= DiplomacyCatalogScript.MAX_RELATIONSHIP_HISTORY, "relationship history has a strict per-pair size limit")
+
+	var statement_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	var statement_record := DiplomacyCatalogScript.get_record(statement_relations, -1, 0)
+	statement_record["relation"] = 70
+	DiplomacyCatalogScript.set_record(statement_relations, -1, 0, statement_record)
+	var friendship_statement := DiplomacyCatalogScript.update_public_statement(statement_relations, 0, -1, 8, "Северный Венец", "твоей державой")
+	_check(str(friendship_statement.get("type", "")) == "friendship", "a ruler publicly declares friendship after crossing the relation threshold")
+	var saved_statement_record := DiplomacyCatalogScript.get_record(statement_relations, 0, -1)
+	_check(str(saved_statement_record.get("public_statement", {}).get("type", "")) == "friendship", "public diplomatic statements are stored in the persistent pair record")
+
+	var migrated_memory := DiplomacyCatalogScript.normalize_relations({
+		"-1:0": {
+			"relation": 12,
+			"relationship_history": [{"actor_id": -1, "target_id": 0, "turn": 3, "action": "gift_small", "message": "Legacy gift", "relation_delta": 5}],
+			"last_gift_turn": 3,
+			"gift_relation_gained": 5,
+			"public_statement": {"type": "friendship", "text": "Старое заявление", "turn": 3},
+		},
+	}, 1, 841207)
+	var migrated_memory_record := DiplomacyCatalogScript.get_record(migrated_memory, -1, 0)
+	_check(migrated_memory_record.get("relationship_history", []).size() == 1, "legacy save migration preserves and normalizes diplomatic memories")
+	_check(int(migrated_memory_record.get("last_gift_turn", 0)) == 3 and int(migrated_memory_record.get("gift_relation_gained", 0)) == 5, "gift cooldown and gift cap survive save normalization")
+	_check(str(migrated_memory_record.get("public_statement", {}).get("type", "")) == "friendship", "legacy public diplomatic statements survive normalization")
+
+	var gift_kingdoms := KingdomAIScript.create_initial_kingdoms(841207)
+	var merchant_gift_kingdom: Dictionary = gift_kingdoms[1]
+	merchant_gift_kingdom["diplomacy_profile"] = {"personality_id": "merchant", "likes": ["generous"], "dislikes": []}
+	var gift_cities: Array = merchant_gift_kingdom.get("cities", [])
+	var gift_capital: Dictionary = gift_cities[0]
+	gift_capital["gold"] = 60
+	gift_cities[0] = gift_capital
+	merchant_gift_kingdom["cities"] = gift_cities
+	gift_kingdoms[1] = merchant_gift_kingdom
+	var ai_gift_relations := DiplomacyCatalogScript.create_initial_relations(gift_kingdoms.size(), 841207)
+	var ai_gift_record := DiplomacyCatalogScript.get_record(ai_gift_relations, -1, 1)
+	ai_gift_record["relation"] = 50
+	DiplomacyCatalogScript.set_record(ai_gift_relations, -1, 1, ai_gift_record)
+	var ai_gift_offers: Array[Dictionary] = []
+	var ai_gift_result := DiplomacyCatalogScript.process_turn(ai_gift_relations, gift_kingdoms, 21, 841207, 100.0, ai_gift_offers, [], {"likes": ["generous"], "personality_id": "honorable"})
+	_check(ai_gift_result.get("gift_transfers", []).size() == 1, "a friendly merchant AI can send a real gold gift to the player")
+	_check(int(gift_kingdoms[1].get("cities", [])[0].get("gold", 0)) == 40, "AI gift is paid from the sender's capital treasury")
+	_check(not DiplomacyCatalogScript.get_record(ai_gift_relations, -1, 1).get("relationship_history", []).is_empty(), "AI gifts are also recorded in relationship memory")
+
+
 	var initial_record := DiplomacyCatalogScript.get_record(relations, -1, 1)
 	_check(int(initial_record.get("relation", -100)) == 18, "merchant begins with a modest positive player relationship")
 	DiplomacyCatalogScript.set_treaty(relations, -1, 1, "trade", 3, DiplomacyCatalogScript.TRADE_DURATION)
@@ -51,6 +215,15 @@ func _run() -> void:
 	_check(str(normalized_record.get("treaty", "")) == "peace", "unknown treaty IDs fall back to peace")
 	_check(normalized.size() == 45, "legacy or partial relationship data receives every missing pair")
 
+	var merchant_kingdom: Dictionary = kingdoms[1]
+	merchant_kingdom["diplomacy_profile"] = DiplomacyCatalogScript.normalize_leader_profile(
+		{"personality_id": "merchant"},
+		1,
+		merchant_kingdom.get("faction", {}),
+		int(merchant_kingdom.get("military_doctrine", 0)),
+		841207
+	)
+	kingdoms[1] = merchant_kingdom
 	var pending: Array[Dictionary] = []
 	var offer_relations := DiplomacyCatalogScript.create_initial_relations(kingdoms.size(), 841207)
 	var processed := DiplomacyCatalogScript.process_turn(offer_relations, kingdoms, 5, 841207, 100.0, pending)
@@ -83,12 +256,96 @@ func _run() -> void:
 	DiplomacyCatalogScript.process_turn(border_relations, border_kingdoms, 5, 841207, 100.0, no_offers, border_player_sources)
 	_check(int(DiplomacyCatalogScript.get_record(border_relations, -1, 0).get("relation", 0)) == -42, "aggressive AI applies deterministic border tension near player territory")
 
+	var border_claims := DiplomacyCatalogScript.get_active_casus_belli(
+		DiplomacyCatalogScript.get_record(border_relations, -1, 0),
+		5,
+		0
+	)
+	_check(not border_claims.is_empty(), "aggressive border pressure creates a visible casus belli")
+	_check(str(border_claims[0].get("cause", "")) == "border_encroachment", "border claim records its concrete reason")
+	var outpost_claim_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
+	var outpost_claim_kingdoms: Array[Dictionary] = [
+		{"id": 0, "alive": true, "name": "Пограничная держава", "cities": [{"cell": [3, 0]}], "outposts": [], "army": []},
+	]
+	var player_outpost_sources: Array[Vector2i] = [Vector2i(2, 0)]
+	DiplomacyCatalogScript.process_turn(
+		outpost_claim_relations,
+		outpost_claim_kingdoms,
+		5,
+		841207,
+		100.0,
+		no_offers,
+		border_player_sources,
+		{},
+		player_outpost_sources
+	)
+	var outpost_claims := DiplomacyCatalogScript.get_active_casus_belli(
+		DiplomacyCatalogScript.get_record(outpost_claim_relations, -1, 0),
+		5,
+		0
+	)
+	_check(not outpost_claims.is_empty() and str(outpost_claims[0].get("cause", "")) == "outpost_encroachment", "a player outpost near an AI city creates a distinct outpost encroachment claim")
+
+	var no_claim_legacy := DiplomacyCatalogScript.normalize_relations({"-1:0": {"relation": 10}}, 2, 841207)
+	_check(DiplomacyCatalogScript.get_record(no_claim_legacy, -1, 0).get("casus_belli", []) is Array, "legacy relationship records receive an empty casus belli list")
+	var manual_claim_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	var first_claim := DiplomacyCatalogScript.create_casus_belli(manual_claim_relations, 0, 1, "treaty_breach", 4, 3)
+	var duplicate_claim := DiplomacyCatalogScript.create_casus_belli(manual_claim_relations, 0, 1, "treaty_breach", 5, 2)
+	_check(not first_claim.is_empty() and first_claim == duplicate_claim, "duplicate causes do not stack multiple active claims")
+	_check(DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(manual_claim_relations, 0, 1), 12, 0), "casus belli remains active through its eighth turn")
+	_check(not DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(manual_claim_relations, 0, 1), 13, 0), "casus belli expires after its eight-turn window")
+
+	var permanent_claim_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	var permanent_claim := DiplomacyCatalogScript.create_casus_belli(
+		permanent_claim_relations, 0, 1, "affinity_improvement", 4, 3, [5, -2], true, "arcane_conduit", "astral"
+	)
+	var duplicate_permanent_claim := DiplomacyCatalogScript.create_casus_belli(
+		permanent_claim_relations, 0, 1, "affinity_improvement", 20, 3, [5, -2], true, "arcane_conduit", "astral"
+	)
+	_check(not permanent_claim.is_empty() and permanent_claim == duplicate_permanent_claim, "the same affinity improvement creates one permanent claim without stacking")
+	var other_site_claim := DiplomacyCatalogScript.create_casus_belli(
+		permanent_claim_relations, 0, 1, "affinity_improvement", 20, 2, [6, -2], true, "arcane_conduit", "astral"
+	)
+	_check(not other_site_claim.is_empty() and other_site_claim.get("source_cell", []) == [6, -2], "different affinity improvement sites retain distinct claims")
+	var permanent_record := DiplomacyCatalogScript.get_record(permanent_claim_relations, 0, 1)
+	_check(DiplomacyCatalogScript.has_active_casus_belli(permanent_record, 200, 0), "permanent affinity claims survive ordinary claim expiry")
+	DiplomacyCatalogScript.set_treaty(permanent_claim_relations, 0, 1, "peace", 40)
+	var consumed_permanent := DiplomacyCatalogScript.consume_casus_belli(permanent_claim_relations, 0, 1, 200, "affinity_improvement")
+	_check(not consumed_permanent.is_empty() and DiplomacyCatalogScript.has_active_casus_belli(DiplomacyCatalogScript.get_record(permanent_claim_relations, 0, 1), 200, 0), "peace and war justification do not consume permanent affinity claims")
+	var migrated_permanent := DiplomacyCatalogScript.normalize_relations(
+		{"0:1": {"casus_belli": [permanent_claim]}}, 2, 841207
+	)
+	var migrated_permanent_claims := DiplomacyCatalogScript.get_active_casus_belli(DiplomacyCatalogScript.get_record(migrated_permanent, 0, 1), 500, 0)
+	_check(not migrated_permanent_claims.is_empty() and bool(migrated_permanent_claims[0].get("permanent", false)) and str(migrated_permanent_claims[0].get("source_affinity_id", "")) == "astral", "save normalization preserves permanent source and affinity metadata")
+
+	var high_motive_score := DiplomacyCatalogScript.calculate_containment_join_score(
+		{"personality_id": "aggressor", "likes": [], "dislikes": []},
+		{"personality_id": "merchant", "likes": [], "dislikes": []},
+		-60, 140.0, 100.0, 2, true, 70, "shadow"
+	)
+	var low_motive_score := DiplomacyCatalogScript.calculate_containment_join_score(
+		{"personality_id": "merchant", "likes": ["merchant"], "dislikes": []},
+		{"personality_id": "honorable", "likes": [], "dislikes": []},
+		55, 20.0, 100.0, 0, false, 20, "order"
+	)
+	_check(high_motive_score >= 75 and high_motive_score > low_motive_score, "containment motivation weighs hostility, ruler motive, power, allies and an existing war")
+	var coalition_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	DiplomacyCatalogScript.set_containment_coalition(coalition_relations, 0, 1, 9, high_motive_score, [2, 3])
+	var coalition_record := DiplomacyCatalogScript.get_record(coalition_relations, 0, 1)
+	_check(DiplomacyCatalogScript.get_containment_coalition(coalition_record, 1).get("ally_ids", []) == [2, 3], "containment coalition membership and common allies persist in the pair record")
+	var normalized_coalition := DiplomacyCatalogScript.normalize_relations({"0:1": coalition_record}, 2, 841207)
+	_check(not DiplomacyCatalogScript.get_containment_coalition(DiplomacyCatalogScript.get_record(normalized_coalition, 0, 1), 1).is_empty(), "legacy-compatible normalization preserves optional coalition membership")
+
+
 	var ai_war_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
 	var hostile_ai_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)
 	hostile_ai_record["relation"] = -62
 	DiplomacyCatalogScript.set_record(ai_war_relations, 0, 1, hostile_ai_record)
 	DiplomacyCatalogScript.process_turn(ai_war_relations, ai_deal_kingdoms, 5, 841207, 100.0, no_offers)
 	_check(str(DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1).get("treaty", "")) == "war", "aggressive AI can declare war on a hostile neighbouring realm")
+	var ai_war_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)
+	_check(str(ai_war_record.get("war_reason", "")) == "border_encroachment", "AI war record stores the casus belli that justified the declaration")
+	_check(DiplomacyCatalogScript.get_active_casus_belli(ai_war_record, 5).is_empty(), "declaring war consumes the claim used as its justification")
 	var exhausted_record := DiplomacyCatalogScript.get_record(ai_war_relations, 0, 1)
 	exhausted_record["war_exhaustion"] = 60
 	DiplomacyCatalogScript.set_record(ai_war_relations, 0, 1, exhausted_record)
@@ -99,6 +356,28 @@ func _run() -> void:
 			ai_peace_resolved = true
 			break
 	_check(ai_peace_resolved, "AI-AI wars can resolve into a four-turn truce after war exhaustion")
+
+	var call_to_war_kingdoms: Array[Dictionary] = [
+		{"id": 0, "alive": true, "name": "Союзник", "cities": [{"cell": [0, 0]}], "army": []},
+		{"id": 1, "alive": true, "name": "Противник", "cities": [{"cell": [2, 0]}], "army": []},
+	]
+	var call_to_war_relations := DiplomacyCatalogScript.create_initial_relations(2, 841207)
+	DiplomacyCatalogScript.set_treaty(call_to_war_relations, -1, 0, "alliance", 1, 8)
+	var call_war_record := DiplomacyCatalogScript.get_record(call_to_war_relations, 0, 1)
+	call_war_record["relation"] = -62
+	DiplomacyCatalogScript.set_record(call_to_war_relations, 0, 1, call_war_record)
+	var call_offers: Array[Dictionary] = []
+	DiplomacyCatalogScript.process_turn(call_to_war_relations, call_to_war_kingdoms, 5, 841207, 100.0, call_offers)
+	_check(str(DiplomacyCatalogScript.get_record(call_to_war_relations, 0, 1).get("treaty", "")) == "war", "border claim can trigger the AI-AI war that activates allied calls")
+	var war_call_offer: Dictionary = {}
+	for offer_value in call_offers:
+		if str(offer_value.get("action", "")) == "call_to_war":
+			war_call_offer = offer_value
+			break
+	_check(not war_call_offer.is_empty(), "AI ally sends a formal call to war to the player")
+	_check(str(war_call_offer.get("war_cause", "")) == "border_encroachment", "war call preserves the original border claim after declaration consumes it")
+	_check(int(war_call_offer.get("expires_turn", 0)) == 8, "war call gives the player three turns to answer")
+
 
 	var player_war_relations := DiplomacyCatalogScript.create_initial_relations(1, 841207)
 	var hostile_player_record := DiplomacyCatalogScript.get_record(player_war_relations, -1, 0)
@@ -131,6 +410,8 @@ func _run() -> void:
 	state.prepare_new_campaign(true)
 	state.faction_setup_pending = false
 	_check(state.diplomacy_relations.size() == 45, "new campaigns initialize all diplomacy relationships")
+	_check(not state.player_diplomacy_profile.is_empty(), "new campaigns initialize a persistent player diplomatic profile")
+	_check(state.player_diplomacy_profile.has("alignment") and state.player_diplomacy_profile.has("affinities"), "player profile includes alignment and affinity data")
 	_check(state.get_diplomacy_action_preview(0, "declare_war").get("available", false), "player can declare war when no truce blocks it")
 	var declaration: Dictionary = state.perform_diplomacy_action("declare_war", 0)
 	_check(bool(declaration.get("ok", false)), "player war declaration succeeds through campaign state")
@@ -138,6 +419,58 @@ func _run() -> void:
 	_check(str(state.get_diplomacy_record(0).get("war_reason", "")) == "player_declaration", "war record stores the declared cause")
 	_check(state.get_diplomacy_action_preview(0, "offer_peace").get("available", false), "peace proposal becomes available while at war")
 	_check(CampaignStateScript.SAVE_VERSION == 1, "optional diplomacy fields preserve legacy save schema version")
+	_check(state.get_diplomacy_action_preview(1, "send_gift_small").get("available", false), "a first gift is available without a false initial cooldown")
+	var gift_gold_before := int(state.get_economy_snapshot().get("gold", 0))
+	var state_gift: Dictionary = state.perform_diplomacy_action("send_gift_small", 1)
+	var gift_gold_after := int(state.get_economy_snapshot().get("gold", 0))
+	_check(bool(state_gift.get("ok", false)) and gift_gold_before - gift_gold_after == 25, "sending a gift spends the exact gold cost from city treasuries")
+	var state_gift_record: Dictionary = state.get_diplomacy_record(1)
+	_check(int(state_gift_record.get("last_gift_turn", 0)) == state.turn_number and not state_gift_record.get("relationship_history", []).is_empty(), "campaign gift persists its cooldown and event history")
+	_check(not state.get_diplomacy_action_preview(1, "send_gift_small").get("available", true), "a second gift is blocked during the cooldown")
+
+	var call_state: Variant = CampaignStateScript.new()
+	root.add_child(call_state)
+	call_state.prepare_new_campaign(true)
+	call_state.faction_setup_pending = false
+	call_state.turn_number = 5
+	DiplomacyCatalogScript.set_treaty(call_state.diplomacy_relations, -1, 1, "alliance", 5, 8)
+	var defending_war := DiplomacyCatalogScript.get_record(call_state.diplomacy_relations, 1, 0)
+	defending_war["treaty"] = "war"
+	defending_war["war_initiator_id"] = 0
+	defending_war["war_target_id"] = 1
+	DiplomacyCatalogScript.set_record(call_state.diplomacy_relations, 1, 0, defending_war)
+	var ally_relation_before := int(call_state.get_diplomacy_record(1).get("relation", 0))
+	call_state.pending_diplomacy_offers.append({
+		"offer_id": "ally-call-decline",
+		"kingdom_id": 1,
+		"enemy_kingdom_id": 0,
+		"action": "call_to_war",
+		"war_cause": "ally_attacked",
+		"created_turn": 5,
+		"expires_turn": 8,
+	})
+	var declined_call: Dictionary = call_state.respond_to_diplomacy_offer("ally-call-decline", false)
+	_check(bool(declined_call.get("ok", false)), "player can explicitly decline a formal allied war call")
+	_check(
+		int(call_state.get_diplomacy_record(1).get("relation", 0)) == ally_relation_before - DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY,
+		"refusing a call to war reduces the caller's diplomatic relation"
+	)
+	call_state.pending_diplomacy_offers.append({
+		"offer_id": "ally-call-accept",
+		"kingdom_id": 1,
+		"enemy_kingdom_id": 0,
+		"action": "call_to_war",
+		"war_cause": "ally_attacked",
+		"created_turn": 5,
+		"expires_turn": 8,
+	})
+	var accepted_call: Dictionary = call_state.respond_to_diplomacy_offer("ally-call-accept", true)
+	_check(bool(accepted_call.get("ok", false)), "player can accept an allied war call while the alliance and war remain active")
+	_check(str(call_state.get_diplomacy_record(0).get("treaty", "")) == "war", "accepting a call to war enters the player into the ally's conflict")
+	_check(str(call_state.get_diplomacy_record(0).get("war_reason", "")) == "ally_attacked", "joined war retains the original conflict cause")
+	_check(str(call_state.get_diplomacy_record(0).get("war_join_reason", "")) == "ally_call", "joined war separately records that the player entered through an allied call")
+	call_state.free()
+
 
 	var offer := {
 		"offer_id": "1:offer_trade:4",

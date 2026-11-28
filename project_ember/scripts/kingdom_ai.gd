@@ -10,6 +10,7 @@ const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
 const WorldLocationCatalog = preload("res://scripts/world_location_catalog.gd")
 const StrategicAI = preload("res://scripts/strategic_ai_planner.gd")
 const SettlementCatalog = preload("res://scripts/settlement_catalog.gd")
+const ArcaneVictory = preload("res://scripts/arcane_victory_catalog.gd")
 
 const KINGDOM_NAMES := [
 	"Королевство Алых Парусов",
@@ -80,6 +81,7 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 			"id": index,
 			"name": KINGDOM_NAMES[index],
 			"faction": kingdom_faction,
+			"diplomacy_profile": DiplomacyCatalog.create_leader_profile(index, kingdom_faction, index % 4, _seed),
 			"ruler": RULER_NAMES[index],
 			"capital_name": CAPITAL_NAMES[index],
 			"capital_cell": World.cell_to_array(capital),
@@ -94,13 +96,14 @@ static func create_initial_kingdoms(_seed: int = World.DEFAULT_SEED) -> Array[Di
 			"next_expansion_turn": 8 + (index % 4),
 			"target_kingdom_id": (index + 1) % World.KINGDOM_COUNT,
 			"military_doctrine": index % 4,
+			"arcane_victory_progress": 0,
 			"neutral_target_id": "",
 		}
 		result.append(record)
 	return result
 
 
-static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictionary:
+static func normalize_kingdom(raw: Dictionary, fallback: Dictionary, world_seed: int = World.DEFAULT_SEED) -> Dictionary:
 	var result: Dictionary = fallback.duplicate(true)
 	var index := int(fallback.get("id", 0))
 	result["name"] = str(raw.get("name", result.get("name", KINGDOM_NAMES[index % KINGDOM_NAMES.size()])))
@@ -214,6 +217,14 @@ static func normalize_kingdom(raw: Dictionary, fallback: Dictionary) -> Dictiona
 	result["next_expansion_turn"] = clampi(int(raw.get("next_expansion_turn", result.get("next_expansion_turn", 8))), 1, 100000000)
 	result["target_kingdom_id"] = clampi(int(raw.get("target_kingdom_id", result.get("target_kingdom_id", (index + 1) % World.KINGDOM_COUNT))), 0, World.KINGDOM_COUNT - 1)
 	result["military_doctrine"] = clampi(int(raw.get("military_doctrine", index % 4)), 0, 3)
+	result["diplomacy_profile"] = DiplomacyCatalog.normalize_leader_profile(
+		raw.get("diplomacy_profile", {}),
+		index,
+		result["faction"],
+		int(result["military_doctrine"]),
+		world_seed
+	)
+	result["arcane_victory_progress"] = clampi(int(raw.get("arcane_victory_progress", result.get("arcane_victory_progress", 0))), 0, 120)
 	result["neutral_target_id"] = str(raw.get("neutral_target_id", result.get("neutral_target_id", "")))
 	return result
 
@@ -418,6 +429,16 @@ static func _queue_next_order(
 	var faction_value: Variant = kingdom.get("faction", {})
 	var kingdom_faction: Dictionary = faction_value if faction_value is Dictionary else {}
 	var province_order := _get_ai_province_build_order(city, kingdom_faction, world_seed, world_generation_version, bool(strategic_plan.get("threatened", false)))
+	var kingdom_cities_value: Variant = kingdom.get("cities", [])
+	var kingdom_city_records: Array = kingdom_cities_value if kingdom_cities_value is Array else []
+	var arcane_conduit_target := 0
+	var arcane_progress := int(kingdom.get("arcane_victory_progress", 0))
+	if arcane_progress >= 12:
+		arcane_conduit_target = clampi(1 + floori(float(arcane_progress - 12) / 40.0), 1, 3)
+	if ArcaneVictory.count_arcane_conduits(kingdom_city_records) < arcane_conduit_target:
+		var arcane_order := _get_ai_arcane_conduit_order(city, kingdom_faction, world_seed, world_generation_version)
+		if not arcane_order.is_empty():
+			province_order = arcane_order
 	var desired_army_size := clampi(int(strategic_plan.get("desired_army_size", 10)), 0, 24)
 	var can_recruit := bool(strategic_plan.get("can_recruit", false))
 	var recruit_role := str(strategic_plan.get("recruit_role", UnitCatalog.ROLE_MELEE))
@@ -530,6 +551,46 @@ static func _get_ai_building_upgrade_id(city: Dictionary, economy_focus: String 
 			if next_level <= city_level and not CityDevelopment.get_building_upgrade_data(building_id, next_level).is_empty():
 				return building_id
 	return ""
+
+
+
+static func _get_ai_arcane_conduit_order(
+		city: Dictionary,
+		kingdom_faction: Dictionary,
+		world_seed: int,
+		world_generation_version: int
+) -> Dictionary:
+	var improvements_value: Variant = city.get("province_improvements", [])
+	var improvements: Array = improvements_value if improvements_value is Array else []
+	var faction_effects := FactionCatalog.get_effects(kingdom_faction)
+	var province_slots := mini(6, CityDevelopment.get_province_slots(CityDevelopment.get_city_level(int(city.get("population", 1)))) + int(faction_effects.get("province_slot_bonus", 0)))
+	if improvements.size() >= province_slots:
+		return {}
+	var used: Dictionary = {}
+	for item in improvements:
+		if not item is Dictionary:
+			continue
+		var used_cell := World.array_to_cell(item.get("cell", []))
+		used["%d:%d" % [used_cell.x, used_cell.y]] = true
+	var center := World.array_to_cell(city.get("cell", []))
+	var data := CityDevelopment.get_improvement_data(ArcaneVictory.CONDUIT_IMPROVEMENT_ID)
+	var valid_terrain: Array = data.get("terrain", [])
+	for offset in World.neighbors():
+		var cell := center + offset
+		var key := "%d:%d" % [cell.x, cell.y]
+		if used.has(key) or not World.is_inside_world(cell):
+			continue
+		var terrain := World.terrain_at(cell, world_seed, world_generation_version)
+		if not valid_terrain.has(terrain):
+			continue
+		return {
+			"id": ArcaneVictory.CONDUIT_IMPROVEMENT_ID,
+			"cell": [cell.x, cell.y],
+			"name": data.get("name", "Арканный обелиск"),
+			"gold_cost": int(data.get("gold_cost", 0)),
+			"production_cost": int(data.get("production_cost", 1)),
+		}
+	return {}
 
 
 static func _get_ai_province_build_order(city: Dictionary, kingdom_faction: Dictionary, world_seed: int, world_generation_version: int, prefer_fortification: bool = false) -> Dictionary:
@@ -958,6 +1019,8 @@ static func _choose_neutral_expedition_target(
 		var reward: Dictionary = location.get("reward", {})
 		var reward_value := int(reward.get("gold", 0)) + int(reward.get("production", 0)) * 2 + int(reward.get("food", 0))
 		var score := distance + guard_tier * 3 - mini(4, floori(float(reward_value) / 35.0))
+		if str(location.get("type", "")) == ArcaneVictory.NEXUS_LOCATION_ID:
+			score -= 7
 		if location_id == current_target_id:
 			score -= 5
 		if score < best_score:

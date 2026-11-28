@@ -65,6 +65,11 @@ var _message_label: Label
 var _hud_resource_labels: Dictionary = {}
 var _city_resource_labels: Dictionary = {}
 var _attack_button: Button
+var _battle_estimate_panel: PanelContainer
+var _battle_estimate_title_label: Label
+var _battle_estimate_body_label: Label
+var _battle_estimate_start_button: Button
+var _pending_battle_kingdom_id: int = -1
 var _split_army_button: Button
 var _turn_button: Button
 var _selection_button: Button
@@ -80,6 +85,12 @@ var _selected_outpost_id: int = -1
 var _settings_panel: SettingsPanel
 var _city_overview_label: Label
 var _city_title_label: Label
+var _city_list_title_label: Label
+var _city_list_container: GridContainer
+var _trade_route_target_selector: OptionButton
+var _trade_route_build_button: Button
+var _trade_routes_label: Label
+var _trade_route_hint_label: Label
 var _settler_button: Button
 var _found_city_button: Button
 var _settler_selected: bool = false
@@ -204,7 +215,7 @@ func _draw() -> void:
 		var cell := WorldGeneratorScript.array_to_cell(city_data.get("cell", []))
 		var center := _hex_center(cell)
 		if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
-			_draw_city_marker(center, PLAYER_TEAM_COLOR, city_index == 0, true)
+			_draw_city_marker(center, PLAYER_TEAM_COLOR, city_index == 0, true, 1)
 			if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 				_draw_city_label(center, str(city_data.get("name", "Поселение")), PLAYER_TEAM_COLOR)
 
@@ -226,7 +237,7 @@ func _draw() -> void:
 			var center := _hex_center(cell)
 			if CampaignState.is_cell_explored(cell) and _point_is_visible(center, 36.0 * _map_zoom):
 				var remembered_color := faction_color if CampaignState.is_cell_visible(cell) else faction_color.darkened(0.34)
-				_draw_city_marker(center, remembered_color, city_index == 0, false)
+				_draw_city_marker(center, remembered_color, city_index == 0, false, kingdom_index + 2)
 				if not _map_motion_active and StrategicMapDetailsScript.should_show_city_labels(_map_zoom):
 					_draw_city_label(center, str(city_data.get("name", "Поселение")), remembered_color)
 		var ai_outposts: Array = kingdom.get("outposts", [])
@@ -387,7 +398,8 @@ func _draw_city_marker(
 		center: Vector2,
 		banner_color: Color = Palette.MAP_CITY_FLAG,
 		is_capital: bool = false,
-		is_player_city: bool = false
+		is_player_city: bool = false,
+		faction_index: int = -1
 ) -> void:
 	if _map_zoom < 0.28:
 		var dot_radius := maxf(3.0, (9.0 if is_capital else 7.0) * _map_zoom)
@@ -398,13 +410,9 @@ func _draw_city_marker(
 		return
 
 	var marker_scale := _map_zoom * (1.0 if is_capital else 0.84)
-	# Pixel Fantasy settlement sprites replace the former generic city stamp.
-	# Capitals get castle silhouettes; founded towns stay visually lighter.
-	var sprite_id := "castle_blue" if is_capital else "town"
-	if not is_player_city:
-		sprite_id = "castle_red" if is_capital else "village"
-	var settlement_texture := GameIconCatalogScript.settlement_icon(sprite_id, true)
-	var sprite_base_size := 94.0 if is_capital else 78.0
+	# Medieval Pixel Castle props distinguish capitals from ordinary towns.
+	var settlement_texture := GameIconCatalogScript.medieval_prop_icon("castle_tower" if is_capital else "cottage")
+	var sprite_base_size := 88.0 if is_capital else 72.0
 	var sprite_size := Vector2.ONE * sprite_base_size * marker_scale
 	var sprite_position := center - Vector2(sprite_size.x * 0.5, sprite_size.y * 0.70)
 	draw_circle(center + Vector2(0.0, 8.0) * marker_scale, 19.0 * marker_scale, Palette.MAP_OBJECT_SHADOW)
@@ -415,11 +423,15 @@ func _draw_city_marker(
 		var source_rect := Rect2(Vector2(source_x, 0.0), Vector2(256.0, 256.0))
 		draw_texture_rect_region(CITY_MARKER_ATLAS, Rect2(sprite_position, sprite_size), source_rect, Color.WHITE)
 
-	# The faction-coloured pennant distinguishes AI kingdoms that share a red castle sprite.
-	if not is_player_city:
-		var flag_pole := center + Vector2(22.0, -26.0) * marker_scale
-		var flag_tip := flag_pole + Vector2(0.0, -19.0) * marker_scale
-		draw_line(flag_pole, flag_tip, Palette.MAP_CITY_FLAG_POLE, maxf(1.0, 1.4 * marker_scale))
+	# The heraldic banner identifies the player realm and every AI faction.
+	var flag_pole := center + Vector2(22.0, -26.0) * marker_scale
+	var flag_tip := flag_pole + Vector2(0.0, -19.0) * marker_scale
+	draw_line(flag_pole, flag_tip, Palette.MAP_CITY_FLAG_POLE, maxf(1.0, 1.4 * marker_scale))
+	var faction_banner := GameIconCatalogScript.faction_banner_icon(maxi(0, faction_index))
+	if is_instance_valid(faction_banner):
+		var flag_size := Vector2(12.0, 18.0) * marker_scale
+		draw_texture_rect(faction_banner, Rect2(flag_tip + Vector2(1.0, 0.0) * marker_scale, flag_size), false, banner_color)
+	else:
 		draw_colored_polygon(PackedVector2Array([
 			flag_tip,
 			flag_tip + Vector2(12.0, 3.0) * marker_scale,
@@ -483,6 +495,32 @@ func _draw_roads() -> void:
 		return
 	draw_multiline(road_segments, Palette.MAP_ROAD_SHADOW, maxf(1.1, 4.2 * _map_zoom), true)
 	draw_multiline(road_segments, Palette.MAP_ROAD_LIGHT, maxf(0.7, 1.8 * _map_zoom), true)
+	_draw_trade_route_roads()
+
+
+func _draw_trade_route_roads() -> void:
+	for route in CampaignState.trade_routes:
+		var route_cells_value: Variant = route.get("cells", [])
+		if not route_cells_value is Array or route_cells_value.size() < 2:
+			continue
+		var road_segments := PackedVector2Array()
+		for index in range(route_cells_value.size() - 1):
+			var start_cell := WorldGeneratorScript.array_to_cell(route_cells_value[index], Vector2i(9999, 9999))
+			var finish_cell := WorldGeneratorScript.array_to_cell(route_cells_value[index + 1], Vector2i(9999, 9999))
+			if not CampaignState.is_cell_explored(start_cell) or not CampaignState.is_cell_explored(finish_cell):
+				continue
+			var start_point := _hex_center(start_cell)
+			var finish_point := _hex_center(finish_cell)
+			if not _point_is_visible((start_point + finish_point) * 0.5, 24.0 * _map_zoom):
+				continue
+			road_segments.append(start_point)
+			road_segments.append(finish_point)
+		if road_segments.is_empty():
+			continue
+		var route_open := CampaignState.is_trade_route_operational(route)
+		var route_color := Color(0.91, 0.68, 0.29, 0.96) if route_open else Color(0.55, 0.44, 0.34, 0.82)
+		draw_multiline(road_segments, Color(0.12, 0.10, 0.08, 0.88), maxf(2.2, 5.2 * _map_zoom), true)
+		draw_multiline(road_segments, route_color, maxf(1.2, 2.6 * _map_zoom), true)
 
 
 func _append_city_road_segments(
@@ -584,6 +622,7 @@ func _draw_province_improvements() -> void:
 				"woodland_camp": marker_color = Color("#79a879")
 				"stone_quarry": marker_color = Color("#a6aab0")
 				"watchtower": marker_color = Color("#e5a14a")
+				"arcane_conduit": marker_color = Color("#82d7e8")
 			draw_circle(screen_point, maxf(2.2, 3.0 * _map_zoom), marker_color)
 			draw_arc(screen_point, maxf(3.0, 4.0 * _map_zoom), 0.0, TAU, 12, Color(0.08, 0.07, 0.05, 0.9), 1.0)
 			if improvement_id == "watchtower":
@@ -619,10 +658,15 @@ func _draw_neutral_locations() -> void:
 		])
 		draw_colored_polygon(diamond, Color("#171b20"))
 		draw_polyline(_closed_polygon(diamond), marker_color, maxf(1.0, 1.4 * _map_zoom), true)
-		draw_circle(center, maxf(1.6, 2.2 * _map_zoom), marker_color)
-		if _map_zoom >= 0.56:
-			var marker := WorldLocationCatalogScript.get_marker(type_id)
-			draw_string(ThemeDB.fallback_font, center + Vector2(-3.5, 4.0) * _map_zoom, marker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(8, roundi(10.0 * _map_zoom)), Palette.UI_TEXT_PURE)
+		var poi_icon := GameIconCatalogScript.medieval_prop_icon(WorldLocationCatalogScript.get_map_icon(type_id))
+		if is_instance_valid(poi_icon):
+			var icon_size := Vector2.ONE * 30.0 * _map_zoom
+			draw_texture_rect(poi_icon, Rect2(center - icon_size * 0.5, icon_size), false, marker_color)
+		else:
+			draw_circle(center, maxf(1.6, 2.2 * _map_zoom), marker_color)
+			if _map_zoom >= 0.56:
+				var marker := WorldLocationCatalogScript.get_marker(type_id)
+				draw_string(ThemeDB.fallback_font, center + Vector2(-3.5, 4.0) * _map_zoom, marker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, maxi(8, roundi(10.0 * _map_zoom)), Palette.UI_TEXT_PURE)
 
 
 func _draw_city_label(center: Vector2, city_name: String, faction_color: Color) -> void:
@@ -902,7 +946,7 @@ func _create_ui() -> void:
 	more_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	more_margin.add_child(more_grid)
 
-	_attack_button = _add_button(more_grid, "АТАКОВАТЬ", _attack_enemy)
+	_attack_button = _add_button(more_grid, "ОЦЕНИТЬ БОЙ", _attack_enemy)
 	_set_button_icon(_attack_button, GameIconCatalogScript.command_icon("attack"))
 	_split_army_button = _add_button(more_grid, "РАЗДЕЛИТЬ АРМИЮ", _create_player_army)
 	_set_button_icon(_split_army_button, GameIconCatalogScript.unit_icon("melee"))
@@ -930,12 +974,13 @@ func _create_ui() -> void:
 	_selection_button = _add_button(quick_row, "АРМИЯ", _select_player_army)
 	_set_button_icon(_selection_button, GameIconCatalogScript.unit_icon("melee"))
 	_city_button = _add_button(quick_row, "ГОРОД", _open_city)
-	_set_button_icon(_city_button, GameIconCatalogScript.settlement_icon("castle_blue"))
+	_set_button_icon(_city_button, GameIconCatalogScript.medieval_prop_icon("castle_tower"))
 	_turn_button = _add_button(quick_row, "ХОД", _advance_turn)
 	_map_more_button = _add_button(quick_row, "ЕЩЁ", _toggle_map_commands)
 	_create_city_panel(root)
 	_create_outpost_panel(root)
 	_create_kingdoms_panel(root)
+	_create_battle_estimate_panel(root)
 	_create_world_event_panel(root)
 	_create_faction_setup_panel(root)
 	_settings_panel = SettingsPanelScript.new()
@@ -954,6 +999,120 @@ func _create_ui() -> void:
 		_open_faction_setup_panel()
 
 
+
+
+func _create_battle_estimate_panel(root: Control) -> void:
+	_battle_estimate_panel = PanelContainer.new()
+	_battle_estimate_panel.name = "BattleEstimatePanel"
+	_battle_estimate_panel.anchor_left = 0.10
+	_battle_estimate_panel.anchor_top = 0.17
+	_battle_estimate_panel.anchor_right = 0.90
+	_battle_estimate_panel.anchor_bottom = 0.83
+	_battle_estimate_panel.visible = false
+	_battle_estimate_panel.z_index = 24
+	root.add_child(_battle_estimate_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", int(UiMetrics.dp(12.0)))
+	margin.add_theme_constant_override("margin_top", int(UiMetrics.dp(10.0)))
+	margin.add_theme_constant_override("margin_right", int(UiMetrics.dp(12.0)))
+	margin.add_theme_constant_override("margin_bottom", int(UiMetrics.dp(10.0)))
+	_battle_estimate_panel.add_child(margin)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	margin.add_child(content)
+	var header := HBoxContainer.new()
+	content.add_child(header)
+	_battle_estimate_title_label = Label.new()
+	_battle_estimate_title_label.text = "ПРОГНОЗ СРАЖЕНИЯ"
+	_battle_estimate_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_estimate_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(18))
+	header.add_child(_battle_estimate_title_label)
+	var close_button := _add_button(header, "ЗАКРЫТЬ", _close_battle_estimate)
+	close_button.custom_minimum_size = Vector2(UiMetrics.dp(100.0), UiThemeScript.touch_target(48.0))
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(scroll)
+	_battle_estimate_body_label = Label.new()
+	_battle_estimate_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_battle_estimate_body_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_estimate_body_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(14))
+	_battle_estimate_body_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	scroll.add_child(_battle_estimate_body_label)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", int(UiMetrics.dp(8.0)))
+	content.add_child(actions)
+	_battle_estimate_start_button = _add_button(actions, "НАЧАТЬ ТАКТИЧЕСКИЙ БОЙ", _start_battle_from_estimate)
+	_battle_estimate_start_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+	var cancel_button := _add_button(actions, "ОТМЕНА", _close_battle_estimate)
+	cancel_button.custom_minimum_size = Vector2(UiMetrics.dp(92.0), UiThemeScript.touch_target(54.0))
+
+
+func _open_battle_estimate(kingdom_id: int) -> void:
+	if not is_instance_valid(_battle_estimate_panel):
+		return
+	_pending_battle_kingdom_id = kingdom_id
+	var estimate := CampaignState.get_battle_estimate(kingdom_id)
+	if not bool(estimate.get("available", false)):
+		_battle_estimate_title_label.text = "СРАЖЕНИЕ НЕДОСТУПНО"
+		_battle_estimate_body_label.text = str(estimate.get("message", "Не удалось оценить сражение."))
+		_battle_estimate_start_button.disabled = true
+		_battle_estimate_panel.visible = true
+		return
+	var chance := int(estimate.get("player_win_chance", 50))
+	var player_units := int(estimate.get("player_units", 0))
+	var enemy_units := int(estimate.get("enemy_units", 0))
+	var player_losses := int(estimate.get("player_losses", 0))
+	var enemy_losses := int(estimate.get("enemy_losses", 0))
+	var player_survivors := int(estimate.get("player_survivors", 0))
+	var enemy_survivors := int(estimate.get("enemy_survivors", 0))
+	var war_warning := "\nАтака нарушит мир и начнёт войну." if bool(estimate.get("will_start_war", false)) else ""
+	var commander_note := "Оба командира учтены." if bool(estimate.get("player_hero_included", false)) and bool(estimate.get("enemy_hero_included", false)) else "Не все командиры участвуют в прогнозе."
+	_battle_estimate_title_label.text = "ПРОГНОЗ: " + str(estimate.get("kingdom_name", "Вражеская держава"))
+	_battle_estimate_body_label.text = "%s\nВероятность победы: %d%% (ориентир %d–%d%%)\n%s\n\nТвои силы: %d бойцов · сохранится около %d · потери около %d\nПротивник: %d бойцов · сохранится около %d · потери около %d\nМестность: %s%s\n\n%s" % [
+		str(estimate.get("outcome_label", "Силы примерно равны")),
+		chance,
+		int(estimate.get("confidence_low", maxi(3, chance - 12))),
+		int(estimate.get("confidence_high", mini(97, chance + 12))),
+		commander_note,
+		player_units,
+		player_survivors,
+		player_losses,
+		enemy_units,
+		enemy_survivors,
+		enemy_losses,
+		str(estimate.get("biome_name", "Равнина")),
+		war_warning,
+		str(estimate.get("estimate_note", "Прогноз приблизительный.")),
+	]
+	_battle_estimate_start_button.disabled = false
+	_battle_estimate_panel.visible = true
+
+
+func _close_battle_estimate() -> void:
+	if is_instance_valid(_battle_estimate_panel):
+		_battle_estimate_panel.visible = false
+	_pending_battle_kingdom_id = -1
+
+
+func _start_battle_from_estimate() -> void:
+	var kingdom_id := _pending_battle_kingdom_id
+	if kingdom_id < 0:
+		_close_battle_estimate()
+		return
+	var estimate := CampaignState.get_battle_estimate(kingdom_id)
+	if not bool(estimate.get("available", false)):
+		_battle_estimate_body_label.text = str(estimate.get("message", "Условия боя изменились."))
+		_battle_estimate_start_button.disabled = true
+		return
+	var biome_id := str(estimate.get("biome_id", BattlefieldBiomesScript.GRASSLAND))
+	if CampaignState.begin_battle(biome_id, kingdom_id):
+		_close_battle_estimate()
+		get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
+		return
+	_battle_estimate_body_label.text = "Условия изменились. Сражение не было запущено."
+	_battle_estimate_start_button.disabled = true
+	_message_text = "Условия сражения изменились. Проверь статус армии и договор."
+	_refresh_ui()
 func _create_world_event_panel(root: Control) -> void:
 	_world_event_panel = PanelContainer.new()
 	_world_event_panel.name = "WorldEventChoicePanel"
@@ -1426,7 +1585,20 @@ func _refresh_kingdoms_panel() -> void:
 			var offer_text := "торговый договор" if offer_action == "offer_trade" else "союз" if offer_action == "offer_alliance" else "мир"
 			var offer_label := Label.new()
 			offer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			offer_label.text = "%s предлагает: %s · истекает через %d хода(ов)." % [offer_name, offer_text, maxi(0, int(offer.get("expires_turn", 0)) - CampaignState.turn_number)]
+			if offer_action == "call_to_war":
+				var enemy_id := int(offer.get("enemy_kingdom_id", -1))
+				var enemy_name := str(CampaignState.kingdoms[enemy_id].get("name", "Держава")) if enemy_id >= 0 and enemy_id < CampaignState.kingdoms.size() else "неизвестного врага"
+				var cause_labels := {
+					"border_encroachment": "пограничное расширение",
+					"outpost_encroachment": "спор из-за аванпоста",
+					"ally_attacked": "нападение на союзника",
+					"treaty_breach": "нарушение договора",
+					"victory_race": "гонка за магической победой",
+				}
+				var cause_text := str(cause_labels.get(str(offer.get("war_cause", "ally_attacked")), "политический конфликт"))
+				offer_label.text = "%s призывает вступить в войну против «%s». Повод: %s. Ответ нужен за 3 хода. Осталось: %d." % [offer_name, enemy_name, cause_text, maxi(0, int(offer.get("expires_turn", 0)) - CampaignState.turn_number)]
+			else:
+				offer_label.text = "%s предлагает: %s · истекает через %d хода(ов)." % [offer_name, offer_text, maxi(0, int(offer.get("expires_turn", 0)) - CampaignState.turn_number)]
 			_kingdoms_list.add_child(offer_label)
 			var offer_actions := HBoxContainer.new()
 			offer_actions.add_theme_constant_override("separation", int(UiMetrics.dp(6.0)))
@@ -1524,7 +1696,34 @@ func _refresh_diplomacy_panel() -> void:
 	var record := CampaignState.get_diplomacy_record(kingdom_id)
 	var relation_value := int(record.get("relation", 0))
 	var treaty_value := str(record.get("treaty", "peace"))
-	var personality := DiplomacyCatalogScript.get_personality(kingdom_id)
+	var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+	var profile: Dictionary = profile_value if profile_value is Dictionary else {}
+	var personality := DiplomacyCatalogScript.get_personality_for_profile(profile)
+	if personality.is_empty():
+		personality = DiplomacyCatalogScript.get_personality(kingdom_id)
+	var alignment_names := {"good": "Добро", "neutral": "Нейтралитет", "evil": "Зло"}
+	var affinity_names := {
+		"order": "Порядок", "chaos": "Хаос", "nature": "Природа",
+		"astral": "Астрал", "shadow": "Тень", "materium": "Материя",
+	}
+	var affinities_value: Variant = profile.get("affinities", {})
+	var affinities: Dictionary = affinities_value if affinities_value is Dictionary else {}
+	var affinity_parts: Array[String] = []
+	for affinity_id in DiplomacyCatalogScript.AFFINITY_IDS:
+		affinity_parts.append("%s %d" % [str(affinity_names.get(affinity_id, affinity_id)), int(affinities.get(affinity_id, 0))])
+	var likes_text := _format_diplomacy_profile_tags(profile.get("likes", []))
+	var dislikes_text := _format_diplomacy_profile_tags(profile.get("dislikes", []))
+	var modifiers_value: Variant = record.get("opinion_modifiers", {})
+	var modifiers: Dictionary = modifiers_value if modifiers_value is Dictionary else {}
+	var compatibility_text := "Совместимость: взгляды %+d · аффинити %+d · характер %+d · симпатии %+d · союзники %+d · общие враги %+d" % [
+		int(modifiers.get("alignment", 0)),
+		int(modifiers.get("affinity", 0)),
+		int(modifiers.get("personality", 0)),
+		int(modifiers.get("preferences", 0)),
+		int(modifiers.get("shared_allies", 0)),
+		int(modifiers.get("shared_enemies", 0)),
+	]
+	var alignment_text := str(alignment_names.get(str(profile.get("alignment", "neutral")), "Нейтральность"))
 	var army_count := int(kingdom.get("army", []).size())
 	var until_turn := int(record.get("treaty_until", 0))
 	var duration_text := ""
@@ -1535,26 +1734,59 @@ func _refresh_diplomacy_panel() -> void:
 	var war_reason_text := ""
 	if treaty_value == "war":
 		match war_reason:
-			"player_declaration": war_reason_text = "\nПовод: объявление войны игроком."
+			"player_declaration": war_reason_text = "\nПовод: объявление войны игроком без претензии."
 			"battle_provocation": war_reason_text = "\nПовод: нападение на армию в мирное время."
 			"border_tension": war_reason_text = "\nПовод: пограничная напряжённость."
+			"border_encroachment": war_reason_text = "\nПовод: пограничное расширение."
+			"outpost_encroachment": war_reason_text = "\nПовод: спор из-за аванпоста."
+			"ally_attacked": war_reason_text = "\nПовод: защита союзника."
+			"treaty_breach": war_reason_text = "\nПовод: нарушение договора."
+			"victory_race": war_reason_text = "\nПовод: борьба с лидером магической гонки."
+			"ally_call": war_reason_text = "\nПовод: выполнение союзного призыва."
+	if str(record.get("war_join_reason", "none")) == "ally_call":
+		war_reason_text += "\nТы вступил в конфликт по призыву союзника."
+	elif str(record.get("war_join_reason", "none")) == "containment_coalition":
+		war_reason_text += "\nДержава вступила в войну в рамках коалиции сдерживания магического лидера."
+	var claims_text := _format_casus_belli_claims(record.get("casus_belli", []), CampaignState.turn_number)
+	var statement_value: Variant = record.get("public_statement", {})
+	var statement: Dictionary = statement_value if statement_value is Dictionary else {}
+	var statement_text := str(statement.get("text", "")) if str(statement.get("type", "none")) != "none" else "Публичного заявления пока нет."
+	var history_value: Variant = record.get("relationship_history", [])
+	var history: Array = history_value if history_value is Array else []
+	var history_lines: Array[String] = []
+	var history_start := maxi(0, history.size() - 4)
+	for history_index in range(history_start, history.size()):
+		var history_event_value: Variant = history[history_index]
+		if history_event_value is Dictionary:
+			var history_event: Dictionary = history_event_value
+			history_lines.append("Ход %d · %s (%+d)" % [int(history_event.get("turn", 0)), str(history_event.get("message", "Событие")), int(history_event.get("relation_delta", 0))])
+	var history_text := "\nИстория отношений:\n" + "\n".join(history_lines) if not history_lines.is_empty() else "\nИстория отношений пока пуста."
 	var overlord_text := ""
 	if treaty_value == "tribute" or treaty_value == "vassal":
 		overlord_text = "\nПолучатель выплат: %s." % ("твоё королевство" if int(record.get("overlord_id", -99)) == -1 else "другая держава")
-	_diplomacy_summary_label.text = "%s · %s\nХарактер: %s\n%s\nОтношение: %d — %s\nДоговор: %s%s%s%s%s\nАрмия по последним сведениям: %d бойцов" % [
+	_diplomacy_summary_label.text = "%s · %s\nХарактер: %s\n%s\nМировоззрение: %s\nАффинити: %s\nПредпочитает: %s\nНе любит: %s\n%s\nОтношение: %d — %s\nДоговор: %s%s%s%s%s%s\nАрмия по последним сведениям: %d бойцов" % [
 		str(kingdom.get("name", "Королевство")),
 		str(kingdom.get("ruler", "Правитель")),
 		str(personality.get("name", "Неизвестен")),
 		str(personality.get("description", "")),
+		alignment_text,
+		" · ".join(affinity_parts),
+		likes_text,
+		dislikes_text,
+		compatibility_text,
 		relation_value,
 		DiplomacyCatalogScript.relation_label(relation_value),
 		DiplomacyCatalogScript.treaty_label(treaty_value),
 		duration_text,
 		war_text,
 		war_reason_text,
+		claims_text,
 		overlord_text,
 		army_count,
 	]
+	var coalition_names := CampaignState.get_containment_coalition_member_names(kingdom_id)
+	var coalition_text := "\nКоалиция сдерживания: " + ", ".join(coalition_names) if not coalition_names.is_empty() else ""
+	_diplomacy_summary_label.text += "\nПубличная позиция: %s%s%s" % [statement_text, history_text, coalition_text]
 	for child in _diplomacy_actions_list.get_children():
 		child.queue_free()
 	var action_options := [
@@ -1564,11 +1796,14 @@ func _refresh_diplomacy_panel() -> void:
 		{"id": "demand_tribute", "label": "ПОТРЕБОВАТЬ ДАНЬ"},
 		{"id": "demand_vassalage", "label": "ПОТРЕБОВАТЬ ВАССАЛИТЕТ"},
 		{"id": "declare_war", "label": "ОБЪЯВИТЬ ВОЙНУ"},
+		{"id": "send_gift_small", "label": "ОТПРАВИТЬ НЕБОЛЬШОЙ ПОДАРОК"},
+		{"id": "send_gift_medium", "label": "ОТПРАВИТЬ ЩЕДРЫЙ ПОДАРОК"},
+		{"id": "send_gift_large", "label": "ОТПРАВИТЬ КОРОЛЕВСКИЙ ДАР"},
 	]
 	for action_value in action_options:
 		var action_id := str(action_value.get("id", ""))
 		var preview := CampaignState.get_diplomacy_action_preview(kingdom_id, action_id)
-		var chance_text := "" if action_id == "declare_war" else " · шанс %d%%" % int(preview.get("chance", 0))
+		var chance_text := "" if action_id == "declare_war" or action_id.begins_with("send_gift_") else " · шанс %d%%" % int(preview.get("chance", 0))
 		var action_button := _add_button(
 			_diplomacy_actions_list,
 			str(action_value.get("label", "ДЕЙСТВИЕ")) + chance_text,
@@ -1581,6 +1816,64 @@ func _refresh_diplomacy_panel() -> void:
 		reason_label.text = str(preview.get("reason", ""))
 		_diplomacy_actions_list.add_child(action_button)
 		_diplomacy_actions_list.add_child(reason_label)
+
+
+
+
+func _format_casus_belli_claims(raw_value: Variant, turn_number: int) -> String:
+	var claims_value: Array = raw_value if raw_value is Array else []
+	var cause_labels := {
+		"border_encroachment": "пограничное расширение",
+		"outpost_encroachment": "спор из-за аванпоста",
+		"ally_attacked": "нападение на союзника",
+		"treaty_breach": "нарушение договора",
+		"victory_race": "гонка за магической победой",
+		"affinity_improvement": "спор из-за аффинного улучшения провинции",
+	}
+	var lines: Array[String] = []
+	for value in claims_value:
+		if not value is Dictionary:
+			continue
+		var claim: Dictionary = value
+		if not bool(claim.get("permanent", false)) and int(claim.get("expires_turn", 0)) < turn_number:
+			continue
+		var claimant_id := int(claim.get("claimant_id", -99))
+		var source_text := "Твоё основание" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else "Претензия соперника"
+		var cause_text := str(cause_labels.get(str(claim.get("cause", "")), "политическое разногласие"))
+		var permanent_text := " · постоянно" if bool(claim.get("permanent", false)) else " · ещё %d ход(а/ов)" % maxi(0, int(claim.get("expires_turn", turn_number)) - turn_number)
+		var source_affinity := str(claim.get("source_affinity_id", ""))
+		var source_cell_value: Variant = claim.get("source_cell", [])
+		if str(claim.get("cause", "")) == "affinity_improvement":
+			var cell_text := ""
+			if source_cell_value is Array and source_cell_value.size() >= 2:
+				cell_text = " · гекс %d:%d" % [int(source_cell_value[0]), int(source_cell_value[1])]
+			permanent_text += " · %s%s" % [source_affinity, cell_text]
+		lines.append("%s: %s%s" % [source_text, cause_text, permanent_text])
+	if lines.is_empty():
+		return ""
+	return "\nДействующие поводы для войны:\n" + "\n".join(lines)
+
+
+func _format_diplomacy_profile_tags(value: Variant) -> String:
+	var labels := {
+		"good": "добрых", "neutral": "нейтральных", "evil": "злых",
+		"order": "порядок", "chaos": "хаос", "nature": "природу",
+		"astral": "астрал", "shadow": "тень", "materium": "материю",
+		"aggressor": "завоевателей", "merchant": "торговцев",
+		"isolationist": "изолированных", "honorable": "хранителей клятв",
+		"expansionist": "экспансионистов", "strong": "силу",
+		"war_focused": "воинственность", "trade_focused": "торговлю",
+		"expansion_focused": "расширение", "keeps_treaties": "верность договорам",
+		"breaks_treaties": "нарушение договоров", "blocks_expansion": "сдерживание экспансии",
+	}
+	var source: Array = value if value is Array else []
+	var result: Array[String] = []
+	for tag_value in source:
+		var tag := str(tag_value)
+		var label := str(labels.get(tag, tag))
+		if not result.has(label):
+			result.append(label)
+	return ", ".join(result) if not result.is_empty() else "—"
 
 
 func _perform_diplomacy_action(action_id: String, kingdom_id: int) -> void:
@@ -1609,6 +1902,9 @@ func _respond_to_diplomacy_offer(offer_id: String, accept: bool) -> void:
 
 
 func _open_kingdoms_panel() -> void:
+	if is_instance_valid(_battle_estimate_panel):
+		_battle_estimate_panel.visible = false
+		_pending_battle_kingdom_id = -1
 	if is_instance_valid(_diplomacy_panel):
 		_diplomacy_panel.visible = false
 	if is_instance_valid(_map_more_panel):
@@ -1622,6 +1918,9 @@ func _open_kingdoms_panel() -> void:
 
 
 func _close_kingdoms_panel() -> void:
+	if is_instance_valid(_battle_estimate_panel):
+		_battle_estimate_panel.visible = false
+		_pending_battle_kingdom_id = -1
 	if is_instance_valid(_kingdoms_panel):
 		_kingdoms_panel.visible = false
 	if is_instance_valid(_diplomacy_panel):
@@ -1667,6 +1966,47 @@ func _create_city_panel(root: Control) -> void:
 	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	details.add_theme_constant_override("separation", int(UiMetrics.dp(8)))
 	scroll.add_child(details)
+
+	_city_list_title_label = Label.new()
+	_city_list_title_label.text = "ОСНОВАННЫЕ ГОРОДА"
+	_city_list_title_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	_city_list_title_label.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(_city_list_title_label)
+
+	_city_list_container = GridContainer.new()
+	_city_list_container.columns = 2
+	_city_list_container.add_theme_constant_override("h_separation", 7)
+	_city_list_container.add_theme_constant_override("v_separation", 6)
+	_city_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_child(_city_list_container)
+
+	var trade_title := Label.new()
+	trade_title.text = "ДОРОГИ И ТОРГОВЫЕ МАРШРУТЫ"
+	trade_title.add_theme_font_size_override("font_size", UiThemeScript.font_size(15))
+	trade_title.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	details.add_child(trade_title)
+
+	_trade_routes_label = Label.new()
+	_trade_routes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trade_routes_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+	_trade_routes_label.add_theme_color_override("font_color", Palette.UI_TEXT_BODY)
+	details.add_child(_trade_routes_label)
+
+	_trade_route_target_selector = OptionButton.new()
+	_trade_route_target_selector.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(48.0))
+	_trade_route_target_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_trade_route_target_selector.item_selected.connect(_on_trade_route_target_changed)
+	details.add_child(_trade_route_target_selector)
+
+	_trade_route_build_button = _add_button(details, "ПОСТРОИТЬ ДОРОГУ", _build_trade_route)
+	_trade_route_build_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(54.0))
+	_trade_route_build_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+
+	_trade_route_hint_label = Label.new()
+	_trade_route_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trade_route_hint_label.add_theme_font_size_override("font_size", UiThemeScript.font_size(12))
+	_trade_route_hint_label.add_theme_color_override("font_color", Palette.UI_TEXT_HINT)
+	details.add_child(_trade_route_hint_label)
 
 	_city_overview_label = Label.new()
 	_city_overview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2320,10 +2660,119 @@ func _on_foundation_choice(choice_id: int) -> void:
 	queue_redraw()
 
 
+func _refresh_city_selector() -> void:
+	if not is_instance_valid(_city_list_container):
+		return
+	for child in _city_list_container.get_children():
+		_city_list_container.remove_child(child)
+		child.queue_free()
+	if is_instance_valid(_city_list_title_label):
+		_city_list_title_label.text = "ОСНОВАННЫЕ ГОРОДА · %d" % CampaignState.cities.size()
+	for city_index in range(CampaignState.cities.size()):
+		var city_record: Dictionary = CampaignState.cities[city_index]
+		var city_name := str(city_record.get("name", "Поселение"))
+		var population := int(city_record.get("population", 2))
+		var gold := int(city_record.get("gold", 0))
+		if city_index == CampaignState.active_city_id:
+			population = CampaignState.city_population
+			gold = CampaignState.city_gold
+		var city_cell := WorldGeneratorScript.array_to_cell(city_record.get("cell", []))
+		var city_button := Button.new()
+		city_button.toggle_mode = true
+		city_button.button_pressed = city_index == CampaignState.active_city_id
+		city_button.disabled = city_index == CampaignState.active_city_id
+		city_button.text = "%s%s\nНаселение: %d · %d зол." % ["✓ " if city_index == CampaignState.active_city_id else "", city_name, population, gold]
+		city_button.tooltip_text = "Активный город" if city_index == CampaignState.active_city_id else "Переключиться · гекс %d:%d" % [city_cell.x, city_cell.y]
+		city_button.custom_minimum_size = Vector2(0.0, UiThemeScript.touch_target(58.0))
+		city_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		city_button.add_theme_font_size_override("font_size", UiThemeScript.font_size(13))
+		city_button.pressed.connect(_select_city_from_list.bind(city_index))
+		_city_list_container.add_child(city_button)
+
+
+func _select_city_from_list(city_index: int) -> void:
+	if not CampaignState.select_city_by_id(city_index):
+		return
+	_message_text = "Активный город: %s." % CampaignState.city_name
+	_refresh_city_panel()
+	_refresh_ui()
+	queue_redraw()
+
+
+func _refresh_trade_route_controls() -> void:
+	if not is_instance_valid(_trade_route_target_selector):
+		return
+	_trade_route_target_selector.clear()
+	var first_available_item := -1
+	for city_index in range(CampaignState.cities.size()):
+		if city_index == CampaignState.active_city_id:
+			continue
+		var city_record: Dictionary = CampaignState.cities[city_index]
+		var quote := CampaignState.get_trade_route_quote(CampaignState.active_city_id, city_index)
+		var option_text := str(city_record.get("name", "Город"))
+		if bool(quote.get("valid", false)):
+			option_text += " · %d гексов · %d зол. · %d пр." % [int(quote.get("distance", 0)), int(quote.get("gold_cost", 0)), int(quote.get("production_cost", 0))]
+		else:
+			option_text += " · " + str(quote.get("reason", "Недоступно"))
+		_trade_route_target_selector.add_item(option_text, city_index)
+		_trade_route_target_selector.set_item_disabled(_trade_route_target_selector.item_count - 1, not bool(quote.get("valid", false)))
+		if first_available_item < 0 and bool(quote.get("valid", false)):
+			first_available_item = _trade_route_target_selector.item_count - 1
+	if CampaignState.cities.size() <= 1:
+		_trade_route_target_selector.add_item("Нужно основать второй город", -1)
+		_trade_route_target_selector.set_item_disabled(0, true)
+		_trade_route_target_selector.select(0)
+		_trade_route_build_button.disabled = true
+		_trade_route_build_button.text = "НЕТ ГОРОДА ДЛЯ СВЯЗИ"
+		_trade_route_hint_label.text = "Построй поселение, исследуй путь и соедини города дорогой."
+		return
+	if first_available_item >= 0:
+		_trade_route_target_selector.select(first_available_item)
+		_on_trade_route_target_changed(first_available_item)
+	else:
+		_trade_route_target_selector.select(0)
+		_trade_route_build_button.disabled = true
+		_trade_route_build_button.text = "НЕТ ДОСТУПНОГО МАРШРУТА"
+		_trade_route_hint_label.text = "Маршрут недоступен: проверь расстояние, территорию, разведку и казну."
+
+
+func _on_trade_route_target_changed(_index: int) -> void:
+	if not is_instance_valid(_trade_route_target_selector):
+		return
+	var target_city_id := _trade_route_target_selector.get_selected_id()
+	var quote := CampaignState.get_trade_route_quote(CampaignState.active_city_id, target_city_id)
+	_trade_route_build_button.disabled = not bool(quote.get("valid", false))
+	if bool(quote.get("valid", false)):
+		_trade_route_build_button.text = "ПОСТРОИТЬ ДОРОГУ · %d зол. · %d пр." % [int(quote.get("gold_cost", 0)), int(quote.get("production_cost", 0))]
+		_trade_route_hint_label.text = "%d гексов. После завершения оба города получают +%d золота за ход. Чужая или спорная территория и вода блокируют прокладку." % [int(quote.get("distance", 0)), CampaignState.TRADE_ROUTE_GOLD_PER_CITY]
+	else:
+		_trade_route_build_button.text = "ПОСТРОИТЬ ДОРОГУ"
+		_trade_route_hint_label.text = str(quote.get("reason", "Маршрут недоступен."))
+
+
+func _build_trade_route() -> void:
+	if not is_instance_valid(_trade_route_target_selector):
+		return
+	var target_city_id := _trade_route_target_selector.get_selected_id()
+	if CampaignState.create_trade_route(target_city_id):
+		_message_text = "Дорога построена. Торговый маршрут приносит обоим городам +%d золота за ход." % CampaignState.TRADE_ROUTE_GOLD_PER_CITY
+		Haptics.confirm(35)
+	else:
+		var quote := CampaignState.get_trade_route_quote(CampaignState.active_city_id, target_city_id)
+		_message_text = str(quote.get("reason", "Не удалось построить дорогу."))
+	_refresh_city_panel()
+	_refresh_ui()
+	queue_redraw()
+
+
 func _refresh_city_panel() -> void:
 	if not is_instance_valid(_city_overview_label):
 		return
+	_refresh_city_selector()
+	_refresh_trade_route_controls()
 	var income: Dictionary = CampaignState.get_city_income()
+	if is_instance_valid(_trade_routes_label):
+		_trade_routes_label.text = CampaignState.get_city_trade_route_summary(CampaignState.active_city_id)
 	var tower_count := TerritoryCatalogScript.get_watchtower_count(CampaignState.city_province_improvements)
 	var influence_radius := TerritoryCatalogScript.get_city_influence_radius(CampaignState.city_population, CampaignState.active_city_id, CampaignState.city_specialization)
 	if is_instance_valid(_city_title_label):
@@ -2606,6 +3055,9 @@ func _notification(what: int) -> void:
 
 
 func _handle_system_back() -> void:
+	if is_instance_valid(_battle_estimate_panel) and _battle_estimate_panel.visible:
+		_close_battle_estimate()
+		return
 	if is_instance_valid(_faction_setup_panel) and _faction_setup_panel.visible:
 		return
 	if is_instance_valid(_restart_confirm_dialog) and _restart_confirm_dialog.visible:
@@ -2704,6 +3156,8 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 				_message_text = "%s: охрана не может быть атакована сейчас." % location_name
 			else:
 				_message_text = "%s: локация в %d гексах. Подойди ближе, чтобы атаковать охрану." % [location_name, distance]
+		if str(location.get("type", "")) == "leyline_nexus":
+			_message_text += " Узел приносит владельцу +4 арканной силы каждый ход. Контролируй его, чтобы приблизить магическое восхождение."
 		_refresh_ui()
 		return
 
@@ -2865,23 +3319,7 @@ func _attack_kingdom(kingdom_id: int) -> void:
 		_message_text = "Чтобы начать бой с %s, подойди к армии вплотную." % str(kingdom.get("name", "королевства"))
 		_refresh_ui()
 		return
-	var local_terrain: Dictionary = {}
-	local_terrain[CampaignState.player_cell] = CampaignState.get_world_terrain(CampaignState.player_cell)
-	for offset in NEIGHBOR_OFFSETS:
-		var nearby := CampaignState.player_cell + offset
-		local_terrain[nearby] = CampaignState.get_world_terrain(nearby)
-	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(local_terrain, CampaignState.player_cell)
-	if CampaignState.begin_battle(biome_id, kingdom_id):
-		get_tree().change_scene_to_file("res://scenes/combat_test.tscn")
-	else:
-		var diplomacy_record := CampaignState.get_diplomacy_record(kingdom_id)
-		if str(diplomacy_record.get("treaty", "peace")) == "vassal":
-			_message_text = "Нельзя атаковать вассала, пока действует договор верховенства."
-		elif CampaignState.turn_number < int(diplomacy_record.get("truce_until", 0)):
-			_message_text = "Перемирие ещё действует. Сначала дождись его окончания."
-		else:
-			_message_text = "Сражение не удалось начать: проверь наличие армии и состояние кампании."
-		_refresh_ui()
+	_open_battle_estimate(kingdom_id)
 
 
 func _advance_turn() -> void:
@@ -2983,11 +3421,16 @@ func _show_last_battle_report() -> void:
 func _refresh_ui() -> void:
 	if not is_instance_valid(_status_label):
 		return
-	_status_label.text = "ХОД %d · ДЕРЖАВ: %d · ВОЙСК ВИДНО: %d" % [
-		CampaignState.turn_number,
-		CampaignState.kingdoms.size(),
-		_get_visible_enemy_unit_count(),
-	]
+	if CampaignState.campaign_winner_id != -2:
+		_status_label.text = "МАГИЧЕСКАЯ ПОБЕДА: " + CampaignState.get_campaign_winner_name()
+		_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_HERO)
+	else:
+		_status_label.add_theme_color_override("font_color", Palette.UI_TEXT_PURE)
+		_status_label.text = "ХОД %d · ДЕРЖАВ: %d · %s" % [
+			CampaignState.turn_number,
+			CampaignState.kingdoms.size(),
+			CampaignState.get_arcane_victory_summary(),
+		]
 	if _hud_resource_labels.has("gold"):
 		_hud_resource_labels["gold"].text = str(CampaignState.city_gold)
 		_hud_resource_labels["food"].text = str(CampaignState.city_food)
@@ -2998,7 +3441,7 @@ func _refresh_ui() -> void:
 		var selected_army_cell := WorldGeneratorScript.array_to_cell(CampaignState.kingdoms[_selected_kingdom_id].get("army_cell", [])) if selected_kingdom_valid else CampaignState.enemy_cell
 		_attack_button.disabled = not selected_kingdom_valid or _hex_distance(CampaignState.player_cell, selected_army_cell) > 1 or CampaignState.player_units.is_empty()
 	if is_instance_valid(_turn_button):
-		_turn_button.disabled = CampaignState.campaign_lost
+		_turn_button.disabled = CampaignState.campaign_lost or CampaignState.campaign_winner_id != -2
 	if is_instance_valid(_selection_button):
 		_selection_button.disabled = CampaignState.campaign_lost or CampaignState.player_armies.is_empty()
 	if is_instance_valid(_split_army_button):

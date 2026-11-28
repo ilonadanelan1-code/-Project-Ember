@@ -1,6 +1,8 @@
 extends RefCounted
 class_name CombatSpriteLibrary
 
+const VisualAssetCatalogScript = preload("res://scripts/visual_asset_catalog.gd")
+
 ## Required Tiny Swords pixel-art atlas for every playable release.
 ## The public source checkout omits this licensed runtime PNG and must not replace it with 3D models.
 const ATLAS_PATH := "res://assets/combat/tiny_swords/combat_units_atlas.png"
@@ -72,7 +74,17 @@ static func get_frames(team: int, role: int) -> SpriteFrames:
 	return frames
 
 
-static func get_attack_animation(role: int, alternate: bool = false, charge_attack: bool = false) -> StringName:
+static func get_monster_frames(monster_id: String) -> SpriteFrames:
+	return VisualAssetCatalogScript.get_monster_frames(monster_id)
+
+
+static func get_red_knight_frames() -> SpriteFrames:
+	return VisualAssetCatalogScript.get_red_knight_frames()
+
+
+static func get_attack_animation(role: int, alternate: bool = false, charge_attack: bool = false, visual_override_id: String = "") -> StringName:
+	if not visual_override_id.is_empty():
+		return &"attack"
 	match role:
 		1:
 			return &"shoot"

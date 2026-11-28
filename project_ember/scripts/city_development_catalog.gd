@@ -23,6 +23,7 @@ const PROVINCE_IMPROVEMENTS := {
 	"woodland_camp": {"name": "Лесной лагерь", "description": "+2 производства/ход", "terrain": ["forest"], "gold_cost": 30, "production_cost": 7, "food": 0, "gold": 0, "production": 2},
 	"stone_quarry": {"name": "Каменоломня", "description": "+2 производства/ход", "terrain": ["hills"], "gold_cost": 40, "production_cost": 8, "food": 0, "gold": 0, "production": 2},
 	"watchtower": {"name": "Сторожевая башня", "description": "Радиус влияния 8 · +1 производство/ход · +1 броня войскам в радиусе 3", "terrain": ["forest", "hills"], "gold_cost": 55, "production_cost": 12, "food": 0, "gold": 0, "production": 1},
+	"arcane_conduit": {"name": "Арканный обелиск", "description": "+2 арканной силы/ход для магического восхождения", "terrain": ["plain", "forest", "hills", "farmland"], "gold_cost": 50, "production_cost": 12, "food": 0, "gold": 0, "production": 0},
 }
 
 const BUILDING_UPGRADES := {
@@ -52,7 +53,7 @@ const BUILDING_UPGRADES := {
 	},
 }
 
-const IMPROVEMENT_ORDER := ["farm_plot", "trade_post", "woodland_camp", "stone_quarry", "watchtower"]
+const IMPROVEMENT_ORDER := ["farm_plot", "trade_post", "woodland_camp", "stone_quarry", "watchtower", "arcane_conduit"]
 const NEIGHBOR_OFFSETS: Array[Vector2i] = [
 	Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
 	Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1),
@@ -105,7 +106,7 @@ static func normalize_province_improvements(raw_value: Variant) -> Array[Diction
 			continue
 		result.append({"id": improvement_id, "cell": [q, r]})
 		used_cells[key] = true
-		if result.size() >= 5:
+		if result.size() >= 6:
 			break
 	return result
 

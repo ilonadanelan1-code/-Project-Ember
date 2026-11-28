@@ -1,3 +1,40 @@
+## v0.39 — Visual Integration: medieval atlas, monster factions and heraldry
+
+- Integrates five owner-supplied licensed packs into one 1024×960 lossless WebP runtime atlas. The atlas is decoded once by Godot and individual sprite regions are cached for mobile use.
+- Replaces the generic map city button with the Pixel Castle castle sprite, uses castle and cottage sprites for capitals/towns, and displays faction-coloured heraldic standards on player and AI settlements.
+- Replaces neutral-site glyphs with medieval location icons and connects the city building/recruitment buttons to the supplied medieval visual set.
+- Adds all 30 indexed Pixel Fantasy monster appearances with idle/attack SpriteFrames, plus the Medieval RTS red knight's idle, run and attack animations.
+- Neutral sites now select themed guard and guardian appearances based on encounter type. Combat rules, unit roles, economy and campaign state remain unchanged.
+- Adds asset-catalog smoke tests and a standalone QA validator for atlas integrity, frame metadata, references and licence notes.
+- Campaign save schema remains SAVE_VERSION = 1. The original archives are not redistributed as standalone packs; the two heraldry archives without a usage licence are excluded pending permission.
+- Android device inspection and final visual-scale tuning remain pending.
+
+## v0.39 — Block 9: diplomatic border threat assessment
+
+- Adds deterministic peace-time threat scoring for nearby rival kingdoms using diplomatic hostility, active incoming casus belli, distance to the realm's settlements and relative army strength.
+- Threatened AI kingdoms enter a defensive alert posture, may recruit before war begins and delay expansion when their field force is too weak against the nearby rival.
+- Existing war-only target selection remains unchanged: a warning does not start a war or send an army against a peaceful neighbor.
+- The plan is transient; no new campaign save fields, resources or IDs are introduced. `SAVE_VERSION = 1` remains unchanged.
+- Adds regression coverage for hostile neighbors, formal incoming claims, pre-war recruitment, defensive expansion holds, neutral-neighbor false positives and the absence of surprise war.
+
+## v0.39 — Block 8: roads and internal trade routes
+
+- Adds player-built roads between founded cities along deterministic axial hex paths. Routes can only use explored land in player or unclaimed territory; water, disputed and enemy-controlled cells are rejected.
+- Road costs scale with distance and are paid from the active source city's gold and stored production. Each city can support up to two trade connections.
+- Each connected city receives +1 gold per turn while the road remains operational. A hostile or disputed corridor suspends the trade income without deleting the road record.
+- The city panel provides destination selection, route cost and status; completed roads appear as highlighted paths on the strategic map.
+- Route endpoints, hex paths and creation turn are stored as optional save fields. Legacy saves receive an empty route list; SAVE_VERSION = 1 remains unchanged.
+- Adds regression tests for path legality, costs, connection limits, city income, save/load and hostile interruption.
+
+## v0.39 — Block 7: founded city list and quick switching
+
+- Adds a compact two-column founded-city selector to the mobile city panel. Each entry shows the city name, population and treasury, with the active city clearly marked.
+- Allows direct switching between player cities without returning to the strategic map.
+- Saves the outgoing city's current fields before loading the selected city's resources, queue, buildings, specialization and province improvements.
+- Rejects invalid city indices and routes existing map-cell city selection through the same validated switching method.
+- Adds regression coverage for separate city treasuries, selection persistence, invalid indices and map-selection compatibility.
+- Keeps the existing city records and `SAVE_VERSION = 1` unchanged.
+
 ## v0.38.2 — Godot Audit Hotfix
 
 - Fixes an actual GDScript parse error in `kingdom_ai.gd` caused by a missing comment marker.
@@ -244,3 +281,12 @@
 - Extends the AI economy with specializations, province projects, building upgrades and upkeep; capital AI prioritizes a market before repeated recruitment.
 - Preserves the three-resource economy, stable resource/building/unit IDs, 24-troop cap and save schema version 1.
 - Static validation: 93/93. Godot parser/import/runtime and Android tests remain pending.
+
+  
+## v0.39 — Block 6: tactical battle forecast
+
+- Adds a non-mutating strategic forecast before kingdom battles, showing estimated victory chance, uncertainty range, force counts and projected losses.
+- Reuses unit catalogue statistics, current health, veterancy, army upgrades, anti-cavalry/charge modifiers, role-target preferences, commander stats and average biome modifiers.
+- Requires a separate confirmation to enter the existing tactical scene. The forecast never auto-resolves a battle and never changes campaign state.
+- Documents the limits: formations, flanking, real-time orders and ability timing can change the actual result. Save schema remains version 1.
+- Adds `battle_estimator_smoke_test.gd` for deterministic calculations, matchups, terrain, commanders and non-mutation.

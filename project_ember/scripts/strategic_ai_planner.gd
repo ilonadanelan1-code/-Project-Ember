@@ -9,6 +9,8 @@ const DiplomacyCatalog = preload("res://scripts/diplomacy_catalog.gd")
 const SettlementCatalog = preload("res://scripts/settlement_catalog.gd")
 
 const INVALID_CELL := Vector2i(9999, 9999)
+const PEACEFUL_THREAT_MAX_DISTANCE := 8
+const PEACEFUL_THREAT_SCORE_THRESHOLD := 55.0
 const ROLE_ORDER := [
 	UnitCatalog.ROLE_MELEE,
 	UnitCatalog.ROLE_RANGED,
@@ -93,6 +95,8 @@ static func evaluate_kingdom(
 	var threatened := false
 	var nearest_threat_distance := 999999
 	var nearest_threat_strength := 0.0
+	var threat_score := 0.0
+	var threat_source_id := -99
 	var kingdom_id := int(kingdom.get("id", -1))
 	var own_city_cells: Array[Vector2i] = []
 	for city_value in cities:
@@ -109,23 +113,64 @@ static func evaluate_kingdom(
 		nearest_threat_distance = mini(nearest_threat_distance, player_distance)
 		if player_distance <= 6:
 			threatened = true
+			threat_score = 100.0
+			threat_source_id = DiplomacyCatalog.PLAYER_ID
 
 	for other_id in range(kingdoms.size()):
 		if other_id == kingdom_id or not bool(kingdoms[other_id].get("alive", true)):
 			continue
 		var relation := DiplomacyCatalog.get_record(diplomacy_relations, kingdom_id, other_id)
-		if str(relation.get("treaty", "peace")) != "war":
-			continue
-		active_war = true
+		var treaty := str(relation.get("treaty", "peace"))
 		var enemy: Dictionary = kingdoms[other_id]
 		var enemy_cell := World.array_to_cell(enemy.get("army_cell", enemy.get("capital_cell", [])))
 		var city_distance := _nearest_distance_to_cells(enemy_cell, own_city_cells)
 		var enemy_strength := estimate_force_strength(enemy.get("army", []))
-		if city_distance < nearest_threat_distance:
-			nearest_threat_distance = city_distance
-			nearest_threat_strength = enemy_strength
-		if city_distance <= 6 and enemy_strength >= army_strength * 0.55:
+
+		if treaty == "war":
+			active_war = true
+			if city_distance < nearest_threat_distance:
+				nearest_threat_distance = city_distance
+				nearest_threat_strength = enemy_strength
+			if city_distance <= 6 and enemy_strength >= army_strength * 0.55:
+				threatened = true
+				if threat_score < 100.0:
+					threat_score = 100.0
+					threat_source_id = other_id
+			continue
+
+		# A hostile neighbor can be a real strategic risk before a treaty turns
+		# into war. Incoming formal claims raise the warning even when relations
+		# have not yet collapsed. Alliances, trade and vassal treaties stay safe.
+		if treaty != "peace":
+			continue
+		var relation_value := int(relation.get("relation", 0))
+		var hostile_relation := relation_value <= -45
+		var incoming_claim := DiplomacyCatalog.has_active_casus_belli(relation, turn_number, other_id)
+		if not hostile_relation and not incoming_claim:
+			continue
+		if city_distance > PEACEFUL_THREAT_MAX_DISTANCE:
+			continue
+
+		var hostility_pressure := clampf(-float(relation_value) / 100.0, 0.0, 1.0)
+		var proximity_pressure := clampf(
+			(float(PEACEFUL_THREAT_MAX_DISTANCE + 1) - float(city_distance)) / 7.0,
+			0.0,
+			1.0
+		)
+		var relative_strength := enemy_strength / maxf(1.0, army_strength)
+		var force_pressure := clampf(relative_strength - 0.5, 0.0, 1.0)
+		var candidate_threat_score := hostility_pressure * 35.0 + proximity_pressure * 35.0 + force_pressure * 20.0
+		if incoming_claim:
+			candidate_threat_score += 25.0
+		candidate_threat_score = clampf(candidate_threat_score, 0.0, 100.0)
+		if candidate_threat_score > threat_score:
+			threat_score = candidate_threat_score
+			threat_source_id = other_id
+		if candidate_threat_score >= PEACEFUL_THREAT_SCORE_THRESHOLD:
 			threatened = true
+			if city_distance < nearest_threat_distance:
+				nearest_threat_distance = city_distance
+				nearest_threat_strength = enemy_strength
 
 	var net_gold_per_turn := gold_income - upkeep_due
 	var reserve_threshold := maxi(35, upkeep_due * 5 + 25)
@@ -149,7 +194,7 @@ static func evaluate_kingdom(
 		desired_army_size += 2
 	desired_army_size = clampi(desired_army_size, 5, 24)
 	var can_recruit := gold_reserve >= reserve_threshold and net_gold_per_turn >= -1
-	if active_war and threatened and gold_reserve >= 25:
+	if threatened and gold_reserve >= 25:
 		can_recruit = true
 	if not can_recruit and not threatened:
 		desired_army_size = mini(desired_army_size, army.size())
@@ -169,11 +214,21 @@ static func evaluate_kingdom(
 
 	var recruit_role := select_recruitment_role(kingdom, kingdoms, diplomacy_relations, desired_army_size)
 	var recruit_data := UnitCatalog.get_data(recruit_role)
+	var defensive_posture := "normal"
+	if active_war:
+		defensive_posture = "war"
+	elif threatened:
+		defensive_posture = "alert"
+	elif threat_score >= 30.0:
+		defensive_posture = "watch"
 	return {
 		"turn": turn_number,
 		"economy_focus": economy_focus,
 		"war_active": active_war,
 		"threatened": threatened,
+		"threat_score": roundi(threat_score),
+		"threat_source_id": threat_source_id,
+		"defensive_posture": defensive_posture,
 		"nearest_threat_distance": nearest_threat_distance,
 		"army_strength": army_strength,
 		"threat_strength": nearest_threat_strength,

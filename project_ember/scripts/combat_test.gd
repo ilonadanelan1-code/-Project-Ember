@@ -13,6 +13,7 @@ const ToastManagerScript = preload("res://scripts/toast_manager.gd")
 
 const BattlefieldVisualsScript = preload("res://scripts/battlefield_visuals.gd")
 const BattlefieldRulesScript = preload("res://scripts/battlefield_rules.gd")
+const WorldLocationCatalogScript = preload("res://scripts/world_location_catalog.gd")
 
 const FIELD_SIZE := Vector2(38.0, 26.0)
 const PLAYER_TEAM := 0
@@ -118,9 +119,16 @@ func _create_environment() -> void:
 
 
 func _spawn_armies() -> void:
+	var location_guardian_visual := ""
 	if CampaignState.battle_in_progress:
 		_spawn_army_from_records(PLAYER_TEAM, CampaignState.player_units)
-		_spawn_army_from_records(ENEMY_TEAM, CampaignState.enemy_units)
+		var enemy_visual_ids: Array[String] = []
+		if CampaignState.battle_target_type == "location":
+			var neutral_location := CampaignState.get_neutral_location_by_id(CampaignState.battle_location_id)
+			var location_type := str(neutral_location.get("type", "ancient_ruins"))
+			enemy_visual_ids = WorldLocationCatalogScript.get_guard_visual_ids(location_type)
+			location_guardian_visual = WorldLocationCatalogScript.get_guardian_visual_id(location_type)
+		_spawn_army_from_records(ENEMY_TEAM, CampaignState.enemy_units, enemy_visual_ids)
 	else:
 		# Fallback keeps CombatTest usable as an isolated development scene.
 		for offset in [-2.2, 0.0, 2.2]:
@@ -131,11 +139,12 @@ func _spawn_armies() -> void:
 			_spawn_unit(ENEMY_TEAM, Vector3(12.5, 0.0, offset), BattleUnit.UnitRole.RANGED)
 
 	_spawn_commander(PLAYER_TEAM, CampaignState.player_hero, Vector3(-10.0, 0.0, 0.0))
-	_spawn_commander(ENEMY_TEAM, CampaignState.enemy_hero, Vector3(10.0, 0.0, 0.0))
+	_spawn_commander(ENEMY_TEAM, CampaignState.enemy_hero, Vector3(10.0, 0.0, 0.0), location_guardian_visual)
 	_initial_team_counts = [_count_team(PLAYER_TEAM), _count_team(ENEMY_TEAM)]
 
 
-func _spawn_army_from_records(team: int, records: Array[Dictionary]) -> void:
+func _spawn_army_from_records(team: int, records: Array[Dictionary], visual_ids: Array[String] = []) -> void:
+	var visual_index := 0
 	var role_counts: Dictionary = {}
 	var role_indices: Dictionary = {}
 	for role_id in [CampaignState.ROLE_MELEE, CampaignState.ROLE_RANGED, CampaignState.ROLE_SPEAR, CampaignState.ROLE_CAVALRY]:
@@ -169,13 +178,18 @@ func _spawn_army_from_records(team: int, records: Array[Dictionary]) -> void:
 		var lateral_offset := (float(index) - float(count - 1) * 0.5) * safe_spacing
 		var spawn_position := Vector3(row_x, 0.0, lateral_offset)
 		var upgrade_rank := CampaignState.get_army_upgrade_rank(role_name) if team == PLAYER_TEAM else 0
+		var visual_id := ""
+		if not visual_ids.is_empty():
+			visual_id = visual_ids[posmod(visual_index, visual_ids.size())]
+		visual_index += 1
 		_spawn_unit(
 			team,
 			spawn_position,
 			role,
 			float(record.get("health", -1.0)),
 			clampi(int(record.get("experience", 0)), 0, 999999),
-			upgrade_rank
+			upgrade_rank,
+			visual_id
 		)
 
 
@@ -190,10 +204,11 @@ func _battle_role_from_id(role_name: String) -> int:
 	return BattleUnit.UnitRole.MELEE
 
 
-func _spawn_commander(team: int, hero_record: Dictionary, spawn_position: Vector3) -> void:
+func _spawn_commander(team: int, hero_record: Dictionary, spawn_position: Vector3, visual_override_id: String = "") -> void:
 	var unit := BattleUnit.new()
 	unit.team = team
 	unit.role = BattleUnit.UnitRole.COMMANDER
+	unit.visual_override_id = visual_override_id
 	unit.territory_armor_bonus = CampaignState.battle_territory_armor_bonus if team == PLAYER_TEAM else 0.0
 	unit.commander_level = clampi(int(hero_record.get("level", 1)), 1, 30)
 	var skills_value: Variant = hero_record.get("skills", {})
@@ -250,11 +265,13 @@ func _spawn_unit(
 		unit_role: int,
 		unit_health: float = -1.0,
 		unit_experience: int = 0,
-		upgrade_rank: int = 0
+		upgrade_rank: int = 0,
+		visual_override_id: String = ""
 ) -> void:
 	var unit := BattleUnit.new()
 	unit.team = team
 	unit.role = unit_role
+	unit.visual_override_id = visual_override_id
 	unit.territory_armor_bonus = CampaignState.battle_territory_armor_bonus if team == PLAYER_TEAM else 0.0
 	unit.starting_health = unit_health
 	unit.experience = clampi(unit_experience, 0, 999999)

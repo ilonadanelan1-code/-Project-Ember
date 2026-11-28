@@ -18,6 +18,9 @@ const LordCatalogScript = preload("res://scripts/lord_catalog.gd")
 const ItemCatalogScript = preload("res://scripts/item_catalog.gd")
 const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
 const SettlementCatalogScript = preload("res://scripts/settlement_catalog.gd")
+const ArcaneVictoryCatalogScript = preload("res://scripts/arcane_victory_catalog.gd")
+const BattleEstimatorScript = preload("res://scripts/battle_estimator.gd")
+const StrategicMapDetailsScript = preload("res://scripts/strategic_map_details.gd")
 const ROLE_MELEE := "melee"
 const ROLE_RANGED := "ranged"
 const ROLE_SPEAR := "spear"
@@ -32,6 +35,13 @@ const SAVE_VERSION := 1
 const WORLD_RADIUS := WorldGeneratorScript.WORLD_RADIUS
 const WORLD_HEX_COUNT := WorldGeneratorScript.WORLD_HEX_COUNT
 const KINGDOM_COUNT := WorldGeneratorScript.KINGDOM_COUNT
+const MAX_TRADE_ROUTE_DISTANCE := 18
+const MAX_TRADE_ROUTES_PER_CITY := 2
+const TRADE_ROUTE_GOLD_PER_CITY := 1
+const TRADE_ROUTE_BASE_GOLD_COST := 16
+const TRADE_ROUTE_GOLD_PER_HEX := 3
+const TRADE_ROUTE_BASE_PRODUCTION_COST := 3
+const TRADE_ROUTE_PRODUCTION_PER_HEX := 1
 
 const CITY_BUILDINGS := {
 	"farm": {
@@ -94,6 +104,10 @@ var world_seed: int = WorldGeneratorScript.DEFAULT_SEED
 var world_generation_version: int = WorldGeneratorScript.WORLD_GENERATION_VERSION
 var kingdoms: Array[Dictionary] = []
 var diplomacy_relations: Dictionary = {}
+var player_diplomacy_profile: Dictionary = {}
+var arcane_victory_progress: int = 0
+var last_arcane_power_gain: int = 0
+var campaign_winner_id: int = -2
 var pending_diplomacy_offers: Array[Dictionary] = []
 var last_diplomacy_events: Array[String] = []
 var last_kingdom_events: Array[String] = []
@@ -129,6 +143,7 @@ var city_province_improvements: Array[Dictionary] = []
 var army_upkeep_last_due: int = 0
 var army_upkeep_last_paid: int = 0
 var cities: Array[Dictionary] = []
+var trade_routes: Array[Dictionary] = []
 var outposts: Array[Dictionary] = []
 var active_city_id: int = 0
 var settler_active: bool = false
@@ -174,6 +189,18 @@ func apply_player_faction(raw_selection: Dictionary) -> bool:
 	if not faction_setup_pending or not FactionCatalogScript.is_valid_selection(raw_selection):
 		return false
 	player_faction = FactionCatalogScript.normalize_selection(raw_selection)
+	player_diplomacy_profile = DiplomacyCatalogScript.normalize_leader_profile(
+		{},
+		DiplomacyCatalogScript.PLAYER_ID,
+		player_faction,
+		0,
+		world_seed
+	)
+	DiplomacyCatalogScript.refresh_player_relationships(
+		diplomacy_relations,
+		kingdoms,
+		player_diplomacy_profile
+	)
 	var starting_resources := FactionCatalogScript.apply_starting_bonus(
 		player_faction,
 		{"food": city_food, "gold": city_gold, "production": city_production_bank},
@@ -219,6 +246,9 @@ func new_campaign(persist: bool = true) -> void:
 	player_faction = FactionCatalogScript.get_legacy_selection()
 	campaign_started = true
 	campaign_lost = false
+	arcane_victory_progress = 0
+	last_arcane_power_gain = 0
+	campaign_winner_id = -2
 	turn_number = 1
 	battle_reward_counter = 0
 	player_moves_left = 1
@@ -236,7 +266,18 @@ func new_campaign(persist: bool = true) -> void:
 	selected_player_army_id = PRIMARY_PLAYER_ARMY_ID
 	player_armies.append(_make_player_army_record(PRIMARY_PLAYER_ARMY_ID, "Первая армия", player_cell, player_units, active_hero_id, army_upgrades, player_moves_left))
 	kingdoms = KingdomAIScript.create_initial_kingdoms(world_seed)
-	diplomacy_relations = DiplomacyCatalogScript.create_initial_relations(kingdoms.size(), world_seed)
+	player_diplomacy_profile = DiplomacyCatalogScript.create_leader_profile(
+		DiplomacyCatalogScript.PLAYER_ID,
+		player_faction,
+		0,
+		world_seed
+	)
+	diplomacy_relations = DiplomacyCatalogScript.create_initial_relations(
+		kingdoms.size(),
+		world_seed,
+		kingdoms,
+		player_diplomacy_profile
+	)
 	pending_diplomacy_offers.clear()
 	last_diplomacy_events.clear()
 	neutral_locations = WorldLocationCatalogScript.generate_locations(world_seed, world_generation_version)
@@ -264,6 +305,7 @@ func new_campaign(persist: bool = true) -> void:
 	army_upkeep_last_due = 0
 	army_upkeep_last_paid = 0
 	cities.clear()
+	trade_routes.clear()
 	outposts.clear()
 	active_city_id = 0
 	cities.append(_make_city_record(0, city_name, city_cell, city_population, city_food, city_gold, city_production_bank, city_buildings, city_build_queue))
@@ -1063,6 +1105,8 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 		DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "war", turn_number)
 		var provoked_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 		provoked_record["war_reason"] = "battle_provocation"
+		provoked_record["war_initiator_id"] = DiplomacyCatalogScript.PLAYER_ID
+		provoked_record["war_target_id"] = kingdom_id
 		DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, provoked_record)
 		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -35, turn_number)
 		_record_diplomacy_event("Ты нарушил мир и начал войну с державой «%s»." % str(target_kingdom.get("name", "Королевство")))
@@ -1096,6 +1140,77 @@ func begin_battle(biome_id: String = "", kingdom_id: int = -1) -> bool:
 	return true
 
 
+
+
+func get_battle_estimate(kingdom_id: int) -> Dictionary:
+	var unavailable := {"available": false, "message": "Сейчас нельзя начать это сражение."}
+	if battle_in_progress or campaign_lost or campaign_winner_id != -2:
+		unavailable["message"] = "Кампания сейчас не готова к новому сражению."
+		return unavailable
+	if player_units.is_empty():
+		unavailable["message"] = "В выбранной армии нет боеспособных отрядов."
+		return unavailable
+	if kingdom_id < 0 or kingdom_id >= kingdoms.size():
+		unavailable["message"] = "Вражеская держава не найдена."
+		return unavailable
+	var target_kingdom: Dictionary = kingdoms[kingdom_id]
+	if not bool(target_kingdom.get("alive", true)):
+		unavailable["message"] = "Эта держава больше не существует."
+		return unavailable
+	var target_army := _read_unit_records(target_kingdom.get("army", []))
+	if target_army.is_empty():
+		unavailable["message"] = "У противника нет полевой армии для этого сражения."
+		return unavailable
+	var target_cell := WorldGeneratorScript.array_to_cell(target_kingdom.get("army_cell", []))
+	if WorldGeneratorScript.hex_distance(player_cell, target_cell) > 1:
+		unavailable["message"] = "Для начала боя нужно подойти к вражеской армии вплотную."
+		return unavailable
+	var diplomatic_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
+	var current_treaty := str(diplomatic_record.get("treaty", "peace"))
+	if current_treaty == "vassal" and turn_number <= int(diplomatic_record.get("treaty_until", 0)):
+		unavailable["message"] = "Нельзя атаковать вассала, пока действует договор верховенства."
+		return unavailable
+	if current_treaty != "war" and turn_number < int(diplomatic_record.get("truce_until", 0)):
+		unavailable["message"] = "Перемирие ещё действует. Дождись его окончания."
+		return unavailable
+	var player_hero_copy := player_hero.duplicate(true)
+	if player_hero_copy.is_empty():
+		player_hero_copy = _make_hero_record("Эдрик", "Правитель державы")
+	_ensure_hero_ready_for_battle(player_hero_copy)
+	var default_enemy_hero := _make_hero_record(
+		str(target_kingdom.get("ruler", "Воевода")),
+		"Правитель " + str(target_kingdom.get("name", "Королевства"))
+	)
+	var enemy_hero_copy := _read_hero_record(target_kingdom.get("hero", default_enemy_hero), default_enemy_hero)
+	_ensure_hero_ready_for_battle(enemy_hero_copy)
+	var territory_bonus := TerritoryCatalogScript.get_defensive_armor_bonus(player_cell, cities, kingdoms, outposts)
+	var player_stats := get_hero_combat_stats(player_hero_copy, territory_bonus)
+	var enemy_stats := get_hero_combat_stats(enemy_hero_copy)
+	var terrain_map: Dictionary = {}
+	for offset in WorldGeneratorScript.neighbors():
+		var neighbor := player_cell + offset
+		terrain_map[neighbor] = get_world_terrain(neighbor)
+	var biome_id := BattlefieldBiomesScript.resolve_from_terrain_map(terrain_map, player_cell)
+	var estimate := BattleEstimatorScript.estimate(
+		player_units,
+		target_army,
+		player_hero_copy,
+		enemy_hero_copy,
+		player_stats,
+		enemy_stats,
+		army_upgrades,
+		_read_army_upgrades(target_kingdom.get("army_upgrades", {})),
+		biome_id,
+		territory_bonus
+	)
+	if not bool(estimate.get("valid", false)):
+		unavailable["message"] = str(estimate.get("message", "Не удалось рассчитать силы армий."))
+		return unavailable
+	estimate["available"] = true
+	estimate["biome_name"] = "Лес" if biome_id == BattlefieldBiomesScript.WOODLAND else "Высоты" if biome_id == BattlefieldBiomesScript.HIGHLANDS else "Болото" if biome_id == BattlefieldBiomesScript.MARSH else "Равнина"
+	estimate["kingdom_name"] = str(target_kingdom.get("name", "Вражеская держава"))
+	estimate["will_start_war"] = current_treaty != "war"
+	return estimate
 func get_neutral_location_index_at(cell: Vector2i, include_cleared: bool = true) -> int:
 	for index in range(neutral_locations.size()):
 		var location: Dictionary = neutral_locations[index]
@@ -1225,6 +1340,8 @@ func _apply_neutral_location_special_reward(location: Dictionary) -> String:
 			player_hero["health"] = get_hero_max_health(player_hero)
 			player_hero["wounded_turns"] = 0
 			return "Святилище полностью восстановило здоровье правителя."
+		"leyline_nexus":
+			return "Узел лей-линии закреплён за державой. Он будет приносить арканную силу каждый ход."
 		"mercenary_camp":
 			if player_units.size() < 24:
 				player_units.append({
@@ -1545,15 +1662,18 @@ func _load_active_city() -> void:
 	city_province_improvements = CityDevelopmentCatalogScript.normalize_province_improvements(c.get("province_improvements", []))
 	city_last_event = str(c.get("last_event", ""))
 
-func select_city_at(cell: Vector2i) -> bool:
+func select_city_by_id(city_id: int) -> bool:
+	if city_id < 0 or city_id >= cities.size():
+		return false
+	if city_id == active_city_id:
+		return true
 	_save_active_city()
-	for i in range(cities.size()):
-		var xy: Array = cities[i].get("cell", [])
-		if xy.size() >= 2 and Vector2i(int(xy[0]), int(xy[1])) == cell:
-			active_city_id = i
-			_load_active_city()
-			return true
-	return false
+	active_city_id = city_id
+	_load_active_city()
+	return true
+
+func select_city_at(cell: Vector2i) -> bool:
+	return select_city_by_id(get_city_index_at(cell))
 
 func get_city_index_at(cell: Vector2i) -> int:
 	for i in range(cities.size()):
@@ -2220,7 +2340,8 @@ func get_economy_snapshot() -> Dictionary:
 	var income_production := 0
 	var low_treasury_cities := 0
 	var poor_outposts := 0
-	for city_value in cities:
+	for city_index in range(cities.size()):
+		var city_value: Variant = cities[city_index]
 		if not city_value is Dictionary:
 			continue
 		var city: Dictionary = city_value
@@ -2231,6 +2352,7 @@ func get_economy_snapshot() -> Dictionary:
 		var improvements_value: Variant = city.get("province_improvements", [])
 		var improvements: Array = improvements_value if improvements_value is Array else []
 		var base_income := CityDevelopmentCatalogScript.get_city_income(buildings, levels, improvements, str(city.get("specialization", "")))
+		base_income["gold"] = int(base_income.get("gold", 0)) + get_city_trade_income(city_index)
 		var city_income := FactionCatalogScript.apply_income_modifiers(base_income, buildings, player_faction)
 		treasury_gold += maxi(0, int(city.get("gold", 0)))
 		treasury_food += maxi(0, int(city.get("food", 0)))
@@ -2284,10 +2406,188 @@ func get_economy_summary() -> String:
 	return "Чистый баланс: %s зол./ход · поселений: %d · застав: %d" % [net_label, int(economy.get("settlement_count", 0)), int(economy.get("outpost_count", 0))]
 
 
+func get_city_trade_route_count(city_id: int) -> int:
+	if city_id < 0 or city_id >= cities.size():
+		return 0
+	var count := 0
+	for route in trade_routes:
+		if int(route.get("from_city_id", -1)) == city_id or int(route.get("to_city_id", -1)) == city_id:
+			count += 1
+	return count
+
+
+func _trade_route_pair_key(first_city_id: int, second_city_id: int) -> String:
+	return "%d:%d" % [mini(first_city_id, second_city_id), maxi(first_city_id, second_city_id)]
+
+
+func get_trade_route_quote(from_city_id: int, to_city_id: int) -> Dictionary:
+	var quote := {"valid": false, "reason": "Выбери другой основанный город.", "distance": 0, "gold_cost": 0, "production_cost": 0, "cells": []}
+	if campaign_lost or battle_in_progress:
+		quote["reason"] = "Строительство дорог сейчас недоступно."
+		return quote
+	if from_city_id < 0 or to_city_id < 0 or from_city_id >= cities.size() or to_city_id >= cities.size() or from_city_id == to_city_id:
+		return quote
+	var start_cell := WorldGeneratorScript.array_to_cell(cities[from_city_id].get("cell", []))
+	var end_cell := WorldGeneratorScript.array_to_cell(cities[to_city_id].get("cell", []))
+	var distance := StrategicMapDetailsScript.axial_distance(start_cell, end_cell)
+	quote["distance"] = distance
+	if distance < 2:
+		quote["reason"] = "Города должны находиться минимум в двух гексах друг от друга."
+		return quote
+	if distance > MAX_TRADE_ROUTE_DISTANCE:
+		quote["reason"] = "Маршрут слишком длинный: максимум %d гексов." % MAX_TRADE_ROUTE_DISTANCE
+		return quote
+	var pair_key := _trade_route_pair_key(from_city_id, to_city_id)
+	for existing_route in trade_routes:
+		if _trade_route_pair_key(int(existing_route.get("from_city_id", -1)), int(existing_route.get("to_city_id", -1))) == pair_key:
+			quote["reason"] = "Между этими городами уже есть дорога."
+			return quote
+	if get_city_trade_route_count(from_city_id) >= MAX_TRADE_ROUTES_PER_CITY or get_city_trade_route_count(to_city_id) >= MAX_TRADE_ROUTES_PER_CITY:
+		quote["reason"] = "У одного из городов уже достигнут лимит торговых путей."
+		return quote
+	var path: Array[Vector2i] = StrategicMapDetailsScript.axial_line(start_cell, end_cell)
+	if path.size() != distance + 1:
+		quote["reason"] = "Не удалось рассчитать путь между городами."
+		return quote
+	for cell in path:
+		if not WorldGeneratorScript.is_inside_world(cell):
+			quote["reason"] = "Путь выходит за границы известного мира."
+			return quote
+		if not is_cell_explored(cell):
+			quote["reason"] = "Сначала исследуй все гексы будущей дороги."
+			return quote
+		if get_world_terrain(cell) == "water":
+			quote["reason"] = "Дорога не может проходить через воду."
+			return quote
+		var owner_id := get_world_owner_at(cell)
+		if owner_id != TerritoryCatalogScript.OWNER_PLAYER and owner_id != TerritoryCatalogScript.OWNER_UNCLAIMED:
+			quote["reason"] = "Путь проходит через спорную или чужую территорию."
+			return quote
+	var gold_cost := TRADE_ROUTE_BASE_GOLD_COST + distance * TRADE_ROUTE_GOLD_PER_HEX
+	var production_cost := TRADE_ROUTE_BASE_PRODUCTION_COST + distance * TRADE_ROUTE_PRODUCTION_PER_HEX
+	quote["gold_cost"] = gold_cost
+	quote["production_cost"] = production_cost
+	quote["cells"] = path
+	var balance := _get_city_resource_balance(from_city_id)
+	if int(balance.get("gold", 0)) < gold_cost or int(balance.get("production", 0)) < production_cost:
+		quote["reason"] = "В казне города не хватает золота или производства."
+		return quote
+	quote["valid"] = true
+	quote["reason"] = "Дорога даст каждому городу +%d золота за ход." % TRADE_ROUTE_GOLD_PER_CITY
+	return quote
+
+
+func create_trade_route(target_city_id: int) -> bool:
+	var source_city_id := active_city_id
+	var quote := get_trade_route_quote(source_city_id, target_city_id)
+	if not bool(quote.get("valid", false)):
+		return false
+	var gold_cost := int(quote.get("gold_cost", 0))
+	var production_cost := int(quote.get("production_cost", 0))
+	if not _spend_city_resources(source_city_id, gold_cost, production_cost):
+		return false
+	var path_value: Variant = quote.get("cells", [])
+	var path: Array = path_value if path_value is Array else []
+	var cells: Array = []
+	for cell_value in path:
+		if cell_value is Vector2i:
+			var cell: Vector2i = cell_value
+			cells.append([cell.x, cell.y])
+	trade_routes.append({"id": trade_routes.size(), "from_city_id": source_city_id, "to_city_id": target_city_id, "cells": cells, "distance": int(quote.get("distance", 0)), "created_turn": turn_number})
+	_save_active_city()
+	save_campaign()
+	return true
+
+
+func is_trade_route_operational(route: Dictionary) -> bool:
+	var cells_value: Variant = route.get("cells", [])
+	if not cells_value is Array or cells_value.size() < 2:
+		return false
+	for cell_value in cells_value:
+		var cell := WorldGeneratorScript.array_to_cell(cell_value, Vector2i(9999, 9999))
+		if not WorldGeneratorScript.is_inside_world(cell) or get_world_terrain(cell) == "water":
+			return false
+		var owner_id := get_world_owner_at(cell)
+		if owner_id != TerritoryCatalogScript.OWNER_PLAYER and owner_id != TerritoryCatalogScript.OWNER_UNCLAIMED:
+			return false
+	return true
+
+
+func get_city_trade_income(city_id: int) -> int:
+	if city_id < 0 or city_id >= cities.size():
+		return 0
+	var income := 0
+	for route in trade_routes:
+		if int(route.get("from_city_id", -1)) != city_id and int(route.get("to_city_id", -1)) != city_id:
+			continue
+		if is_trade_route_operational(route):
+			income += TRADE_ROUTE_GOLD_PER_CITY
+	return income
+
+
+func get_city_trade_route_summary(city_id: int) -> String:
+	if city_id < 0 or city_id >= cities.size():
+		return "Торговые пути недоступны."
+	var lines: Array[String] = []
+	for route in trade_routes:
+		var from_id := int(route.get("from_city_id", -1))
+		var to_id := int(route.get("to_city_id", -1))
+		if from_id != city_id and to_id != city_id:
+			continue
+		var other_id := to_id if from_id == city_id else from_id
+		if other_id < 0 or other_id >= cities.size():
+			continue
+		var other_name := str(cities[other_id].get("name", "Город"))
+		if is_trade_route_operational(route):
+			lines.append("↔ %s · +%d зол./ход" % [other_name, TRADE_ROUTE_GOLD_PER_CITY])
+		else:
+			lines.append("↔ %s · дорога перекрыта" % other_name)
+	if lines.is_empty():
+		return "Пока нет построенных торговых дорог. Каждый маршрут приносит обоим городам +%d золота за ход." % TRADE_ROUTE_GOLD_PER_CITY
+	return "\n".join(lines)
+
+
+func _read_trade_routes(value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not value is Array:
+		return result
+	var used_pairs: Dictionary = {}
+	for raw_value in value:
+		if not raw_value is Dictionary:
+			continue
+		var from_id := int(raw_value.get("from_city_id", -1))
+		var to_id := int(raw_value.get("to_city_id", -1))
+		if from_id < 0 or to_id < 0 or from_id >= cities.size() or to_id >= cities.size() or from_id == to_id:
+			continue
+		var pair_key := _trade_route_pair_key(from_id, to_id)
+		if used_pairs.has(pair_key) or result.size() >= 24:
+			continue
+		var start_cell := WorldGeneratorScript.array_to_cell(cities[from_id].get("cell", []))
+		var end_cell := WorldGeneratorScript.array_to_cell(cities[to_id].get("cell", []))
+		var distance := StrategicMapDetailsScript.axial_distance(start_cell, end_cell)
+		if distance < 2 or distance > MAX_TRADE_ROUTE_DISTANCE:
+			continue
+		var path: Array[Vector2i] = StrategicMapDetailsScript.axial_line(start_cell, end_cell)
+		var valid_path := path.size() == distance + 1
+		for cell in path:
+			if not WorldGeneratorScript.is_inside_world(cell) or get_world_terrain(cell) == "water":
+				valid_path = false
+				break
+		if not valid_path:
+			continue
+		var cells: Array = []
+		for cell in path:
+			cells.append([cell.x, cell.y])
+		result.append({"id": result.size(), "from_city_id": from_id, "to_city_id": to_id, "cells": cells, "distance": distance, "created_turn": maxi(1, int(raw_value.get("created_turn", 1)))})
+		used_pairs[pair_key] = true
+	return result
+
+
 func get_city_income() -> Dictionary:
 	var base_income := CityDevelopmentCatalogScript.get_city_income(
 		city_buildings, city_building_levels, city_province_improvements, city_specialization
 	)
+	base_income["gold"] = int(base_income.get("gold", 0)) + get_city_trade_income(active_city_id)
 	return FactionCatalogScript.apply_income_modifiers(base_income, city_buildings, player_faction)
 
 
@@ -2442,6 +2742,8 @@ func get_city_queue_summary() -> String:
 
 
 func advance_campaign_turn() -> void:
+	if campaign_winner_id != -2:
+		return
 	_sync_selected_player_army_from_legacy()
 	turn_number += 1
 	_recover_campaign_heroes()
@@ -2481,11 +2783,21 @@ func advance_campaign_turn() -> void:
 		world_seed,
 		get_player_army_total_power(),
 		pending_diplomacy_offers,
-		_get_player_diplomacy_sources()
+		_get_player_diplomacy_sources(),
+		player_diplomacy_profile,
+		player_outpost_cells
 	)
 	last_diplomacy_events.clear()
 	for event_text in diplomacy_result.get("events", []):
 		last_diplomacy_events.append(str(event_text))
+	for gift_transfer_value in diplomacy_result.get("gift_transfers", []):
+		if not gift_transfer_value is Dictionary:
+			continue
+		var gift_transfer: Dictionary = gift_transfer_value
+		var gift_gold := clampi(int(gift_transfer.get("gold", 0)), 0, 1000)
+		if gift_gold > 0:
+			_capital_gold_change(cities, gift_gold)
+		_load_active_city()
 	last_kingdom_events = KingdomAIScript.process_turns(
 		kingdoms,
 		turn_number,
@@ -2498,10 +2810,382 @@ func advance_campaign_turn() -> void:
 		neutral_locations,
 		player_outpost_cells
 	)
+	_apply_affinity_improvement_claims()
+	_advance_arcane_victory_race()
 	_apply_diplomacy_economy()
 	_sync_primary_kingdom()
 	refresh_fog_of_war()
 	_queue_world_event_if_due()
+
+
+
+func get_arcane_victory_summary() -> String:
+	var leader_id := DiplomacyCatalogScript.PLAYER_ID
+	var leader_progress := arcane_victory_progress
+	var leader_name := "Твоя держава"
+	for kingdom_id in range(kingdoms.size()):
+		var progress := int(kingdoms[kingdom_id].get("arcane_victory_progress", 0))
+		if progress > leader_progress:
+			leader_progress = progress
+			leader_id = kingdom_id
+			leader_name = str(kingdoms[kingdom_id].get("name", "Держава"))
+	var player_label := ArcaneVictoryCatalogScript.get_progress_label(arcane_victory_progress)
+	var leader_label := ArcaneVictoryCatalogScript.get_progress_label(leader_progress)
+	return "МАГИЯ %s · ЛИДЕР: %s %s" % [player_label, leader_name, leader_label]
+
+
+func get_campaign_winner_name() -> String:
+	if campaign_winner_id == DiplomacyCatalogScript.PLAYER_ID:
+		return str(player_faction.get("kingdom_name", "Твоя держава"))
+	if campaign_winner_id >= 0 and campaign_winner_id < kingdoms.size():
+		return str(kingdoms[campaign_winner_id].get("name", "Держава"))
+	return ""
+
+
+func _advance_arcane_victory_race() -> void:
+	if campaign_winner_id != -2:
+		return
+	last_arcane_power_gain = ArcaneVictoryCatalogScript.calculate_turn_power(
+		neutral_locations,
+		cities,
+		player_diplomacy_profile,
+		DiplomacyCatalogScript.PLAYER_ID,
+		outposts
+	)
+	arcane_victory_progress = ArcaneVictoryCatalogScript.advance_progress(
+		arcane_victory_progress,
+		last_arcane_power_gain
+	)
+	for kingdom_id in range(kingdoms.size()):
+		var kingdom: Dictionary = kingdoms[kingdom_id]
+		if not bool(kingdom.get("alive", true)):
+			continue
+		var profile_value: Variant = kingdom.get("diplomacy_profile", {})
+		var profile: Dictionary = profile_value if profile_value is Dictionary else {}
+		var power_gain := ArcaneVictoryCatalogScript.calculate_turn_power(
+			neutral_locations,
+			kingdom.get("cities", []),
+			profile,
+			kingdom_id,
+			kingdom.get("outposts", [])
+	)
+		kingdom["arcane_victory_progress"] = ArcaneVictoryCatalogScript.advance_progress(
+			int(kingdom.get("arcane_victory_progress", 0)),
+			power_gain
+		)
+		kingdoms[kingdom_id] = kingdom
+	_apply_arcane_containment_pressure()
+
+	var winner_progress := -1
+	var winner_id := -2
+	if arcane_victory_progress >= ArcaneVictoryCatalogScript.VICTORY_THRESHOLD:
+		winner_progress = arcane_victory_progress
+		winner_id = DiplomacyCatalogScript.PLAYER_ID
+	for kingdom_id in range(kingdoms.size()):
+		var progress := int(kingdoms[kingdom_id].get("arcane_victory_progress", 0))
+		if progress < ArcaneVictoryCatalogScript.VICTORY_THRESHOLD:
+			continue
+		if progress > winner_progress:
+			winner_progress = progress
+			winner_id = kingdom_id
+	if winner_id != -2:
+		campaign_winner_id = winner_id
+		var winner_name := get_campaign_winner_name()
+		if winner_id == DiplomacyCatalogScript.PLAYER_ID:
+			last_world_event_text = "Магическое восхождение завершено. Твоя держава объединила силу узлов лей-линий и одержала победу."
+		else:
+			last_world_event_text = "Держава «%s» завершила магическое восхождение и победила в гонке за мировое господство." % winner_name
+		last_diplomacy_events.append(last_world_event_text)
+		save_campaign()
+
+
+func _apply_arcane_containment_pressure() -> void:
+	var leader_id := -2
+	var leader_progress := -1
+	for kingdom_id in range(kingdoms.size()):
+		if not bool(kingdoms[kingdom_id].get("alive", true)):
+			continue
+		var progress := int(kingdoms[kingdom_id].get("arcane_victory_progress", 0))
+		if progress > leader_progress:
+			leader_progress = progress
+			leader_id = kingdom_id
+	if arcane_victory_progress > leader_progress:
+		leader_progress = arcane_victory_progress
+		leader_id = DiplomacyCatalogScript.PLAYER_ID
+	var containment_active := leader_id != -2 and ArcaneVictoryCatalogScript.needs_containment(leader_progress)
+	if not containment_active:
+		_clear_all_containment_coalitions()
+		return
+	_clear_stale_containment_coalitions(leader_id)
+	var target_profile := player_diplomacy_profile if leader_id == DiplomacyCatalogScript.PLAYER_ID else _get_kingdom_diplomacy_profile(leader_id)
+	var target_affinity := ArcaneVictoryCatalogScript.get_dominant_affinity(target_profile)
+	var target_power := get_player_army_total_power() if leader_id == DiplomacyCatalogScript.PLAYER_ID else _get_army_power(kingdoms[leader_id].get("army", []))
+	var eligible_members: Array[int] = []
+	for claimant_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+		if claimant_id == leader_id:
+			continue
+		if claimant_id >= 0 and not bool(kingdoms[claimant_id].get("alive", true)):
+			continue
+		var claimant_progress := arcane_victory_progress if claimant_id == DiplomacyCatalogScript.PLAYER_ID else int(kingdoms[claimant_id].get("arcane_victory_progress", 0))
+		var progress_lead := leader_progress - claimant_progress
+		if progress_lead < ArcaneVictoryCatalogScript.CONTAINMENT_LEAD_MARGIN:
+			continue
+		var created_claim := DiplomacyCatalogScript.create_casus_belli(
+			diplomacy_relations,
+			claimant_id,
+			leader_id,
+			"victory_race",
+			turn_number,
+			3
+		)
+		if not created_claim.is_empty() and int(created_claim.get("created_turn", -1)) == turn_number:
+			var target_name := "Твоя держава" if leader_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[leader_id].get("name", "Держава"))
+			var claimant_name := "Ты" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[claimant_id].get("name", "Соперник"))
+			last_diplomacy_events.append("%s выдвигает претензию на сдерживание магического лидера «%s»." % [claimant_name, target_name])
+		if claimant_id >= 0:
+			eligible_members.append(claimant_id)
+		if turn_number % 3 == posmod(absi(claimant_id) + absi(leader_id), 3):
+			var relation_record := DiplomacyCatalogScript.get_record(diplomacy_relations, claimant_id, leader_id)
+			if str(relation_record.get("treaty", "peace")) != "war":
+				DiplomacyCatalogScript.change_relation(diplomacy_relations, claimant_id, leader_id, -3, turn_number)
+
+	var joined_ids: Array[int] = []
+	var scores: Dictionary = {}
+	for member_id in eligible_members:
+		var member_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		var treaty := str(member_record.get("treaty", "peace"))
+		if treaty == "alliance" and DiplomacyCatalogScript.treaty_is_active(member_record, turn_number):
+			continue
+		var already_at_war := treaty == "war"
+		var candidate_profile := _get_kingdom_diplomacy_profile(member_id)
+		var candidate_power := _get_army_power(kingdoms[member_id].get("army", []))
+		var common_ally_ids := _get_containment_common_allies(member_id, leader_id, joined_ids)
+		var score := DiplomacyCatalogScript.calculate_containment_join_score(
+			candidate_profile,
+			target_profile,
+			int(member_record.get("relation", 0)),
+			candidate_power,
+			target_power,
+			common_ally_ids.size(),
+			already_at_war,
+			leader_progress - int(kingdoms[member_id].get("arcane_victory_progress", 0)),
+			target_affinity
+		)
+		scores[member_id] = score
+		if already_at_war or score >= 54:
+			joined_ids.append(member_id)
+			DiplomacyCatalogScript.set_containment_coalition(
+				diplomacy_relations,
+				member_id,
+				leader_id,
+				turn_number,
+				score,
+				common_ally_ids
+			)
+
+	# A second pass lets a ruler join after one of its formal allies has committed.
+	for member_id in eligible_members:
+		if joined_ids.has(member_id):
+			continue
+		var member_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		if str(member_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(member_record, turn_number):
+			continue
+		var common_ally_ids := _get_containment_common_allies(member_id, leader_id, joined_ids)
+		if common_ally_ids.is_empty():
+			continue
+		var candidate_profile := _get_kingdom_diplomacy_profile(member_id)
+		var candidate_power := _get_army_power(kingdoms[member_id].get("army", []))
+		var score := DiplomacyCatalogScript.calculate_containment_join_score(
+			candidate_profile,
+			target_profile,
+			int(member_record.get("relation", 0)),
+			candidate_power,
+			target_power,
+			common_ally_ids.size(),
+			str(member_record.get("treaty", "peace")) == "war",
+			leader_progress - int(kingdoms[member_id].get("arcane_victory_progress", 0)),
+			target_affinity
+		)
+		scores[member_id] = score
+		if score >= 54:
+			joined_ids.append(member_id)
+			DiplomacyCatalogScript.set_containment_coalition(diplomacy_relations, member_id, leader_id, turn_number, score, common_ally_ids)
+
+	var combined_power := 0.0
+	for member_id in joined_ids:
+		combined_power += _get_army_power(kingdoms[member_id].get("army", []))
+	var required_power := maxf(45.0, target_power * 1.15)
+	if joined_ids.size() < 2 or combined_power < required_power:
+		return
+	for member_id in joined_ids:
+		var member_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		if str(member_record.get("treaty", "peace")) == "war":
+			continue
+		var member_power := _get_army_power(kingdoms[member_id].get("army", []))
+		if member_power < maxf(1.0, target_power * 0.15) or int(scores.get(member_id, 0)) < 54:
+			continue
+		DiplomacyCatalogScript.set_treaty(diplomacy_relations, member_id, leader_id, "war", turn_number)
+		var war_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, leader_id)
+		war_record["war_reason"] = "victory_race"
+		war_record["war_initiator_id"] = member_id
+		war_record["war_target_id"] = leader_id
+		war_record["war_join_reason"] = "containment_coalition"
+		DiplomacyCatalogScript.set_record(diplomacy_relations, member_id, leader_id, war_record)
+		DiplomacyCatalogScript.consume_casus_belli(diplomacy_relations, member_id, leader_id, turn_number, "victory_race")
+		var member_name := str(kingdoms[member_id].get("name", "Держава"))
+		var target_name := "твою державу" if leader_id == DiplomacyCatalogScript.PLAYER_ID else "державу «%s»" % str(kingdoms[leader_id].get("name", "соперник"))
+		last_diplomacy_events.append("%s вступает в коалиционную войну против %s, чтобы сдержать магическое восхождение." % [member_name, target_name])
+
+
+func _get_kingdom_diplomacy_profile(kingdom_id: int) -> Dictionary:
+	if kingdom_id < 0 or kingdom_id >= kingdoms.size():
+		return {}
+	var profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+	return profile_value.duplicate(true) if profile_value is Dictionary else {}
+
+
+func _get_containment_common_allies(member_id: int, target_id: int, joined_ids: Array[int]) -> Array[int]:
+	var result: Array[int] = []
+	for ally_id in joined_ids:
+		if ally_id == member_id or ally_id == target_id:
+			continue
+		var relation_record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, ally_id)
+		if str(relation_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(relation_record, turn_number):
+			result.append(ally_id)
+	return result
+
+
+func _clear_all_containment_coalitions() -> void:
+	for member_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+		for target_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+			if member_id == target_id:
+				continue
+			DiplomacyCatalogScript.clear_containment_coalition(diplomacy_relations, member_id, target_id)
+
+
+func _clear_stale_containment_coalitions(active_target_id: int) -> void:
+	for member_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+		for target_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+			if member_id == target_id or target_id == active_target_id:
+				continue
+			DiplomacyCatalogScript.clear_containment_coalition(diplomacy_relations, member_id, target_id)
+
+
+func _get_faction_settlement_cells(faction_id: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var settlement_records: Array = []
+	if faction_id == DiplomacyCatalogScript.PLAYER_ID:
+		settlement_records.append_array(cities)
+		settlement_records.append_array(outposts)
+	elif faction_id >= 0 and faction_id < kingdoms.size():
+		settlement_records.append_array(kingdoms[faction_id].get("cities", []))
+		settlement_records.append_array(kingdoms[faction_id].get("outposts", []))
+	for settlement_value in settlement_records:
+		if not settlement_value is Dictionary:
+			continue
+		var cell := WorldGeneratorScript.array_to_cell(settlement_value.get("cell", []), Vector2i(9999, 9999))
+		if WorldGeneratorScript.is_inside_world(cell) and not result.has(cell):
+			result.append(cell)
+	return result
+
+
+func _append_affinity_improvement_sources(result: Array[Dictionary], owner_id: int, settlement_records: Array) -> void:
+	for settlement_value in settlement_records:
+		if not settlement_value is Dictionary:
+			continue
+		var improvements_value: Variant = settlement_value.get("province_improvements", [])
+		if not improvements_value is Array:
+			continue
+		for improvement_value in improvements_value:
+			if not improvement_value is Dictionary:
+				continue
+			var improvement_id := str(improvement_value.get("id", ""))
+			if improvement_id != ArcaneVictoryCatalogScript.CONDUIT_IMPROVEMENT_ID:
+				continue
+			var cell_value: Variant = improvement_value.get("cell", [])
+			if not cell_value is Array or cell_value.size() < 2:
+				continue
+			result.append({
+				"owner_id": owner_id,
+				"improvement_id": improvement_id,
+				"cell": [int(cell_value[0]), int(cell_value[1])],
+			})
+
+
+func _apply_affinity_improvement_claims() -> void:
+	var sources: Array[Dictionary] = []
+	var player_settlements: Array = []
+	player_settlements.append_array(cities)
+	player_settlements.append_array(outposts)
+	_append_affinity_improvement_sources(sources, DiplomacyCatalogScript.PLAYER_ID, player_settlements)
+	for owner_id in range(kingdoms.size()):
+		if not bool(kingdoms[owner_id].get("alive", true)):
+			continue
+		var owner_settlements: Array = []
+		owner_settlements.append_array(kingdoms[owner_id].get("cities", []))
+		owner_settlements.append_array(kingdoms[owner_id].get("outposts", []))
+		_append_affinity_improvement_sources(sources, owner_id, owner_settlements)
+	for source in sources:
+		var owner_id := int(source.get("owner_id", -99))
+		var source_cell_value: Variant = source.get("cell", [])
+		if not source_cell_value is Array or source_cell_value.size() < 2:
+			continue
+		var source_cell := Vector2i(int(source_cell_value[0]), int(source_cell_value[1]))
+		var owner_profile := player_diplomacy_profile if owner_id == DiplomacyCatalogScript.PLAYER_ID else _get_kingdom_diplomacy_profile(owner_id)
+		var affinity_id := ArcaneVictoryCatalogScript.get_dominant_affinity(owner_profile)
+		var owner_name := "Твоя держава" if owner_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[owner_id].get("name", "Держава"))
+		for claimant_id in range(DiplomacyCatalogScript.PLAYER_ID, kingdoms.size()):
+			if claimant_id == owner_id:
+				continue
+			if claimant_id >= 0 and not bool(kingdoms[claimant_id].get("alive", true)):
+				continue
+			var nearest_distance := 999999
+			for settlement_cell in _get_faction_settlement_cells(claimant_id):
+				nearest_distance = mini(nearest_distance, WorldGeneratorScript.hex_distance(settlement_cell, source_cell))
+			if nearest_distance > 8:
+				continue
+			var relation_record := DiplomacyCatalogScript.get_record(diplomacy_relations, claimant_id, owner_id)
+			var treaty := str(relation_record.get("treaty", "peace"))
+			if treaty in ["alliance", "vassal"] and DiplomacyCatalogScript.treaty_is_active(relation_record, turn_number):
+				continue
+			var claimant_profile := player_diplomacy_profile if claimant_id == DiplomacyCatalogScript.PLAYER_ID else _get_kingdom_diplomacy_profile(claimant_id)
+			var reaction := DiplomacyCatalogScript.calculate_action_reaction(
+				claimant_profile,
+				["affinity_improvement", affinity_id],
+				owner_profile
+			)
+			var claimant_affinities_value: Variant = claimant_profile.get("affinities", {})
+			var claimant_affinities: Dictionary = claimant_affinities_value if claimant_affinities_value is Dictionary else {}
+			var affinity_score := int(claimant_affinities.get(affinity_id, 0))
+			if treaty != "war" and int(relation_record.get("relation", 0)) > 25 and reaction > -2 and affinity_score < 5:
+				continue
+			var created_claim := DiplomacyCatalogScript.create_casus_belli(
+				diplomacy_relations,
+				claimant_id,
+				owner_id,
+				"affinity_improvement",
+				turn_number,
+				3 if nearest_distance <= 3 else 2 if nearest_distance <= 5 else 1,
+				[int(source_cell.x), int(source_cell.y)],
+				true,
+				str(source.get("improvement_id", ArcaneVictoryCatalogScript.CONDUIT_IMPROVEMENT_ID)),
+				affinity_id
+			)
+			if not created_claim.is_empty() and int(created_claim.get("created_turn", -1)) == turn_number:
+				var claimant_name := "Ты" if claimant_id == DiplomacyCatalogScript.PLAYER_ID else str(kingdoms[claimant_id].get("name", "Соперник"))
+				last_diplomacy_events.append("%s выдвигает постоянную претензию к %s из-за арканного обелиска с аффинностью «%s»." % [claimant_name, owner_name, affinity_id])
+
+
+func get_containment_coalition_member_names(target_id: int) -> Array[String]:
+	var result: Array[String] = []
+	for member_id in range(kingdoms.size()):
+		if member_id == target_id or not bool(kingdoms[member_id].get("alive", true)):
+			continue
+		var record := DiplomacyCatalogScript.get_record(diplomacy_relations, member_id, target_id)
+		var coalition := DiplomacyCatalogScript.get_containment_coalition(record, target_id)
+		if not coalition.is_empty():
+			result.append(str(kingdoms[member_id].get("name", "Держава")))
+	return result
 
 
 func _get_player_diplomacy_sources() -> Array[Vector2i]:
@@ -2538,6 +3222,8 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 	var relation := int(record.get("relation", 0))
 	var player_power := _get_army_power(player_units)
 	var target_power := _get_army_power(kingdoms[kingdom_id].get("army", []))
+	var player_claims := DiplomacyCatalogScript.get_active_casus_belli(record, turn_number, DiplomacyCatalogScript.PLAYER_ID)
+	var rival_claims := DiplomacyCatalogScript.get_active_casus_belli(record, turn_number, kingdom_id)
 	var available := true
 	var reason := ""
 	match action_id:
@@ -2547,8 +3233,12 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 				reason = "Вассал защищён договором. Сначала договор должен закончиться."
 			elif turn_number < int(record.get("truce_until", 0)):
 				reason = "Перемирие действует ещё %d ход(а)." % (int(record.get("truce_until", 0)) - turn_number)
+			elif not player_claims.is_empty():
+				reason = "Есть действующий повод для войны: %s. Дипломатический штраф будет меньше." % str(player_claims[0].get("cause", "территориальная претензия"))
+			elif not rival_claims.is_empty():
+				reason = "Соперник уже выдвинул претензию против твоей державы: %s." % str(rival_claims[0].get("cause", "территориальный спор"))
 			else:
-				reason = "Начнётся война; отношение ухудшится на 35 пунктов."
+				reason = "Формального повода нет. Объявление войны ухудшит отношение на 35 пунктов."
 		"offer_trade":
 			available = treaty == "peace" and int(record.get("truce_until", 0)) <= turn_number
 			reason = "Договор на 6 ходов: +2 золота каждый ход обеим сторонам." if available else "Торговля возможна только в мирное время."
@@ -2564,12 +3254,41 @@ func get_diplomacy_action_preview(kingdom_id: int, action_id: String) -> Diction
 		"demand_vassalage":
 			available = treaty != "vassal" and player_power >= target_power * 1.65 and (treaty == "war" or relation <= 25 or int(record.get("war_exhaustion", 0)) >= 50)
 			reason = "Вассал платит до 3 золота за ход в течение 10 ходов." if available else "Нужно превосходство 65% и ослабленный или недоверчивый соперник."
+		"send_gift_small", "send_gift_medium", "send_gift_large":
+			var gift_data := DiplomacyCatalogScript.get_gift_data(action_id)
+			var gift_cost := int(gift_data.get("cost", 0))
+			var available_gold := 0
+			for city_value in cities:
+				if city_value is Dictionary:
+					available_gold += maxi(0, int(city_value.get("gold", 0)))
+			var last_gift_turn := int(record.get("last_gift_turn", 0))
+			var gift_cooldown := maxi(0, DiplomacyCatalogScript.GIFT_COOLDOWN_TURNS - (turn_number - last_gift_turn)) if last_gift_turn > 0 else 0
+			available = not gift_data.is_empty() and treaty not in ["war", "vassal"] and relation < 100 and gift_cooldown == 0 and int(record.get("gift_relation_gained", 0)) < DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN and available_gold >= gift_cost
+			if treaty in ["war", "vassal"]:
+				reason = "Подарки недоступны во время войны или вассалитета."
+			elif gift_cooldown > 0:
+				reason = "Правитель сможет принять новый подарок через %d ход(а/ов)." % gift_cooldown
+			elif int(record.get("gift_relation_gained", 0)) >= DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN or relation >= 100:
+				reason = "Ты уже исчерпал дипломатический эффект подарков для этой державы."
+			elif available_gold < gift_cost:
+				reason = "В городских казнах недостаточно золота. Нужно: %d." % gift_cost
+			else:
+				reason = "%s · стоимость %d золота · базовый эффект +%d к отношению. Подарки дают не более %d положительных пунктов за всю кампанию." % [str(gift_data.get("name", "Подарок")), gift_cost, int(gift_data.get("relation", 0)), DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN]
 		_:
 			available = false
 			reason = "Неизвестное дипломатическое действие."
 	var chance := 100
 	if action_id in ["offer_trade", "offer_alliance", "offer_peace", "demand_tribute", "demand_vassalage"]:
-		chance = DiplomacyCatalogScript.acceptance_chance(action_id, record, kingdom_id, player_power, target_power)
+		var target_profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+		var target_profile: Dictionary = target_profile_value if target_profile_value is Dictionary else {}
+		chance = DiplomacyCatalogScript.acceptance_chance(
+			action_id,
+			record,
+			kingdom_id,
+			player_power,
+			target_power,
+			target_profile
+		)
 	return {"available": available, "reason": reason, "chance": chance, "relation": relation, "treaty": treaty}
 
 
@@ -2580,13 +3299,49 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 	if not bool(preview.get("available", false)):
 		return {"ok": false, "message": str(preview.get("reason", "Действие недоступно."))}
 	var kingdom_name := str(kingdoms[kingdom_id].get("name", "Королевство"))
+	var target_profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+	var target_profile: Dictionary = target_profile_value if target_profile_value is Dictionary else {}
+	if action_id.begins_with("send_gift_"):
+		var gift_data := DiplomacyCatalogScript.get_gift_data(action_id)
+		var gift_cost := int(gift_data.get("cost", 0))
+		var paid_gold := _pay_gold_from_city_treasuries(gift_cost)
+		if gift_cost <= 0 or paid_gold != gift_cost:
+			if paid_gold > 0:
+				_capital_gold_change(cities, paid_gold)
+			_load_active_city()
+			return {"ok": false, "message": "Не удалось оплатить подарок из городских казн."}
+		_load_active_city()
+		var gift_message := "Ты отправил державе «%s» подарок «%s» за %d золота." % [kingdom_name, str(gift_data.get("name", "Подарок")), gift_cost]
+		var gift_result := DiplomacyCatalogScript.apply_relationship_action(
+			diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number,
+			"gift_" + action_id, ["gift", "generous", "trade_focused"], int(gift_data.get("relation", 0)),
+			gift_message, target_profile, "gift_relation_gained", DiplomacyCatalogScript.MAX_GIFT_RELATION_GAIN, player_diplomacy_profile
+		)
+		var gift_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id)
+		gift_record["last_gift_turn"] = turn_number
+		DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, gift_record)
+		_record_diplomacy_event(gift_message)
+		save_campaign()
+		return {"ok": true, "accepted": true, "message": gift_message, "chance": 100, "gold_cost": gift_cost, "relation_delta": int(gift_result.get("delta", 0))}
 	if action_id == "declare_war":
+		var war_previous_treaty := str(get_diplomacy_record(kingdom_id).get("treaty", "peace"))
+		var player_claims := DiplomacyCatalogScript.get_active_casus_belli(get_diplomacy_record(kingdom_id), turn_number, DiplomacyCatalogScript.PLAYER_ID)
 		DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "war", turn_number)
 		var declared_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
-		declared_record["war_reason"] = "player_declaration"
+		var war_reason := str(player_claims[0].get("cause", "border_encroachment")) if not player_claims.is_empty() else "player_declaration"
+		declared_record["war_reason"] = war_reason
+		declared_record["war_initiator_id"] = DiplomacyCatalogScript.PLAYER_ID
+		declared_record["war_target_id"] = kingdom_id
 		DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, declared_record)
-		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -35, turn_number)
-		var message := "Ты объявил войну державе «%s»." % kingdom_name
+		if not player_claims.is_empty():
+			DiplomacyCatalogScript.consume_casus_belli(diplomacy_relations, -1, kingdom_id, turn_number)
+		var relation_penalty := -18 if not player_claims.is_empty() else -35
+		var war_tags: Array = ["war_declared"]
+		if war_previous_treaty in ["trade", "alliance"]:
+			war_tags.append("treaty_breach")
+		var reason_text := " по обоснованной претензии" if not player_claims.is_empty() else " без формального повода"
+		var message := "Ты объявил войну державе «%s»%s." % [kingdom_name, reason_text]
+		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "war_declared", war_tags, relation_penalty, message, target_profile, "", 0, player_diplomacy_profile)
 		_record_diplomacy_event(message)
 		save_campaign()
 		return {"ok": true, "accepted": true, "message": message, "chance": 100}
@@ -2597,31 +3352,31 @@ func perform_diplomacy_action(action_id: String, kingdom_id: int) -> Dictionary:
 		match action_id:
 			"offer_trade":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "trade", turn_number, DiplomacyCatalogScript.TRADE_DURATION)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 8, turn_number)
 				message = "%s приняло торговый договор на 6 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, target_profile, "", 0, player_diplomacy_profile)
 			"offer_alliance":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "alliance", turn_number, DiplomacyCatalogScript.ALLIANCE_DURATION)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 12, turn_number)
 				message = "%s заключило с тобой союз на 8 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, target_profile, "", 0, player_diplomacy_profile)
 			"offer_peace":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "peace", turn_number, 0)
 				var peace_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 				peace_record["truce_until"] = turn_number + DiplomacyCatalogScript.TRUCE_DURATION
 				peace_record["war_reason"] = "resolved"
 				DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, peace_record)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 15, turn_number)
 				message = "С %s заключён мир. Перемирие действует 4 хода." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, target_profile, "", 0, player_diplomacy_profile)
 			"demand_tribute":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "tribute", turn_number, DiplomacyCatalogScript.TRIBUTE_DURATION, -1)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -10, turn_number)
 				message = "%s согласилось платить дань до 3 золота за ход в течение 5 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "tribute_agreed", ["coercion"], -10, message, target_profile, "", 0, player_diplomacy_profile)
 			"demand_vassalage":
 				DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "vassal", turn_number, DiplomacyCatalogScript.VASSAL_DURATION, -1)
-				DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -8, turn_number)
 				message = "%s признало твоё верховенство на 10 ходов." % kingdom_name
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "vassalage_agreed", ["coercion"], -8, message, target_profile, "", 0, player_diplomacy_profile)
 	else:
-		DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -3, turn_number)
 		message = "%s отклонило предложение. Шанс принятия был %d%%." % [kingdom_name, chance]
+		DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_rejected", ["rejected_offer"], -3, message, target_profile, "", 0, player_diplomacy_profile)
 	_record_diplomacy_event(message)
 	save_campaign()
 	return {"ok": true, "accepted": accepted, "message": message, "chance": chance}
@@ -2642,6 +3397,52 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			pending_diplomacy_offers.remove_at(offer_index)
 			save_campaign()
 			return {"ok": false, "message": "Держава больше не существует. Предложение отменено."}
+		var offer_profile_value: Variant = kingdoms[kingdom_id].get("diplomacy_profile", {})
+		var offer_profile: Dictionary = offer_profile_value if offer_profile_value is Dictionary else {}
+		if action_id == "call_to_war":
+			var enemy_id := int(offer.get("enemy_kingdom_id", -1))
+			var caller_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id)
+			var enemy_record := DiplomacyCatalogScript.get_record(diplomacy_relations, kingdom_id, enemy_id) if enemy_id >= 0 and enemy_id < kingdoms.size() else {}
+			var call_is_valid := enemy_id >= 0 and enemy_id < kingdoms.size() and enemy_id != kingdom_id
+			call_is_valid = call_is_valid and str(caller_record.get("treaty", "peace")) == "alliance" and DiplomacyCatalogScript.treaty_is_active(caller_record, turn_number)
+			call_is_valid = call_is_valid and str(enemy_record.get("treaty", "peace")) == "war"
+			call_is_valid = call_is_valid and bool(kingdoms[enemy_id].get("alive", true))
+			call_is_valid = call_is_valid and str(DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id).get("treaty", "peace")) != "war"
+			var expired_call := turn_number > int(offer.get("expires_turn", 0))
+			if expired_call:
+				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
+				pending_diplomacy_offers.remove_at(offer_index)
+				_record_diplomacy_event("Срок ответа на призыв державы «%s» истёк. Это сочтено отказом." % str(kingdoms[kingdom_id].get("name", "Держава")))
+				save_campaign()
+				return {"ok": true, "message": "Срок ответа истёк. Отношение союзника ухудшилось."}
+			if not call_is_valid:
+				pending_diplomacy_offers.remove_at(offer_index)
+				save_campaign()
+				return {"ok": false, "message": "Призыв больше недействителен: союз или война уже завершились."}
+			var enemy_name := str(kingdoms[enemy_id].get("name", "Держава"))
+			var response_message := ""
+			if accept:
+				DiplomacyCatalogScript.set_treaty(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, "war", turn_number)
+				var joined_record := DiplomacyCatalogScript.get_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id)
+				var original_cause := str(offer.get("war_cause", enemy_record.get("war_reason", "ally_attacked")))
+				joined_record["war_reason"] = original_cause if DiplomacyCatalogScript.CASUS_BELLI_CAUSES.has(original_cause) else "ally_attacked"
+				joined_record["war_join_reason"] = "ally_call"
+				var original_initiator := int(enemy_record.get("war_initiator_id", kingdom_id))
+				joined_record["war_initiator_id"] = original_initiator
+				joined_record["war_target_id"] = int(enemy_record.get("war_target_id", enemy_id))
+				DiplomacyCatalogScript.set_record(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, joined_record)
+				var enemy_profile_value: Variant = kingdoms[enemy_id].get("diplomacy_profile", {})
+				var enemy_profile: Dictionary = enemy_profile_value if enemy_profile_value is Dictionary else {}
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, enemy_id, turn_number, "joined_ally_war", ["war_declared", "ally_support"], -8, "Ты вступил в войну против «%s» по призыву союзника." % enemy_name, enemy_profile, "", 0, player_diplomacy_profile)
+				DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, DiplomacyCatalogScript.PLAYER_ID, kingdom_id, turn_number, "supported_ally", ["ally_support", "keeps_treaties"], 5, "Ты поддержал призыв союзника к войне.", offer_profile, "", 0, player_diplomacy_profile)
+				response_message = "Ты откликнулся на призыв «%s» и вступил в войну против «%s»." % [str(kingdoms[kingdom_id].get("name", "Держава")), enemy_name]
+			else:
+				DiplomacyCatalogScript._apply_war_call_refusal(diplomacy_relations, kingdom_id, turn_number)
+				response_message = "Ты отказался поддержать «%s». Отношение союзника ухудшилось на %d пунктов." % [str(kingdoms[kingdom_id].get("name", "Держава")), DiplomacyCatalogScript.WAR_CALL_REFUSAL_PENALTY]
+			pending_diplomacy_offers.remove_at(offer_index)
+			_record_diplomacy_event(response_message)
+			save_campaign()
+			return {"ok": true, "message": response_message}
 		var current_record := get_diplomacy_record(kingdom_id)
 		var current_treaty := str(current_record.get("treaty", "peace"))
 		var offer_still_valid := (action_id == "offer_trade" and current_treaty == "peace" and int(current_record.get("truce_until", 0)) <= turn_number) or (action_id == "offer_alliance" and current_treaty == "trade") or (action_id == "offer_peace" and current_treaty == "war")
@@ -2655,23 +3456,23 @@ func respond_to_diplomacy_offer(offer_id: String, accept: bool) -> Dictionary:
 			match action_id:
 				"offer_trade":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "trade", turn_number, DiplomacyCatalogScript.TRADE_DURATION)
-					DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 8, turn_number)
 					message = "Ты принял торговое предложение державы «%s»." % kingdom_name
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "trade_accepted", ["trade_focused", "keeps_treaties"], 8, message, offer_profile, "", 0, player_diplomacy_profile)
 				"offer_alliance":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "alliance", turn_number, DiplomacyCatalogScript.ALLIANCE_DURATION)
-					DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 12, turn_number)
 					message = "Ты заключил союз с державой «%s»." % kingdom_name
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "alliance_accepted", ["ally_support", "keeps_treaties"], 12, message, offer_profile, "", 0, player_diplomacy_profile)
 				"offer_peace":
 					DiplomacyCatalogScript.set_treaty(diplomacy_relations, -1, kingdom_id, "peace", turn_number, 0)
 					var peace_record := DiplomacyCatalogScript.get_record(diplomacy_relations, -1, kingdom_id)
 					peace_record["truce_until"] = turn_number + DiplomacyCatalogScript.TRUCE_DURATION
 					peace_record["war_reason"] = "resolved"
 					DiplomacyCatalogScript.set_record(diplomacy_relations, -1, kingdom_id, peace_record)
-					DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, 15, turn_number)
 					message = "Ты заключил мир с державой «%s»." % kingdom_name
+					DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "peace_made", ["peace_made", "keeps_treaties"], 15, message, offer_profile, "", 0, player_diplomacy_profile)
 		else:
-			DiplomacyCatalogScript.change_relation(diplomacy_relations, -1, kingdom_id, -2, turn_number)
 			message = "Ты отклонил предложение державы «%s»." % kingdom_name
+			DiplomacyCatalogScript.apply_relationship_action(diplomacy_relations, -1, kingdom_id, turn_number, "offer_declined", ["rejected_offer"], -2, message, offer_profile, "", 0, player_diplomacy_profile)
 		pending_diplomacy_offers.remove_at(offer_index)
 		_record_diplomacy_event(message)
 		save_campaign()
@@ -3156,6 +3957,10 @@ func save_campaign() -> bool:
 		"last_world_event_text": last_world_event_text,
 		"world_events_resolved": world_events_resolved,
 		"kingdoms": kingdoms,
+		"player_diplomacy_profile": player_diplomacy_profile,
+		"arcane_victory_progress": arcane_victory_progress,
+		"last_arcane_power_gain": last_arcane_power_gain,
+		"campaign_winner_id": campaign_winner_id,
 		"diplomacy_relations": diplomacy_relations,
 		"pending_diplomacy_offers": pending_diplomacy_offers,
 		"campaign_lost": campaign_lost,
@@ -3188,6 +3993,7 @@ func save_campaign() -> bool:
 		"city_buildings": city_buildings,
 		"city_build_queue": city_build_queue,
 		"cities": cities,
+		"trade_routes": trade_routes,
 		"outposts": outposts,
 		"active_city_id": active_city_id,
 		"settler_active": settler_active,
@@ -3308,6 +4114,9 @@ func load_campaign() -> bool:
 
 	campaign_started = true
 	campaign_lost = lost
+	arcane_victory_progress = clampi(int(data.get("arcane_victory_progress", 0)), 0, ArcaneVictoryCatalogScript.VICTORY_THRESHOLD)
+	last_arcane_power_gain = clampi(int(data.get("last_arcane_power_gain", 0)), 0, ArcaneVictoryCatalogScript.MAX_TURN_POWER)
+	campaign_winner_id = clampi(int(data.get("campaign_winner_id", -2)), -2, KINGDOM_COUNT - 1)
 	turn_number = maxi(1, int(data.get("turn_number", 1)))
 	player_moves_left = clampi(int(data.get("player_moves_left", 1)), 0, 1)
 	player_cell = Vector2i(int(player_cell_data[0]), int(player_cell_data[1]))
@@ -3372,7 +4181,7 @@ func load_campaign() -> bool:
 		for index in range(KINGDOM_COUNT):
 			var fallback: Dictionary = default_kingdoms[index]
 			if saved_kingdoms[index] is Dictionary:
-				kingdoms.append(KingdomAIScript.normalize_kingdom(saved_kingdoms[index], fallback))
+				kingdoms.append(KingdomAIScript.normalize_kingdom(saved_kingdoms[index], fallback, world_seed))
 			else:
 				kingdoms.append(fallback.duplicate(true))
 	else:
@@ -3384,7 +4193,20 @@ func load_campaign() -> bool:
 		migrated_primary["army"] = _copy_unit_records(enemy_units) if enemy_present else []
 		migrated_primary["hero"] = enemy_hero.duplicate(true)
 		kingdoms[0] = migrated_primary
-	diplomacy_relations = DiplomacyCatalogScript.normalize_relations(data.get("diplomacy_relations", {}), kingdoms.size(), world_seed)
+	player_diplomacy_profile = DiplomacyCatalogScript.normalize_leader_profile(
+		data.get("player_diplomacy_profile", {}),
+		DiplomacyCatalogScript.PLAYER_ID,
+		player_faction,
+		0,
+		world_seed
+	)
+	diplomacy_relations = DiplomacyCatalogScript.normalize_relations(
+		data.get("diplomacy_relations", {}),
+		kingdoms.size(),
+		world_seed,
+		kingdoms,
+		player_diplomacy_profile
+	)
 	pending_diplomacy_offers.clear()
 	var saved_diplomacy_offers: Variant = data.get("pending_diplomacy_offers", [])
 	if saved_diplomacy_offers is Array:
@@ -3393,8 +4215,12 @@ func load_campaign() -> bool:
 				continue
 			var offer_kingdom_id := int(offer_value.get("kingdom_id", -1))
 			var offer_action := str(offer_value.get("action", ""))
-			if offer_kingdom_id < 0 or offer_kingdom_id >= kingdoms.size() or not ["offer_trade", "offer_alliance", "offer_peace"].has(offer_action):
+			if offer_kingdom_id < 0 or offer_kingdom_id >= kingdoms.size() or not ["offer_trade", "offer_alliance", "offer_peace", "call_to_war"].has(offer_action):
 				continue
+			if offer_action == "call_to_war":
+				var enemy_id := int(offer_value.get("enemy_kingdom_id", -1))
+				if enemy_id < 0 or enemy_id >= kingdoms.size() or enemy_id == offer_kingdom_id:
+					continue
 			pending_diplomacy_offers.append(offer_value.duplicate(true))
 	last_diplomacy_events.clear()
 	battle_kingdom_id = -1
@@ -3447,6 +4273,7 @@ func load_campaign() -> bool:
 	if cities.is_empty():
 		cities.append(_make_city_record(0, city_name, city_cell, city_population, city_food, city_gold, city_production_bank, city_buildings, city_build_queue))
 	outposts = _read_outposts(data.get("outposts", []))
+	trade_routes = _read_trade_routes(data.get("trade_routes", []))
 	active_city_id = clampi(int(data.get("active_city_id", 0)), 0, cities.size() - 1)
 	settler_active = bool(data.get("settler_active", false))
 	var settler_xy: Variant = data.get("settler_cell", [city_cell.x, city_cell.y + 1])

@@ -1,3 +1,27 @@
+## v0.39 — Block 10: Integrated visual asset packs
+
+- [x] Pack the five licensed owner-supplied visual resources into one lossless mobile runtime atlas with cached texture regions.
+- [x] Use castle, cottage and heraldic faction-banner sprites for player and AI settlements.
+- [x] Add Pixel Castle props and unit portraits to map points of interest, city building buttons and recruitment controls.
+- [x] Add animated idle/attack visuals for 30 monsters and idle/run/attack visuals for the medieval red knight.
+- [x] Give neutral encounter guard rosters and guardians type-specific sprite appearances.
+- [x] Add runtime smoke coverage for sprite frames, building props, banners, neutral guards and guardians.
+- [x] Add QA validation for packed image data, atlas regions, source references and asset credits.
+- [x] Keep campaign unit IDs, game rules and SAVE_VERSION = 1 unchanged.
+- [x] Exclude the two heraldry archives that do not include a licence granting use in this game.
+- [ ] Verify all new sprites and animation scales in the Android build and tune mobile readability.
+
+## v0.39 — Block 9: Strategic AI defensive readiness
+
+- [x] Score nearby peace-time threats using relationship hostility, incoming formal claims, distance and relative army strength.
+- [x] Give threatened kingdoms a defensive alert posture before war begins.
+- [x] Allow affordable pre-war recruitment and delay expansion when the realm is militarily exposed.
+- [x] Keep alliances, trade treaties and vassal agreements outside the peace-time hostile-neighbor warning.
+- [x] Preserve war-only target selection; defensive warnings never declare war or create an attack target.
+- [x] Add deterministic regression coverage for hostile borders, incoming claims, neutral neighbors and expansion readiness.
+- [x] Preserve existing resources, IDs and `SAVE_VERSION = 1`.
+- [ ] Balance warning thresholds during multi-dozen-turn campaigns and verify AI behavior on Android.
+
 ## v0.34.0 — Stage IV: Hero Roster & Recruitable Lords
 
 - [x] Add stable hero IDs and a persistent player hero roster while retaining the legacy player_hero save field.
@@ -265,9 +289,9 @@
 - [x] Gameplay terrain modifiers for forest cover, high ground, marsh movement and flanking (v0.24.1).
 - [x] Neutral camps, resource sites and exploration rewards (v0.27.0–v0.30.0).
 - [x] AI kingdom settlement expansion and strategic target planning (v0.32.0).
-- [ ] Add an auto-battle estimator using the same unit catalog and role matchups.
-- [ ] Add city list and quick switching between founded cities.
-- [ ] Add roads and trade routes.
+- [x] Add a non-mutating battle estimate before kingdom engagements using unit stats, veterancy, upgrades, role counters, commander stats and terrain; keep the actual tactical battle unchanged.
+- [x] Add city list and quick switching between founded cities.
+- [x] Add roads and trade routes.
 
 ## Previous v0.6.0 roster and command status
 
@@ -302,3 +326,34 @@
 - [ ] Weighted AI decisions for peace, trade, alliance, tribute and war.
 - [ ] War reasons, proposals and war-weariness.
 - [ ] Save/load regression tests and Android panel UX.
+
+  
+## v0.39 — Block 6: tactical battle forecast
+
+- [x] Add a read-only forecast before entering a kingdom battle.
+- [x] Use existing unit catalogue values, current health, veterancy, army upgrades, anti-cavalry and charge modifiers, role-target preferences, commander stats and a bounded average of battlefield-biome effects.
+- [x] Show estimated victory chance with an uncertainty interval, estimated survivors/losses and the battlefield biome.
+- [x] Require explicit confirmation before entering the existing tactical battle scene; do not auto-resolve or mutate the campaign from the forecast.
+- [x] Preserve the existing save schema at version 1 and leave neutral-location encounters unchanged.
+- [x] Add regression tests for symmetry, force size, health, veterancy, upgrades, counters, terrain, commanders, deterministic output and non-mutation.
+
+## v0.39 — Block 7: founded city list and quick switching
+
+- [x] Add a compact two-column list of all founded player cities to the mobile city panel.
+- [x] Show each city's name, population and treasury; mark the currently active city.
+- [x] Switch the active city directly from the list without returning to the strategy map.
+- [x] Save the outgoing city's full record before loading the selected city's economy, queue, specialization, buildings and province improvements.
+- [x] Reject invalid city indices without changing the current selection; preserve map-cell city selection through the same validated API.
+- [x] Add regression tests for switching, independent treasuries, invalid indices and map-selection compatibility.
+- [x] Keep `SAVE_VERSION = 1` and all existing city record fields unchanged.
+
+
+## v0.39 — Block 8: roads and internal trade routes
+
+- [x] Allow a city to build a road to another founded player city using a deterministic axial hex path.
+- [x] Require every road hex to be explored, passable land and either player-owned or unclaimed; reject water, disputed and enemy-controlled cells.
+- [x] Scale gold and production costs by road length and cap each city at two active route connections.
+- [x] Give each connected city +1 gold per turn while the corridor remains open; suspend income if hostile/disputed ownership interrupts the road.
+- [x] Persist endpoint IDs, route path and creation turn as optional campaign fields; keep SAVE_VERSION = 1.
+- [x] Add mobile route construction controls and draw built routes as highlighted roads on the strategic map.
+- [x] Add smoke coverage for path legality, costs, route capacity, income, persistence and hostile interruption.

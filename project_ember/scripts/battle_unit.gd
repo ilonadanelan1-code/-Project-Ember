@@ -10,6 +10,7 @@ const BattleFlankingScript = preload("res://scripts/battle_flanking.gd")
 const CombatStatusCatalogScript = preload("res://scripts/combat_status_catalog.gd")
 const BattleAITacticsScript = preload("res://scripts/battle_ai_tactics.gd")
 const CommanderStatsScript = preload("res://scripts/commander_stats.gd")
+const VisualAssetCatalogScript = preload("res://scripts/visual_asset_catalog.gd")
 
 signal eliminated(unit: BattleUnit, killer: BattleUnit)
 
@@ -97,6 +98,7 @@ var _action_mesh: MeshInstance3D
 var _action_rest_position: Vector3 = Vector3.ZERO
 var _action_rest_rotation: Vector3 = Vector3.ZERO
 var _combat_sprite: AnimatedSprite3D
+var visual_override_id: String = ""
 var _active_attack_animation: StringName = &""
 var _attack_variant: bool = false
 var _hit_recoil_timer: float = 0.0
@@ -225,7 +227,13 @@ func _get_damage_sound(attacker: BattleUnit) -> String:
 
 
 func _build_visuals() -> void:
-	var sprite_frames := CombatSpriteLibraryScript.get_frames(team, role)
+	var sprite_frames: SpriteFrames
+	if visual_override_id == "red_knight":
+		sprite_frames = VisualAssetCatalogScript.get_red_knight_frames()
+	elif not visual_override_id.is_empty():
+		sprite_frames = VisualAssetCatalogScript.get_monster_frames(visual_override_id)
+	else:
+		sprite_frames = CombatSpriteLibraryScript.get_frames(team, role)
 	if is_instance_valid(sprite_frames):
 		_visual_root = Node3D.new()
 		_visual_root.name = "VisualRoot"
@@ -233,8 +241,8 @@ func _build_visuals() -> void:
 		_combat_sprite = AnimatedSprite3D.new()
 		_combat_sprite.name = "CombatSprite"
 		_combat_sprite.sprite_frames = sprite_frames
-		_combat_sprite.position.y = 1.12 if role == UnitRole.CAVALRY else 0.80
-		_combat_sprite.pixel_size = 0.026 if role == UnitRole.CAVALRY else 0.0175
+		_combat_sprite.position.y = 1.12 if role == UnitRole.CAVALRY or (not visual_override_id.is_empty() and visual_override_id != "red_knight") else (0.70 if visual_override_id == "red_knight" else 0.80)
+		_combat_sprite.pixel_size = 0.07 if not visual_override_id.is_empty() and visual_override_id != "red_knight" else (0.026 if role == UnitRole.CAVALRY or visual_override_id == "red_knight" else 0.0175)
 		_combat_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 		_combat_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		_combat_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
@@ -455,7 +463,7 @@ func play_attack_animation(is_charge_attack: bool = false) -> void:
 	_attack_animation_elapsed = 0.0
 	_attack_animation_is_charge = is_charge_attack
 	if is_instance_valid(_combat_sprite):
-		_active_attack_animation = CombatSpriteLibraryScript.get_attack_animation(role, _attack_variant, is_charge_attack)
+		_active_attack_animation = CombatSpriteLibraryScript.get_attack_animation(role, _attack_variant, is_charge_attack, visual_override_id)
 		if role == UnitRole.MELEE or role == UnitRole.COMMANDER:
 			_attack_variant = not _attack_variant
 		_combat_sprite.speed_scale = 1.18 if is_charge_attack else 1.0

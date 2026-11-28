@@ -52,6 +52,14 @@ const LOCATION_TYPES := {
 		"base_reward": {"gold": 30, "food": 4, "production": 6},
 		"description": "Брошенный лагерь с обозом и запасами наёмного отряда.",
 	},
+	"leyline_nexus": {
+		"name": "Узел лей-линии",
+		"marker": "М",
+		"color": "#82d7e8",
+		"terrain": ["plain", "forest", "hills", "farmland", "marsh"],
+		"base_reward": {"gold": 30, "food": 6, "production": 10},
+		"description": "Древний узел потоков маны. Держава, закрепившая его за собой, накапливает силу для магического восхождения.",
+	},
 }
 
 
@@ -128,6 +136,10 @@ static func generate_locations(world_seed: int, generation_version: int) -> Arra
 		var score := int(candidate.get("score", 0))
 		var terrain := str(candidate.get("terrain", "plain"))
 		var type_id := _choose_type(terrain, score)
+		# Leyline nexuses are rare, deterministic strategic objectives rather than
+		# ordinary loot sites. Their ownership drives the magical victory race.
+		if posmod(score, 23) == 0:
+			type_id = "leyline_nexus"
 		var start_distance := World.hex_distance(cell, Vector2i(-2, 0))
 		var guard_tier := 1 if start_distance <= 13 else (2 if start_distance <= 34 else 3)
 		var encoded := World.encode_cell(cell)
@@ -143,6 +155,24 @@ static func generate_locations(world_seed: int, generation_version: int) -> Arra
 			"cleared_turn": 0,
 			"reward": get_reward(type_id, guard_tier),
 		})
+	var nexus_count := 0
+	for location in result:
+		if str(location.get("type", "")) == "leyline_nexus":
+			nexus_count += 1
+	if nexus_count < 2:
+		# Keep at least two strategic race objectives in every generated world.
+		# Promote distant, already-spaced POIs instead of changing the terrain map.
+		for index in range(8, result.size()):
+			if nexus_count >= 2:
+				break
+			var location: Dictionary = result[index]
+			if str(location.get("type", "")) == "leyline_nexus":
+				continue
+			var guard_tier := clampi(int(location.get("guard_tier", 1)), 1, 3)
+			location["type"] = "leyline_nexus"
+			location["reward"] = get_reward("leyline_nexus", guard_tier)
+			result[index] = location
+			nexus_count += 1
 	return result
 
 
@@ -277,6 +307,57 @@ static func _normalize_guard_roster(raw: Variant, guard_tier: int, type_id: Stri
 				"experience": clampi(int(item.get("experience", 0)), 0, 999999),
 			})
 	return result if raw is Array else _make_guard_roster(guard_tier, type_id)
+
+
+static func get_map_icon(type_id: String) -> String:
+	match type_id:
+		"ancient_ruins":
+			return "gravestone"
+		"monster_lair":
+			return "dragon"
+		"abandoned_mine":
+			return "stone_well"
+		"forgotten_shrine":
+			return "statue"
+		"mercenary_camp":
+			return "campfire"
+		"leyline_nexus":
+			return "torch"
+	return "signpost"
+
+
+static func get_guard_visual_ids(type_id: String) -> Array[String]:
+	match type_id:
+		"ancient_ruins":
+			return ["skeleton", "mummy", "zombie", "lich"]
+		"monster_lair":
+			return ["goblin", "spider", "demon", "wyrm", "imp"]
+		"abandoned_mine":
+			return ["golem", "orc", "scorpion", "boar"]
+		"forgotten_shrine":
+			return ["ghost", "lich", "vampire", "mummy"]
+		"mercenary_camp":
+			return ["dark_knight", "red_knight"]
+		"leyline_nexus":
+			return ["fire_elemental", "ice_elemental", "storm_elemental", "water_elemental"]
+	return ["skeleton"]
+
+
+static func get_guardian_visual_id(type_id: String) -> String:
+	match type_id:
+		"ancient_ruins":
+			return "skeleton"
+		"monster_lair":
+			return "demon"
+		"abandoned_mine":
+			return "golem"
+		"forgotten_shrine":
+			return "lich"
+		"mercenary_camp":
+			return "red_knight"
+		"leyline_nexus":
+			return "storm_elemental"
+	return "dark_knight"
 
 
 static func _cell_hash(cell: Vector2i, world_seed: int) -> int:

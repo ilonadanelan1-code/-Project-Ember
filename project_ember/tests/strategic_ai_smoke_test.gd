@@ -65,6 +65,68 @@ func _run() -> void:
 	_check(not bool(peaceful_plan.get("war_active", false)), "planner never invents a war target during peace")
 	_check(not bool(peaceful_plan.get("has_target", false)), "peaceful kingdoms have no strategic war destination")
 
+	# A hostile peace-time neighbor should trigger defensive readiness without
+	# being treated as an active war or an automatic movement target.
+	var threat_kingdoms := KingdomAI.create_initial_kingdoms(seed)
+	var defender: Dictionary = threat_kingdoms[0].duplicate(true)
+	var rival: Dictionary = threat_kingdoms[1].duplicate(true)
+	var defender_cities: Array = defender.get("cities", [])
+	var defender_capital: Dictionary = defender_cities[0].duplicate(true)
+	var defender_cell := World.array_to_cell(defender_capital.get("cell", []))
+	defender_capital["gold"] = 500
+	defender_cities[0] = defender_capital
+	defender["cities"] = defender_cities
+	defender["army"] = []
+	rival["army_cell"] = World.cell_to_array(defender_cell + Vector2i(3, 0))
+	threat_kingdoms[0] = defender
+	threat_kingdoms[1] = rival
+
+	var hostile_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
+	var hostile_record: Dictionary = Diplomacy.get_record(hostile_relations, 0, 1)
+	hostile_record["relation"] = -75
+	hostile_record["treaty"] = "peace"
+	Diplomacy.set_record(hostile_relations, 0, 1, hostile_record)
+	var hostile_plan := Planner.evaluate_kingdom(defender, threat_kingdoms, hostile_relations, 12, Vector2i(28, 28), [])
+	_check(bool(hostile_plan.get("threatened", false)), "nearby hostile neighbor triggers defensive readiness before war")
+	_check(int(hostile_plan.get("threat_score", 0)) >= 55, "hostile border threat crosses the deterministic alert threshold")
+	_check(int(hostile_plan.get("threat_source_id", -99)) == 1, "defensive alert identifies the hostile neighboring kingdom")
+	_check(bool(hostile_plan.get("can_recruit", false)), "a threatened but peaceful kingdom may recruit from sufficient reserves")
+	_check(not bool(hostile_plan.get("expansion_allowed", true)), "a threatened weaker kingdom delays expansion until it can defend itself")
+	_check(str(hostile_plan.get("defensive_posture", "")) == "alert", "peace-time threat is exposed as an alert posture")
+
+	var hostile_war_target := Planner.select_war_target(defender, threat_kingdoms, hostile_relations, Vector2i(28, 28), [])
+	_check(not bool(hostile_war_target.get("war_active", false)), "hostile relations alone do not start a war")
+	_check(not bool(hostile_war_target.get("has_target", false)), "pre-war defensive alert does not create an attack destination")
+
+	var claim_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
+	var claim_record: Dictionary = Diplomacy.get_record(claim_relations, 0, 1)
+	claim_record["relation"] = 0
+	claim_record["treaty"] = "peace"
+	Diplomacy.set_record(claim_relations, 0, 1, claim_record)
+	var incoming_claim := Diplomacy.create_casus_belli(claim_relations, 1, 0, "border_encroachment", 12, 2)
+	_check(not incoming_claim.is_empty(), "rival can hold a formal claim during peace")
+	var claim_plan := Planner.evaluate_kingdom(defender, threat_kingdoms, claim_relations, 12, Vector2i(28, 28), [])
+	_check(bool(claim_plan.get("threatened", false)), "nearby incoming casus belli raises a defensive alert even before relations collapse")
+
+	var allied_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
+	var allied_record: Dictionary = Diplomacy.get_record(allied_relations, 0, 1)
+	allied_record["relation"] = -90
+	allied_record["treaty"] = "alliance"
+	Diplomacy.set_record(allied_relations, 0, 1, allied_record)
+	Diplomacy.create_casus_belli(allied_relations, 1, 0, "border_encroachment", 12, 2)
+	var allied_plan := Planner.evaluate_kingdom(defender, threat_kingdoms, allied_relations, 12, Vector2i(28, 28), [])
+	_check(not bool(allied_plan.get("threatened", false)), "an allied neighbor is excluded from peace-time threat warnings")
+	_check(int(allied_plan.get("threat_score", 0)) == 0, "an alliance suppresses hostile-neighbor scoring even with an old claim record")
+
+	var neutral_relations := Diplomacy.create_initial_relations(threat_kingdoms.size(), seed)
+	var neutral_record: Dictionary = Diplomacy.get_record(neutral_relations, 0, 1)
+	neutral_record["relation"] = 0
+	neutral_record["treaty"] = "peace"
+	Diplomacy.set_record(neutral_relations, 0, 1, neutral_record)
+	var neutral_neighbor_plan := Planner.evaluate_kingdom(defender, threat_kingdoms, neutral_relations, 12, Vector2i(28, 28), [])
+	_check(not bool(neutral_neighbor_plan.get("threatened", false)), "a strong nearby neutral neighbor does not trigger a false defensive alert")
+	_check(not bool(Planner.select_war_target(defender, threat_kingdoms, neutral_relations, Vector2i(28, 28), []).get("war_active", false)), "peace-time threat assessment never creates a war target")
+
 	var test_capital := World.array_to_cell(first.get("capital_cell", []))
 	var candidate := test_capital + Vector2i(5, 0)
 	var score_a := Planner.score_expansion_cell(candidate, test_capital, first_cities, kingdoms, 0, Vector2i(-2, 0), [], seed, World.WORLD_GENERATION_VERSION, [])
